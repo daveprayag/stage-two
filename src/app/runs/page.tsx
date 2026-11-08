@@ -12,8 +12,8 @@ export default async function RunsPage() {
       <div>
         <h1 className="font-display text-4xl tracking-tight sm:text-5xl">Nightly runs</h1>
         <p className="mt-1 text-sm text-ink-2">
-          Every evening the price job adds the day&apos;s NSE bhavcopy (around 7:30 pm IST, retried at 11 pm) and rebuilds the screen;
-          the news job then adds filings, headlines and summaries. Each run&apos;s log is kept here.
+          Every evening at about 9 pm IST the price job adds the day&apos;s NSE bhavcopy (catching up any missed days) and rebuilds the screen;
+          at about 10:30 pm the news job adds filings, headlines and summaries. Each run&apos;s log is kept here.
         </p>
       </div>
       <ul className="flex flex-col gap-2">

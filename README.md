@@ -25,8 +25,8 @@ two rising lows / falling highs that no close has broken. These are shortlists, 
 - `src/engine/` — pure screening code: NSE parsers (`nse.ts`), split/bonus adjustment (`adjust.ts`, `update.ts`),
   screens (`screen.ts`), levels (`levels.ts`), news (`news.ts`), jobs (`pipeline.ts`), Blob storage (`blob.ts`).
 - `src/engine/core/` — vendored copy of livermore's rule engine (Ankur Patel's setups and scanners). Do not edit here.
-- Vercel Cron (`vercel.json`): `/api/cron/eod` at 19:30 IST (retry 23:00 IST) adds new sessions from the NSE bhavcopy,
-  index closes, price bands and corporate actions, then rebuilds the screen; `/api/cron/news` an hour later adds NSE
+- Vercel Cron (`vercel.json`): `/api/cron/eod` at 21:00 IST adds new sessions (and catches up any missed days) from the NSE bhavcopy,
+  index closes, price bands and corporate actions, then rebuilds the screen; `/api/cron/news` at 22:30 IST adds NSE
   filings, Google News headlines and Gemini summaries for the top 60. Both are idempotent. History: `/runs`.
 - Storage: private Vercel Blob store `stage-two-data` (`prices/latest.json.gz` rolling 300 sessions,
   `screens/<date>.json` per session, `news/announcements.json`, `runs/log.json`).
