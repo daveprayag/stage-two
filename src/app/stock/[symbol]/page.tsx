@@ -7,6 +7,7 @@ import { AiSummary, Sources } from "@/components/NewsPanel";
 import { Card, CardHeader, Page } from "@/components/Page";
 import { PriceChart } from "@/components/PriceChart";
 import { stockDetail } from "@/engine/detail";
+import { isTopSetup, topSetupChecks } from "@/engine/topsetup";
 import { fetchHeadlines } from "@/engine/news";
 import { crore, price, titleCase } from "@/lib/format";
 import { getAllRows, getFilings, getScreen, getStore } from "@/lib/data";
@@ -49,7 +50,10 @@ export default async function StockPage({ params }: Props) {
   const filings = shortlisted?.filings.length ? shortlisted.filings : await getFilings(symbol);
   const headlines = shortlisted?.headlines ?? (await fetchHeadlines(d.name, symbol).catch(() => []));
   const passed = d.checklist.filter((c) => c.pass).length;
-  const screens = (row?.tags ?? []).filter((t) => t !== "ankur").map((t) => TAG_LABEL[t]);
+  const top = row ? isTopSetup(row, shortlisted) : false;
+  const topChecks = row ? topSetupChecks(row, shortlisted) : [];
+  const topPassed = topChecks.filter((c) => c.pass).length;
+  const screens = [...(top ? ["Top setup"] : []), ...(row?.tags ?? []).filter((t) => t !== "ankur" && t !== "qualified").map((t) => TAG_LABEL[t])];
   const fromHigh = (1 - last.close / d.hi52) * 100;
 
   return (
@@ -111,6 +115,28 @@ export default async function StockPage({ params }: Props) {
           <AiSummary ai={shortlisted?.ai ?? null} />
         </div>
         <div className="flex flex-col gap-6">
+          {row && (
+            <Card className={top ? "border-up" : ""}>
+              <CardHeader
+                title="Top setup checks"
+                aside={<span className={`num text-sm ${top ? "text-up" : "text-ink-2"}`}>{topPassed} of {topChecks.length}</span>}
+              />
+              <p className="px-4 pt-1 text-xs leading-relaxed text-ink-3 sm:px-5">
+                {top ? "Passes every check. Not a guarantee: decide your stop before you buy." : "A top setup must pass all of these."}
+              </p>
+              <ul className="mt-2 divide-y divide-line">
+                {topChecks.map((c) => (
+                  <li key={c.key} className="flex gap-3 px-4 py-2.5 sm:px-5 sm:py-3">
+                    {c.pass ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-up" aria-label="Pass" /> : <X className="mt-0.5 h-4 w-4 shrink-0 text-down" aria-label="Fail" />}
+                    <div className="min-w-0">
+                      <div className="text-sm text-ink">{c.label}</div>
+                      <div className="num mt-0.5 text-xs text-ink-3">{c.value}</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
           <Card>
             <CardHeader title="Trend template" aside={<span className={`num text-sm ${passed >= 7 ? "text-up" : passed >= 5 ? "text-amber" : "text-down"}`}>{passed} of 8</span>} />
             <ul className="mt-2 divide-y divide-line">

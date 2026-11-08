@@ -161,3 +161,37 @@ describe("news helpers", () => {
     expect(newsShortlist([r("A", ["leader"], 99), r("B", ["breakout"], 50), r("C", ["setup"], 60)], 2).map((x) => x.symbol)).toEqual(["B", "C"]);
   });
 });
+
+import { isTopSetup, technicalChecks, technicalPass } from "./topsetup";
+
+describe("top setups", () => {
+  const base = {
+    symbol: "AAA", isin: "INE1", name: "AAA LTD", industry: "Tech", close: 110, chgPct: 1.2, rs: 88, rsLineHigh: true,
+    ret1m: 8, ret3m: 20, ret6m: 30, pctFromHigh: 3, pctAboveLow: 60, sma50: 100, sma150: 90, sma200: 85, stage: 2 as const,
+    stageAge: 40, template: 8, tight10: 7, dryUp: 0.7, rvol: 80, adr: 3, turnoverCr: 25, band: 20, resistance: 113,
+    pctToResistance: 2.7, breakout: false, scans: [], setup: null, tags: ["setup" as const], score: 100,
+    rsi14: 62, ema20: 106, ema50: 101, ma50Rising: true, ma200Rising: true, upDownVol: 1.6, runUp2m: 18,
+  } satisfies ScreenRow;
+  const good = { filings: [], headlines: [], ai: { summary: "Order win", sentiment: "positive" as const, catalysts: ["₹500 Cr order"], redFlags: [] } };
+
+  it("passes a healthy stock tight near its high", () => {
+    expect(technicalPass(base)).toBe(true);
+    expect(isTopSetup({ ...base, tags: ["setup", "qualified"] }, good)).toBe(true);
+  });
+  it("rejects a dying trend, an overbought RSI, stretched prices, thin stocks and missing patterns", () => {
+    const failing = (r: Partial<ScreenRow>) => technicalChecks({ ...base, ...r }).filter((c) => !c.pass).map((c) => c.key);
+    expect(failing({ stage: 3, ma50Rising: false })).toContain("trend");
+    expect(failing({ rsi14: 81 })).toEqual(["rsi"]);
+    expect(failing({ close: 130, ema20: 120, ema50: 110 })).toContain("stretch");
+    expect(failing({ turnoverCr: 3 })).toEqual(["liquidity"]);
+    expect(failing({ band: 5 })).toEqual(["liquidity"]);
+    expect(failing({ tags: ["leader"] })).toEqual(["pattern"]);
+    expect(failing({ upDownVol: 0.9 })).toEqual(["volume"]);
+  });
+  it("needs positive news without red flags", () => {
+    const q = { ...base, tags: ["setup" as const, "qualified" as const] };
+    expect(isTopSetup(q, undefined)).toBe(false);
+    expect(isTopSetup(q, { ...good, ai: { ...good.ai, sentiment: "neutral" } })).toBe(false);
+    expect(isTopSetup(q, { ...good, ai: { ...good.ai, redFlags: ["promoter pledge"] } })).toBe(false);
+  });
+});

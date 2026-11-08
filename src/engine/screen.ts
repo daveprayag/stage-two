@@ -14,6 +14,8 @@ import { defaultConfig, type MomentumLeg } from "./core/config";
 import { computeFeatures, type Features } from "./core/indicators";
 import { ema20MomentumLegs, ema20ScanAt, momentumAny, volumeScanAt } from "./core/scanners";
 import { detectAll, prepareInstrument } from "./core/setups/index";
+import { rsi } from "./core/systematic";
+import { technicalPass } from "./topsetup";
 import { basePivot, supportResistance } from "./levels";
 import { compact, maxIn, median, minIn, retPct, smaArr, stageAt, toBars, type Compact } from "./series";
 import type { MarketSnapshot, PriceStore, ScreenFile, ScreenRow, ScreenTag, SectorRow, Stage, StockSeries } from "./types";
@@ -146,6 +148,15 @@ function analyseStock(store: PriceStore, s: StockSeries, bench: (number | null)[
   const dryUp = v50 > 0 ? avg(i - 4, i) / v50 : 1;
   const rvol = v50 > 0 ? ((vol[i] as number) / v50) * 100 : 0;
   const tight10 = ((maxIn(cp.high, i - 9, i) - minIn(cp.low, i - 9, i)) / c) * 100;
+  let upV = 0;
+  let downV = 0;
+  for (let j = Math.max(1, i - 49); j <= i; j++) {
+    if ((close[j] as number) > (close[j - 1] as number)) upV += vol[j] as number;
+    else if ((close[j] as number) < (close[j - 1] as number)) downV += vol[j] as number;
+  }
+  const upDownVol = downV > 0 ? upV / downV : upV > 0 ? 9.99 : 1;
+  const rsi14v = rsi(close, 14)[i] as number;
+  const ma50ago = ma50[i - 10];
 
   const ohlc = { dates: cp.dates, high: cp.high, low: cp.low, close };
   const { resistance } = supportResistance(ohlc, i);
@@ -182,6 +193,13 @@ function analyseStock(store: PriceStore, s: StockSeries, bench: (number | null)[
       tight10, dryUp, rvol, adr: f.adr20[i] as number, turnoverCr, band: s.band,
       resistance: nearest, pctToResistance: nearest !== null ? (nearest / c - 1) * 100 : null,
       breakout, scans, setup,
+      rsi14: Number.isFinite(rsi14v) ? rsi14v : null,
+      ema20: f.ema20[i] as number,
+      ema50: f.ema50[i] as number,
+      ma50Rising: ma50ago !== undefined && Number.isFinite(ma50ago) && m50 > ma50ago,
+      ma200Rising: has200 && m200ago !== undefined && Number.isFinite(m200ago) && m200 > m200ago,
+      upDownVol,
+      runUp2m: (c / minIn(cp.low, i - 41, i) - 1) * 100,
     },
   };
 }
@@ -198,6 +216,7 @@ function tagsFor(r: ScreenRow): ScreenTag[] {
 
 function scoreFor(r: ScreenRow): number {
   return Math.round(
+    (r.tags.includes("qualified") ? 25 : 0) +
     r.rs * 0.5 + r.template * 5 + (r.pctFromHigh <= 10 ? 10 : 0) + (r.tight10 <= 8 ? 10 : 0) +
       (r.breakout ? 15 : 0) + (r.tags.includes("fresh2") ? 10 : 0) + (r.rsLineHigh ? 10 : 0) + (r.setup ? 5 : 0),
   );
@@ -248,6 +267,8 @@ function analyseAll(store: PriceStore): { all: ScreenRow[]; liquid: Work[] } {
     const { templateBase, ...rest } = w.row;
     const row: ScreenRow = { ...rest, rs, template: templateBase + (rs >= 70 ? 1 : 0), tags: [], score: 0 };
     row.tags = tagsFor(row);
+    // Checked after the other tags: the entry-pattern check reads them.
+    if (row.tags.length && technicalPass(row)) row.tags.push("qualified");
     row.score = scoreFor(row);
     return row;
   });

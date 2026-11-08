@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+
 /** Shared page shell: one max width, one gutter, one vertical rhythm. */
 export function Page({ children, narrow = false }: { children: React.ReactNode; narrow?: boolean }) {
   return <div className={`mx-auto flex flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 sm:pt-8 lg:px-8 ${narrow ? "max-w-3xl" : "max-w-7xl"}`}>{children}</div>;
@@ -13,7 +15,7 @@ export function PageTitle({ title, children }: { title: string; children?: React
 }
 
 export function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <section className={`overflow-hidden rounded-2xl border border-line bg-surface ${className}`}>{children}</section>;
+  return <section className={cn("overflow-hidden rounded-2xl border border-line bg-surface", className)}>{children}</section>;
 }
 
 export function CardHeader({ title, aside }: { title: string; aside?: React.ReactNode }) {

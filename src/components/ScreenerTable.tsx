@@ -6,11 +6,19 @@ import type { NewsBundle, ScreenRow, ScreenTag } from "@/engine/types";
 import { price, titleCase } from "@/lib/format";
 import { Change, RsMeter, SentimentDot, stageAge, StageLabel } from "./Badges";
 import { Select } from "./Select";
+import { isTopSetup } from "@/engine/topsetup";
 
-type TabKey = ScreenTag | "all";
+type TabKey = Exclude<ScreenTag, "qualified"> | "all" | "top";
 type SortKey = "score" | "rs" | "high" | "tight" | "move";
 
 export const SCREENS: { key: TabKey; label: string; short: string; blurb: string }[] = [
+  {
+    key: "top",
+    label: "Top setups",
+    short: "Pass every check, news included",
+    blurb:
+      "Every check at once: a live uptrend (not a dying one), all moving averages stacked, above the 20- and 50-day EMAs, RSI 50–75, RS 80+, near the high but not stretched, buyers in control on volume, breaking out or tight near the high, liquid, and positive news with no red flags. The strongest shortlist the data gives, not a guarantee: always use a stop.",
+  },
   {
     key: "breakout",
     label: "Breaking out",
@@ -174,6 +182,7 @@ function DesktopTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, 
 
 const TERMS: [string, string][] = [
   ["RS", "Relative Strength rating, 1–99. Ranks how much the stock rose over 3, 6, 9 and 12 months against all ~1,350 liquid NSE stocks (last 3 months count double). 90 = beat 90% of the market. Not the same as RSI."],
+  ["RSI", "Relative Strength Index (14 days), 0–100: momentum of recent price moves. Top setups need 50–75: rising, but not overbought (above ~75 a pullback is more likely)."],
   ["Stage", "Where the stock is in its cycle, from its 150-day average: 1 sideways base, 2 uptrend, 3 topping, 4 downtrend. \u201c2 · 14d\u201d = in an uptrend for 14 sessions."],
   ["From high", "How far below its 52-week high it closed."],
   ["10d range", "Gap between the highest and lowest price of the last 10 sessions, as % of price. Small = quiet, tight."],
@@ -204,11 +213,14 @@ const control = "h-10 rounded-lg border border-line bg-surface px-3 text-sm text
 
 export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, NewsBundle> }) {
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: rows.length };
-    for (const r of rows) for (const t of r.tags) c[t] = (c[t] ?? 0) + 1;
+    const c: Record<string, number> = { all: rows.length, top: 0 };
+    for (const r of rows) {
+      for (const t of r.tags) c[t] = (c[t] ?? 0) + 1;
+      if (isTopSetup(r, news[r.symbol])) c.top = (c.top ?? 0) + 1;
+    }
     return c;
-  }, [rows]);
-  const [tab, setTab] = useState<TabKey>(() => (counts.breakout ? "breakout" : "setup"));
+  }, [rows, news]);
+  const [tab, setTab] = useState<TabKey>(() => (counts.top ? "top" : counts.breakout ? "breakout" : "setup"));
   const [q, setQ] = useState("");
   const [sector, setSector] = useState("");
   const [sort, setSort] = useState<SortKey>("score");
@@ -232,7 +244,7 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
     return rows
       .filter(
         (r) =>
-          (tab === "all" || r.tags.includes(tab)) &&
+          (tab === "all" || (tab === "top" ? isTopSetup(r, news[r.symbol]) : r.tags.includes(tab))) &&
           (!sector || r.industry === sector) &&
           (!positive || news[r.symbol]?.ai?.sentiment === "positive") &&
           (!needle || r.symbol.includes(needle) || r.name.toUpperCase().includes(needle)),
@@ -242,19 +254,22 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="radiogroup" aria-label="Screens" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+      <div role="radiogroup" aria-label="Screens" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-7">
         {SCREENS.map((t) => {
           const on = tab === t.key;
+          const top = t.key === "top";
           return (
             <button
               key={t.key}
               role="radio"
               aria-checked={on}
               onClick={() => choose(t.key)}
-              className={`flex flex-col rounded-xl border p-3 text-left transition-colors ${on ? "border-ink bg-surface" : "border-line hover:border-line-strong"}`}
+              className={`flex flex-col rounded-xl border p-3 text-left transition-colors ${top ? "col-span-2 sm:col-span-3 xl:col-span-1" : ""} ${
+                on ? (top ? "border-up bg-up-soft/60" : "border-ink bg-surface") : top ? "border-up/40 bg-up-soft/30 hover:border-up" : "border-line hover:border-line-strong"
+              }`}
             >
               <span className="flex items-baseline justify-between gap-2">
-                <span className={`text-sm font-medium ${on ? "text-ink" : "text-ink-2"}`}>{t.label}</span>
+                <span className={`text-sm font-medium ${top ? "text-up" : on ? "text-ink" : "text-ink-2"}`}>{t.label}</span>
                 <span className="num text-xs text-ink-3">{counts[t.key] ?? 0}</span>
               </span>
               <span className="mt-1 text-xs leading-snug text-ink-3">{t.short}</span>
@@ -300,7 +315,9 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
             </div>
           </>
         ) : (
-          <p className="px-4 py-12 text-center text-sm text-ink-3">Nothing matches today. Screens like this are often empty when the market is weak.</p>
+          <p className="px-4 py-12 text-center text-sm leading-relaxed text-ink-3">
+            {tab === "top" ? "No stock passes every check today. That is normal: on most days none or a handful do, and none at all in weak markets." : "Nothing matches today. Lists like this are often empty when the market is weak."}
+          </p>
         )}
       </div>
     </div>

@@ -27,6 +27,7 @@ export const TAG_LABEL: Record<ScreenTag, string> = {
   setup: "Tight near highs",
   fresh2: "New uptrend",
   leader: "Strongest",
+  qualified: "All technical checks",
   ankur: "Ankur scan",
 };
 

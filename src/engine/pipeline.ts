@@ -114,7 +114,9 @@ interface AnnouncementStore {
 
 /** Shortlist for news: breakouts and setups first, then the rest by score; at most `max`. */
 export function newsShortlist(rows: ScreenRow[], max = 60): ScreenRow[] {
+  // Stocks that pass every technical check of a top setup come first: their news decides the final list.
   const rank = (r: ScreenRow) =>
+    (r.tags.includes("qualified") ? 8 : 0) +
     (r.tags.includes("breakout") ? 4 : 0) + (r.tags.includes("setup") ? 3 : 0) + (r.tags.includes("fresh2") ? 2 : 0) + (r.tags.includes("leader") ? 1 : 0);
   return [...rows].sort((a, b) => rank(b) - rank(a) || b.score - a.score).slice(0, max);
 }

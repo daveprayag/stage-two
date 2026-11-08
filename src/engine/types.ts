@@ -38,7 +38,8 @@ export interface PriceStore {
 
 export type Stage = 1 | 2 | 3 | 4;
 
-export type ScreenTag = "breakout" | "setup" | "fresh2" | "leader" | "ankur";
+/** "qualified" = passes every technical check of a top setup (news is checked after the news job). */
+export type ScreenTag = "breakout" | "setup" | "fresh2" | "leader" | "ankur" | "qualified";
 
 export interface Level {
   price: number;
@@ -92,6 +93,17 @@ export interface ScreenRow {
   pctToResistance: number | null;
   /** Closed above the top of its recent base today on ≥ 1.5× volume. */
   breakout: boolean;
+  /** Wilder RSI(14). */
+  rsi14: number | null;
+  ema20: number;
+  ema50: number;
+  /** 50-day average rising over the last 10 sessions; 200-day rising over the last 21. */
+  ma50Rising: boolean;
+  ma200Rising: boolean;
+  /** Volume on up days ÷ volume on down days, last 50 sessions (> 1 = buyers in control). */
+  upDownVol: number;
+  /** % above the lowest low of the last ~2 months (42 sessions). */
+  runUp2m: number;
   /** Ankur Patel's Chartink scans that fired today. */
   scans: string[];
   /** Ankur setup (livermore rule engine) that fired today, if any. */
