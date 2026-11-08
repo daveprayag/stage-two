@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Stage Two
 
-## Getting Started
+End-of-day momentum screener for NSE stocks. Every evening it adds the day's NSE data, finds stocks entering or leading
+an uptrend, and attaches the news behind each move (NSE filings, headlines, a Gemini summary).
 
-First, run the development server:
+Formerly *StockGenius* (Yahoo Finance, ~380 hardcoded symbols). Now every EQ stock on NSE from NSE's own files.
+
+## Screens
+
+| Screen | Rule |
+| --- | --- |
+| Breakouts | Close above the top of a ≥ 8-week base on ≥ 1.5× average volume, in stage 2 (or trend template ≥ 6/8) |
+| Setting up | Trend template ≥ 7/8, within 15% of the 52-week high, 10-day range ≤ 12%, 5/50-day volume ≤ 0.9 |
+| Fresh stage 2 | Entered stage 2 in the last 30 sessions, RS ≥ 70, template ≥ 6/8, within 25% of the high |
+| Leaders | RS ≥ 90 and trend template ≥ 7/8 |
+| Ankur's scans | Ankur Patel's Chartink scans (volume, 20 EMA, flag) or a setup from the livermore rule engine |
+
+Universe: EQ series, close > ₹30, 50-day average traded value ≥ ₹2 Cr, not in the 2% / 5% price bands.
+Stage = Weinstein stage from the 150-day average; RS = percentile of 3/6/9/12-month returns (latest quarter double).
+Support/resistance = clusters of swing highs/lows (5 bars each side, 2.5% tolerance); trendlines = longest line through
+two rising lows / falling highs that no close has broken. These are shortlists, not tested buy signals (see /guide).
+
+## How it runs
+
+- `src/engine/` — pure screening code: NSE parsers (`nse.ts`), split/bonus adjustment (`adjust.ts`, `update.ts`),
+  screens (`screen.ts`), levels (`levels.ts`), news (`news.ts`), jobs (`pipeline.ts`), Blob storage (`blob.ts`).
+- `src/engine/core/` — vendored copy of livermore's rule engine (Ankur Patel's setups and scanners). Do not edit here.
+- Vercel Cron (`vercel.json`): `/api/cron/eod` at 19:30 IST (retry 23:00 IST) adds new sessions from the NSE bhavcopy,
+  index closes, price bands and corporate actions, then rebuilds the screen; `/api/cron/news` an hour later adds NSE
+  filings, Google News headlines and Gemini summaries for the top 60. Both are idempotent. History: `/runs`.
+- Storage: private Vercel Blob store `stage-two-data` (`prices/latest.json.gz` rolling 300 sessions,
+  `screens/<date>.json` per session, `news/announcements.json`, `runs/log.json`).
+
+## Environment
+
+| Variable | |
+| --- | --- |
+| `BLOB_READ_WRITE_TOKEN` | Blob store (added when the store was connected) |
+| `GEMINI_API_KEY` | News summaries |
+| `GEMINI_MODEL` | Optional, comma-separated fallbacks (default `gemini-flash-lite-latest,gemini-3.5-flash-lite,gemini-3.1-flash-lite`) |
+| `CRON_SECRET` | Optional. When set, cron routes require it (Vercel Cron sends it) and `?force=1` re-runs are allowed |
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+vercel env pull .env.local
+pnpm dev                       # http://localhost:3000
+pnpm test                      # engine unit tests
+pnpm job eod | news [--force]  # run a nightly job locally against Blob
+pnpm bootstrap <prices.json.gz> # one-time: seed Blob from a livermore export
 ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
