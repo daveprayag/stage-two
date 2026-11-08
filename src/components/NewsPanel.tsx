@@ -1,80 +1,91 @@
-import { ExternalLink, FileText } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import type { Filing, Headline, NewsVerdict } from "@/engine/types";
 import { SentimentDot, sentimentLabel } from "./Badges";
+import { Card, CardHeader } from "./Page";
 
-export function NewsPanel({ ai, filings, headlines }: { ai: NewsVerdict | null; filings: Filing[]; headlines: Headline[] }) {
+function Points({ title, items, tone }: { title: string; items: string[]; tone: "up" | "down" }) {
+  if (!items.length) return null;
   return (
-    <section className="grid gap-4 lg:grid-cols-3">
-      <div className="rounded-xl border border-line bg-surface p-4">
-        <h2 className="text-sm font-medium">What the news says</h2>
+    <div>
+      <div className="text-xs text-ink-3">{title}</div>
+      <ul className="mt-1.5 space-y-1.5">
+        {items.map((c) => (
+          <li key={c} className="flex gap-2 text-sm text-ink">
+            <span className={`mt-[7px] h-1 w-1 shrink-0 rounded-full ${tone === "up" ? "bg-up" : "bg-down"}`} />
+            {c}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function AiSummary({ ai }: { ai: NewsVerdict | null }) {
+  return (
+    <Card>
+      <CardHeader
+        title="What the news says"
+        aside={ai && (
+          <span className="flex items-center gap-1.5 text-xs text-ink-2">
+            <SentimentDot s={ai.sentiment} /> {sentimentLabel(ai.sentiment)}
+          </span>
+        )}
+      />
+      <div className="space-y-4 px-4 pt-3 pb-4 sm:px-5 sm:pb-5">
         {ai ? (
-          <div className="mt-3 space-y-3 text-sm">
-            <p className="flex items-center gap-2 text-xs text-ink-2">
-              <SentimentDot s={ai.sentiment} /> {sentimentLabel(ai.sentiment)}
-            </p>
-            <p className="text-ink">{ai.summary}</p>
-            {ai.catalysts.length > 0 && (
-              <div>
-                <div className="text-xs text-ink-3">Catalysts</div>
-                <ul className="mt-1 space-y-1">
-                  {ai.catalysts.map((c) => (
-                    <li key={c} className="rounded bg-up-soft px-2 py-1 text-xs text-up">{c}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {ai.redFlags.length > 0 && (
-              <div>
-                <div className="text-xs text-ink-3">Red flags</div>
-                <ul className="mt-1 space-y-1">
-                  {ai.redFlags.map((c) => (
-                    <li key={c} className="rounded bg-down-soft px-2 py-1 text-xs text-down">{c}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <p className="text-[11px] text-ink-3">Summarised by Gemini from the filings and headlines on this page only. Check the sources.</p>
-          </div>
+          <>
+            <p className="text-[15px] leading-relaxed text-ink">{ai.summary}</p>
+            <Points title="Catalysts" items={ai.catalysts} tone="up" />
+            <Points title="Red flags" items={ai.redFlags} tone="down" />
+            <p className="text-xs text-ink-3">Summarised by Gemini from the filings and headlines below. Check the sources.</p>
+          </>
         ) : (
-          <p className="mt-3 text-sm text-ink-2">No AI summary: the nightly news job covers the top 60 stocks on the screener. Filings and headlines are below.</p>
+          <p className="text-sm leading-relaxed text-ink-2">The nightly news job summarises the top 60 stocks on the screener. This one isn&apos;t among them today; its filings and headlines are below.</p>
         )}
       </div>
-      <div className="rounded-xl border border-line bg-surface p-4">
-        <h2 className="text-sm font-medium">NSE filings · last 3 weeks</h2>
-        <ul className="mt-3 space-y-3">
+    </Card>
+  );
+}
+
+export function Sources({ filings, headlines }: { filings: Filing[]; headlines: Headline[] }) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card>
+        <CardHeader title="NSE filings" aside={<span className="text-xs text-ink-3">Last 3 weeks</span>} />
+        <ul className="mt-2 divide-y divide-line">
           {filings.slice(0, 8).map((f, k) => (
-            <li key={k} className="text-sm">
-              <div className="flex items-center justify-between gap-2 text-xs text-ink-3">
-                <span>{f.category}</span>
+            <li key={k} className="px-4 py-3 sm:px-5">
+              <div className="flex items-baseline justify-between gap-3 text-xs text-ink-3">
+                <span className="truncate">{f.category}</span>
                 <span className="num shrink-0">{f.date.slice(0, 11)}</span>
               </div>
-              <p className="mt-0.5 line-clamp-3 text-ink-2">{f.text || "—"}</p>
+              <p className="mt-1 line-clamp-3 text-sm leading-relaxed text-ink-2">{f.text || "—"}</p>
               {f.url && (
-                <a href={f.url} target="_blank" rel="noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-xs text-blue hover:underline">
-                  <FileText className="h-3 w-3" /> Filing PDF
+                <a href={f.url} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-0.5 text-xs text-blue hover:underline">
+                  Filing PDF <ArrowUpRight className="h-3 w-3" />
                 </a>
               )}
             </li>
           ))}
-          {!filings.length && <li className="text-sm text-ink-3">No filings in the last three weeks.</li>}
+          {!filings.length && <li className="px-4 py-6 text-sm text-ink-3 sm:px-5">No filings in the last three weeks.</li>}
         </ul>
-      </div>
-      <div className="rounded-xl border border-line bg-surface p-4">
-        <h2 className="text-sm font-medium">Headlines · last 2 weeks</h2>
-        <ul className="mt-3 space-y-3">
+      </Card>
+      <Card>
+        <CardHeader title="Headlines" aside={<span className="text-xs text-ink-3">Last 2 weeks</span>} />
+        <ul className="mt-2 divide-y divide-line">
           {headlines.map((h) => (
-            <li key={h.url} className="text-sm">
-              <a href={h.url} target="_blank" rel="noreferrer" className="group text-ink hover:text-blue">
-                {h.title} <ExternalLink className="inline h-3 w-3 opacity-0 group-hover:opacity-100" />
+            <li key={h.url}>
+              <a href={h.url} target="_blank" rel="noreferrer" className="block px-4 py-3 hover:bg-surface-2/60 sm:px-5">
+                <span className="text-sm leading-relaxed text-ink">{h.title}</span>
+                <span className="mt-1 block text-xs text-ink-3">
+                  {h.source} · <span className="num">{h.date}</span>
+                </span>
               </a>
-              <div className="mt-0.5 text-xs text-ink-3">
-                {h.source} · <span className="num">{h.date}</span>
-              </div>
             </li>
           ))}
-          {!headlines.length && <li className="text-sm text-ink-3">No headlines found.</li>}
+          {!headlines.length && <li className="px-4 py-6 text-sm text-ink-3 sm:px-5">No headlines found.</li>}
         </ul>
-      </div>
-    </section>
+      </Card>
+    </div>
   );
 }

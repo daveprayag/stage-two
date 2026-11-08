@@ -18,3 +18,14 @@ export function istTime(iso: string): string {
   const t = new Date(iso);
   return `${t.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })} IST`;
 }
+
+const KEEP_UPPER = new Set(["ABB", "ACC", "BSE", "CDSL", "HDFC", "ICICI", "IDBI", "IDFC", "IRCTC", "ITC", "LIC", "NTPC", "ONGC", "SBI", "TVS", "UPL", "IT", "AI", "II", "III"]);
+/** "GUFIC BIOSCIENCES LTD." → "Gufic Biosciences Ltd." (NSE names arrive in capitals). */
+export function titleCase(name: string): string {
+  if (name !== name.toUpperCase()) return name;
+  return name
+    .toLowerCase()
+    .split(/(\s+|-|\(|\))/)
+    .map((w) => (KEEP_UPPER.has(w.toUpperCase()) ? w.toUpperCase() : w.replace(/^[a-z]/, (c) => c.toUpperCase())))
+    .join("");
+}

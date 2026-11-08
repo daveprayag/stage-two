@@ -74,11 +74,11 @@ export function PriceChart({ d }: { d: StockDetail }) {
     if (on.ma50) line(d.ma50, css("--chart-ma50"));
 
     if (on.levels) {
-      for (const l of d.resistance) {
-        candles.createPriceLine({ price: l.price, color: down, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: `R ${l.touches}×` });
-      }
-      for (const l of d.support) {
-        candles.createPriceLine({ price: l.price, color: up, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: `S ${l.touches}×` });
+      const wide = el.current.clientWidth >= 560;
+      for (const [levels, color, tag] of [[d.resistance, down, "R"], [d.support, up, "S"]] as const) {
+        for (const l of levels) {
+          candles.createPriceLine({ price: l.price, color, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: wide, title: wide ? `${tag} ${l.touches}×` : "" });
+        }
       }
     }
     if (on.trend) {
@@ -97,35 +97,42 @@ export function PriceChart({ d }: { d: StockDetail }) {
     };
   }, [d, on, range, theme]);
 
-  const chip = (k: Overlay, label: string, color: string) => (
+  const toggle = (k: Overlay, label: string, color: string, dashed = false) => (
     <button
       key={k}
       onClick={() => setOn((o) => ({ ...o, [k]: !o[k] }))}
       aria-pressed={on[k]}
-      className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs ${on[k] ? "border-line-strong text-ink" : "border-line text-ink-3"}`}
+      className={`flex shrink-0 items-center gap-2 py-1 text-xs transition-colors ${on[k] ? "text-ink" : "text-ink-3 line-through decoration-ink-3/60"}`}
     >
-      <span className="h-0.5 w-3 rounded" style={{ background: on[k] ? color : "var(--line-strong)" }} />
+      <span className="h-0 w-4 border-t-2" style={{ borderColor: on[k] ? color : "var(--line-strong)", borderStyle: dashed ? "dashed" : "solid" }} />
       {label}
     </button>
   );
 
   return (
-    <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {chip("ma50", "50-day", "var(--chart-ma50)")}
-        {chip("ma150", "150-day", "var(--chart-ma150)")}
-        {chip("ma200", "200-day", "var(--chart-ma200)")}
-        {chip("levels", "Support / resistance", "var(--down)")}
-        {chip("trend", "Trendlines", "var(--up)")}
-        <div className="ml-auto flex rounded-md border border-line p-0.5">
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {toggle("ma50", "50-day", "var(--chart-ma50)")}
+          {toggle("ma200", "200-day", "var(--chart-ma200)")}
+          {toggle("ma150", "150-day", "var(--chart-ma150)", true)}
+          {toggle("levels", "Levels", "var(--down)", true)}
+          {toggle("trend", "Trendlines", "var(--up)")}
+        </div>
+        <div className="flex self-start rounded-lg bg-surface-2 p-0.5 sm:self-auto">
           {RANGES.map((r) => (
-            <button key={r.label} onClick={() => setRange(r.bars)} className={`rounded px-2 py-0.5 text-xs ${range === r.bars ? "bg-surface-2 text-ink" : "text-ink-3 hover:text-ink"}`}>
+            <button
+              key={r.label}
+              onClick={() => setRange(r.bars)}
+              aria-pressed={range === r.bars}
+              className={`rounded-md px-3 py-1 text-xs transition-colors ${range === r.bars ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink"}`}
+            >
               {r.label}
             </button>
           ))}
         </div>
       </div>
-      <div ref={el} className="h-[340px] w-full sm:h-[440px]" />
+      <div ref={el} className="h-[300px] w-full sm:h-[420px]" />
     </div>
   );
 }

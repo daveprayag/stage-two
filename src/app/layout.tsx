@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/Header";
+import { BottomNav } from "@/components/NavLinks";
 import { themeScript } from "@/components/ThemeToggle";
 import { getScreen } from "@/lib/data";
 
@@ -14,6 +15,14 @@ export const metadata: Metadata = {
   description: "End-of-day momentum screener for NSE stocks: stage analysis, relative strength, bases, breakouts and the news behind each move.",
 };
 
+export const viewport: Viewport = {
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f5f3ee" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e0f11" },
+  ],
+};
+
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const screen = await getScreen().catch(() => null);
   return (
@@ -21,15 +30,16 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="flex min-h-screen flex-col font-sans antialiased">
+      <body className="flex min-h-dvh flex-col pb-[calc(4.25rem+env(safe-area-inset-bottom))] font-sans antialiased md:pb-0">
         <Header asOf={screen?.asOf ?? null} />
         <main className="flex-1">{children}</main>
         <footer className="border-t border-line">
-          <div className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-5 text-xs text-ink-3 sm:flex-row sm:justify-between sm:px-6">
+          <div className="mx-auto flex max-w-7xl flex-col gap-1.5 px-4 py-6 text-xs leading-relaxed text-ink-3 sm:px-6 md:flex-row md:justify-between lg:px-8">
             <span>Stage Two · NSE end-of-day data, updated every evening.</span>
-            <span>A screener, not advice. Shortlists are for your own review; none of these screens is a tested buy signal.</span>
+            <span>A screener, not advice. Shortlists are for your own review, not tested buy signals.</span>
           </div>
         </footer>
+        <BottomNav />
       </body>
     </html>
   );

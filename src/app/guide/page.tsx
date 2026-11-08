@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Card, Page, PageTitle } from "@/components/Page";
 
 export const metadata: Metadata = { title: "Guide" };
 
@@ -27,22 +28,18 @@ function StagesDiagram() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="border-t border-line pt-6">
-      <h2 className="font-display text-2xl tracking-tight sm:text-3xl">{title}</h2>
-      <div className="mt-3 space-y-3 text-[15px] leading-relaxed text-ink-2">{children}</div>
+      <h2 className="font-display text-[1.75rem] leading-tight tracking-tight sm:text-3xl">{title}</h2>
+      <div className="mt-3 space-y-3 text-[15px] leading-relaxed text-ink-2 [&_li]:pl-1 [&_ul]:space-y-2">{children}</div>
     </section>
   );
 }
 
 export default function GuidePage() {
   return (
-    <article className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-6 sm:px-6 sm:py-10">
-      <header>
-        <h1 className="font-display text-4xl tracking-tight sm:text-5xl">How to read the screener</h1>
-        <p className="mt-2 text-ink-2">
-          Moving averages, stages, support and resistance, volume: what swing traders use them for, how this app computes them, and how much weight they can
-          carry.
-        </p>
-      </header>
+    <Page narrow>
+      <PageTitle title="How to read the screener">
+        Moving averages, stages, support and resistance, volume: what swing traders use them for, how this app computes them, and how much weight they can carry.
+      </PageTitle>
 
       <Section title="The 50- and 200-day moving averages">
         <p>
@@ -64,9 +61,9 @@ export default function GuidePage() {
           stage 3 after an advance and stage 1 otherwise. &quot;Fresh stage 2&quot; finds stocks that crossed into stage 2 within the last 30 sessions: the
           earliest point at which a new leader shows up.
         </p>
-        <div className="rounded-xl border border-line bg-surface p-4">
+        <Card className="p-4">
           <StagesDiagram />
-        </div>
+        </Card>
       </Section>
 
       <Section title="Support, resistance and trendlines">
@@ -108,6 +105,6 @@ export default function GuidePage() {
           News; summaries are written by Gemini from those headlines and filings only.
         </p>
       </Section>
-    </article>
+    </Page>
   );
 }

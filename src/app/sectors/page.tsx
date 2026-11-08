@@ -1,70 +1,114 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { RsBar } from "@/components/Badges";
-import { pct } from "@/lib/format";
+import { Change, RsMeter } from "@/components/Badges";
+import { Card, Page, PageTitle } from "@/components/Page";
 import { getScreen } from "@/lib/data";
+import type { SectorRow } from "@/engine/types";
 
 export const metadata: Metadata = { title: "Sectors" };
 export const revalidate = 900;
 
-export default async function SectorsPage() {
-  const screen = await getScreen();
-  const sectors = screen?.sectors ?? [];
+function Leaders({ s }: { s: SectorRow }) {
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-6 sm:px-6 sm:py-8">
-      <div>
-        <h1 className="font-display text-4xl tracking-tight sm:text-5xl">Sector strength</h1>
-        <p className="mt-1 max-w-2xl text-sm text-ink-2">
-          Leaders tend to come in groups. Sectors ranked by the median RS rating of their liquid stocks, with the share already in a stage 2 uptrend.
-          Industry groups follow NSE&apos;s classification; stocks outside the NIFTY Total Market and Microcap 250 lists are unclassified.
-        </p>
-      </div>
-      <section className="scroll-x rounded-xl border border-line bg-surface">
-        <table className="w-full min-w-[720px] text-sm">
-          <thead>
-            <tr className="border-b border-line text-left text-xs text-ink-3">
-              <th className="px-4 py-2 font-normal">#</th>
-              <th className="px-4 py-2 font-normal">Sector</th>
-              <th className="px-4 py-2 font-normal">Median RS</th>
-              <th className="px-4 py-2 font-normal">In stage 2</th>
-              <th className="px-4 py-2 text-right font-normal">Median 1M</th>
-              <th className="px-4 py-2 font-normal">Strongest stocks</th>
+    <span className="flex flex-wrap gap-x-3 gap-y-1">
+      {s.leaders.map((sym) => (
+        <Link key={sym} href={`/stock/${encodeURIComponent(sym)}`} className="text-sm text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink hover:decoration-ink-3">
+          {sym}
+        </Link>
+      ))}
+    </span>
+  );
+}
+
+function Stage2({ v }: { v: number }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="num w-8 text-right text-ink">{(v * 100).toFixed(0)}%</span>
+      <span className="h-1 w-12 overflow-hidden rounded-full bg-surface-2">
+        <span className="block h-full rounded-full bg-up" style={{ width: `${v * 100}%` }} />
+      </span>
+    </span>
+  );
+}
+
+const th = "px-3 py-3 text-xs font-normal text-ink-3 first:pl-5 last:pr-5";
+const td = "px-3 py-3.5 first:pl-5 last:pr-5";
+
+export default async function SectorsPage() {
+  const sectors = (await getScreen())?.sectors ?? [];
+  return (
+    <Page>
+      <PageTitle title="Sector strength">
+        Leaders tend to come in groups. Sectors are ranked by the median RS rating of their liquid stocks, with the share already in a stage 2 uptrend. Groups follow
+        NSE&apos;s industry classification.
+      </PageTitle>
+      <Card>
+        <ol className="divide-y divide-line md:hidden">
+          {sectors.map((s, k) => (
+            <li key={s.industry} className="px-4 py-4">
+              <div className="flex items-baseline gap-3">
+                <span className="num w-5 shrink-0 text-xs text-ink-3">{k + 1}</span>
+                <span className="min-w-0 flex-1 text-[15px] font-medium text-ink">{s.industry}</span>
+                <span className="num shrink-0 text-xs text-ink-3">{s.stocks} stocks</span>
+              </div>
+              <dl className="mt-3 grid grid-cols-3 gap-2 pl-8 text-xs">
+                <div>
+                  <dt className="text-ink-3">Median RS</dt>
+                  <dd className="num mt-0.5 text-sm text-ink">{s.rs}</dd>
+                </div>
+                <div>
+                  <dt className="text-ink-3">In stage 2</dt>
+                  <dd className="num mt-0.5 text-sm text-ink">{(s.stage2 * 100).toFixed(0)}%</dd>
+                </div>
+                <div>
+                  <dt className="text-ink-3">1 month</dt>
+                  <dd className="mt-0.5 text-sm">
+                    <Change value={s.ret1m} />
+                  </dd>
+                </div>
+              </dl>
+              <div className="mt-3 pl-8">
+                <Leaders s={s} />
+              </div>
+            </li>
+          ))}
+        </ol>
+        <table className="hidden w-full text-sm md:table">
+          <thead className="border-b border-line text-left">
+            <tr>
+              <th className={th}>#</th>
+              <th className={th}>Sector</th>
+              <th className={th}>Median RS</th>
+              <th className={th}>In stage 2</th>
+              <th className={`${th} text-right`}>Median 1M</th>
+              <th className={th}>Strongest stocks</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-line">
             {sectors.map((s, k) => (
-              <tr key={s.industry} className="border-b border-line/70 last:border-0">
-                <td className="num px-4 py-3 text-ink-3">{k + 1}</td>
-                <td className="px-4 py-3">
-                  <div className="font-medium">{s.industry}</div>
-                  <div className="text-xs text-ink-3">{s.stocks} stocks</div>
+              <tr key={s.industry}>
+                <td className={`${td} num text-ink-3`}>{k + 1}</td>
+                <td className={td}>
+                  <div className="text-ink">{s.industry}</div>
+                  <div className="mt-0.5 text-xs text-ink-3">{s.stocks} stocks</div>
                 </td>
-                <td className="px-4 py-3">
-                  <RsBar rs={s.rs} />
+                <td className={td}>
+                  <RsMeter rs={s.rs} />
                 </td>
-                <td className="px-4 py-3">
-                  <span className="flex items-center gap-2">
-                    <span className="num w-9 text-right">{(s.stage2 * 100).toFixed(0)}%</span>
-                    <span className="h-1.5 w-16 overflow-hidden rounded-full bg-surface-2">
-                      <span className="block h-full rounded-full bg-up" style={{ width: `${s.stage2 * 100}%` }} />
-                    </span>
-                  </span>
+                <td className={td}>
+                  <Stage2 v={s.stage2} />
                 </td>
-                <td className={`num px-4 py-3 text-right ${s.ret1m >= 0 ? "text-up" : "text-down"}`}>{pct(s.ret1m)}</td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-1">
-                    {s.leaders.map((sym) => (
-                      <Link key={sym} href={`/stock/${encodeURIComponent(sym)}`} className="rounded border border-line px-1.5 py-0.5 text-xs text-ink-2 hover:border-line-strong hover:text-ink">
-                        {sym}
-                      </Link>
-                    ))}
-                  </div>
+                <td className={`${td} text-right`}>
+                  <Change value={s.ret1m} />
+                </td>
+                <td className={td}>
+                  <Leaders s={s} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </section>
-    </div>
+      </Card>
+    </Page>
   );
 }
