@@ -89,7 +89,7 @@ export default async function StockPage({ params }: Props) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
-        <section className="rounded-xl border border-line bg-surface p-3 sm:p-4">
+        <section className="min-w-0 rounded-xl border border-line bg-surface p-3 sm:p-4">
           <PriceChart d={d} />
           <p className="mt-3 text-xs text-ink-3">
             Dashed lines: support (S) and resistance (R) levels where price turned at least once in the last ~10 months, with the number of touches.

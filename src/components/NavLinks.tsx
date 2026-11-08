@@ -12,7 +12,7 @@ const LINKS = [
 export function NavLinks() {
   const path = usePathname();
   return (
-    <nav className="flex items-center gap-0.5 overflow-x-auto text-sm">
+    <nav className="flex min-w-0 items-center gap-0.5 overflow-x-auto text-sm">
       {LINKS.map((l) => {
         const active = l.href === "/" ? path === "/" || path.startsWith("/stock") : path.startsWith(l.href);
         return (

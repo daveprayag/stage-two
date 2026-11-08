@@ -36,7 +36,7 @@ export function MarketStrip({ m }: { m: MarketSnapshot }) {
             <span className={`num text-sm ${m.chgPct >= 0 ? "text-up" : "text-down"}`}>{pct(m.chgPct, 2)}</span>
           </div>
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col items-start gap-1">
           <StagePill stage={m.stage} />
           <span className="text-xs text-ink-2">
             {m.aboveSma50 ? "Above" : "Below"} 50-day · {m.aboveSma200 ? "above" : "below"} 200-day

@@ -14,7 +14,7 @@ export function Wordmark() {
       <span className="text-up">
         <Mark />
       </span>
-      <span className="font-display text-[22px] leading-none tracking-tight">Stage Two</span>
+      <span className="font-display text-[22px] leading-none tracking-tight max-sm:sr-only">Stage Two</span>
     </span>
   );
 }
