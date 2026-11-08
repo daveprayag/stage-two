@@ -9,10 +9,10 @@ Formerly *StockGenius* (Yahoo Finance, ~380 hardcoded symbols). Now every EQ sto
 
 | Screen | Rule |
 | --- | --- |
-| Breakouts | Close above the top of a ≥ 8-week base on ≥ 1.5× average volume, in stage 2 (or trend template ≥ 6/8) |
-| Setting up | Trend template ≥ 7/8, within 15% of the 52-week high, 10-day range ≤ 12%, 5/50-day volume ≤ 0.9 |
-| Fresh stage 2 | Entered stage 2 in the last 30 sessions, RS ≥ 70, template ≥ 6/8, within 25% of the high |
-| Leaders | RS ≥ 90 and trend template ≥ 7/8 |
+| Breaking out | Close above the top of a ≥ 8-week base on ≥ 1.5× average volume, in stage 2 (or trend template ≥ 6/8) |
+| Tight near highs | Trend template ≥ 7/8, within 15% of the 52-week high, 10-day range ≤ 12%, 5/50-day volume ≤ 0.9 |
+| New uptrends | Entered stage 2 in the last 30 sessions, RS ≥ 70, template ≥ 6/8, within 25% of the high |
+| Strongest | RS ≥ 90 and trend template ≥ 7/8 |
 | Ankur's scans | Ankur Patel's Chartink scans (volume, 20 EMA, flag) or a setup from the livermore rule engine |
 
 Universe: EQ series, close > ₹30, 50-day average traded value ≥ ₹2 Cr, not in the 2% / 5% price bands.

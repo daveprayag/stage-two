@@ -23,10 +23,10 @@ export function StageLabel({ stage, age, className = "" }: { stage: Stage; age?:
 }
 
 export const TAG_LABEL: Record<ScreenTag, string> = {
-  breakout: "Breakout",
-  setup: "Setting up",
-  fresh2: "Fresh stage 2",
-  leader: "Leader",
+  breakout: "Breaking out",
+  setup: "Tight near highs",
+  fresh2: "New uptrend",
+  leader: "Strongest",
   ankur: "Ankur scan",
 };
 

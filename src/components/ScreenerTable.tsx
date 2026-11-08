@@ -1,27 +1,53 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import type { NewsBundle, ScreenRow, ScreenTag } from "@/engine/types";
 import { price, titleCase } from "@/lib/format";
 import { Change, RsMeter, SentimentDot, stageAge, StageLabel } from "./Badges";
+import { Select } from "./Select";
 
 type TabKey = ScreenTag | "all";
 type SortKey = "score" | "rs" | "high" | "tight" | "move";
 
-const TABS: { key: TabKey; label: string; blurb: string }[] = [
-  { key: "breakout", label: "Breakouts", blurb: "Closed above the top of a base of at least 8 weeks on 1.5× average volume, while in a stage 2 uptrend." },
-  { key: "setup", label: "Setting up", blurb: "Trend template intact, within 15% of the 52-week high, a tight 10-day range and volume drying up: the quiet before a possible breakout." },
-  { key: "fresh2", label: "Fresh stage 2", blurb: "Moved into a stage 2 uptrend within the last 30 sessions with RS 70 or more. The earliest point a new leader shows up." },
-  { key: "leader", label: "Leaders", blurb: "Relative strength in the top 10% of the market with the trend template intact." },
-  { key: "ankur", label: "Ankur's scans", blurb: "Ankur Patel's Chartink scans fired today (volume expansion, 20 EMA pullback, flag), or a setup from the Livermore rule engine." },
-  { key: "all", label: "All", blurb: "Every stock that passed at least one screen." },
+export const SCREENS: { key: TabKey; label: string; short: string; blurb: string }[] = [
+  {
+    key: "breakout",
+    label: "Breaking out",
+    short: "Broke above a multi-week ceiling today on heavy volume",
+    blurb: "Closed above the top of a sideways range of 8+ weeks today, on at least 1.5× normal volume, while in an uptrend.",
+  },
+  {
+    key: "setup",
+    label: "Tight near highs",
+    short: "Quiet and narrow, close to its 52-week high",
+    blurb: "Uptrend intact (7–8 of the 8 trend checks), within 15% of the 52-week high, a narrow 10-day range and falling volume. Often what a stock looks like just before it breaks out.",
+  },
+  {
+    key: "fresh2",
+    label: "New uptrends",
+    short: "Turned into an uptrend in the last 6 weeks",
+    blurb: "Moved from going sideways or down into an uptrend (price above a rising 150-day average) within the last 30 sessions, with RS 70+. The earliest point a new leader shows up.",
+  },
+  {
+    key: "leader",
+    label: "Strongest",
+    short: "Top 10% performers, uptrend intact",
+    blurb: "RS rating 90 or more (beat 90% of NSE stocks over the past year) with the uptrend still intact.",
+  },
+  {
+    key: "ankur",
+    label: "Ankur's scans",
+    short: "His own Chartink scans fired today",
+    blurb: "Ankur Patel's Chartink scans (volume expansion, 20 EMA pullback, flag) or one of his setups from the Livermore rule engine fired today.",
+  },
+  { key: "all", label: "All", short: "Everything above, ranked", blurb: "Every stock on at least one list." },
 ];
 
 const SORTS: { key: SortKey; label: string; fn: (a: ScreenRow, b: ScreenRow) => number }[] = [
   { key: "score", label: "Best match", fn: (a, b) => b.score - a.score },
   { key: "rs", label: "Relative strength", fn: (a, b) => b.rs - a.rs },
-  { key: "high", label: "Closest to high", fn: (a, b) => a.pctFromHigh - b.pctFromHigh },
+  { key: "high", label: "Closest to 52-week high", fn: (a, b) => a.pctFromHigh - b.pctFromHigh },
   { key: "tight", label: "Tightest range", fn: (a, b) => a.tight10 - b.tight10 },
   { key: "move", label: "Today's move", fn: (a, b) => b.chgPct - a.chgPct },
 ];
@@ -146,6 +172,34 @@ function DesktopTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, 
   );
 }
 
+const TERMS: [string, string][] = [
+  ["RS", "Relative Strength rating, 1–99. Ranks how much the stock rose over 3, 6, 9 and 12 months against all ~1,350 liquid NSE stocks (last 3 months count double). 90 = beat 90% of the market. Not the same as RSI."],
+  ["Stage", "Where the stock is in its cycle, from its 150-day average: 1 sideways base, 2 uptrend, 3 topping, 4 downtrend. \u201c2 · 14d\u201d = in an uptrend for 14 sessions."],
+  ["From high", "How far below its 52-week high it closed."],
+  ["10d range", "Gap between the highest and lowest price of the last 10 sessions, as % of price. Small = quiet, tight."],
+  ["Vol 5/50", "Average volume of the last 5 days ÷ last 50 days. Below 1 = volume drying up; well above 1 = heavy buying or selling."],
+  ["News dot", "Green positive, red negative, grey neutral, from a Gemini summary of NSE filings and headlines."],
+];
+
+function Glossary() {
+  return (
+    <details className="group rounded-xl border border-line">
+      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm text-ink-2 [&::-webkit-details-marker]:hidden">
+        What the numbers mean
+        <ChevronDown className="h-4 w-4 text-ink-3 transition-transform group-open:rotate-180" aria-hidden="true" />
+      </summary>
+      <dl className="grid gap-x-8 gap-y-3 border-t border-line px-4 py-4 text-sm md:grid-cols-2">
+        {TERMS.map(([t, d]) => (
+          <div key={t}>
+            <dt className="font-medium text-ink">{t}</dt>
+            <dd className="mt-0.5 leading-relaxed text-ink-2">{d}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}
+
 const control = "h-10 rounded-lg border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-line-strong md:h-9";
 
 export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, NewsBundle> }) {
@@ -162,7 +216,7 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
   // The open tab lives in the URL (?tab=setup) so a view can be shared or bookmarked.
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
-    if (t && TABS.some((x) => x.key === t)) setTab(t as TabKey);
+    if (t && SCREENS.some((x) => x.key === t)) setTab(t as TabKey);
   }, []);
   const choose = (t: TabKey) => {
     setTab(t);
@@ -188,44 +242,39 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="-mx-4 overflow-x-auto border-b border-line px-4 [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
-        <div role="tablist" aria-label="Screens" className="flex min-w-max gap-6">
-          {TABS.map((t) => (
+      <div role="radiogroup" aria-label="Screens" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        {SCREENS.map((t) => {
+          const on = tab === t.key;
+          return (
             <button
               key={t.key}
-              role="tab"
-              aria-selected={tab === t.key}
+              role="radio"
+              aria-checked={on}
               onClick={() => choose(t.key)}
-              className={`-mb-px flex items-baseline gap-1.5 border-b-2 pt-1 pb-3 text-sm whitespace-nowrap transition-colors ${tab === t.key ? "border-ink text-ink" : "border-transparent text-ink-3 hover:text-ink-2"}`}
+              className={`flex flex-col rounded-xl border p-3 text-left transition-colors ${on ? "border-ink bg-surface" : "border-line hover:border-line-strong"}`}
             >
-              {t.label}
-              <span className="num text-xs text-ink-3">{counts[t.key] ?? 0}</span>
+              <span className="flex items-baseline justify-between gap-2">
+                <span className={`text-sm font-medium ${on ? "text-ink" : "text-ink-2"}`}>{t.label}</span>
+                <span className="num text-xs text-ink-3">{counts[t.key] ?? 0}</span>
+              </span>
+              <span className="mt-1 text-xs leading-snug text-ink-3">{t.short}</span>
             </button>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
-      <p className="text-sm leading-relaxed text-ink-2">{TABS.find((t) => t.key === tab)?.blurb}</p>
+      <p className="text-sm leading-relaxed text-ink-2">{SCREENS.find((t) => t.key === tab)?.blurb}</p>
 
       <div className="grid grid-cols-2 gap-2 md:flex md:items-center">
         <label className={`${control} col-span-2 flex items-center gap-2 md:w-72`}>
           <Search className="h-4 w-4 shrink-0 text-ink-3" aria-hidden="true" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search symbol or name" aria-label="Search" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-ink-3" />
         </label>
-        <select value={sector} onChange={(e) => setSector(e.target.value)} aria-label="Sector" className={`${control} min-w-0 md:w-48`}>
-          <option value="">All sectors</option>
-          {sectors.map((s) => (
-            <option key={s}>{s}</option>
-          ))}
-        </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort" className={`${control} min-w-0 md:w-44`}>
-          {SORTS.map((s) => (
-            <option key={s.key} value={s.key}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+        <Select label="Sector" value={sector} onChange={setSector} options={[{ value: "", label: "All" }, ...sectors.map((x) => ({ value: x, label: x }))]} className="min-w-0 md:w-60" />
+        <Select label="Sort" value={sort} onChange={(v) => setSort(v as SortKey)} options={SORTS.map((x) => ({ value: x.key, label: x.label }))} className="min-w-0 md:w-56" />
       </div>
+
+      <Glossary />
 
       <div className="overflow-hidden rounded-2xl border border-line bg-surface">
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 text-xs text-ink-3 md:px-5">

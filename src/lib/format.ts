@@ -20,12 +20,19 @@ export function istTime(iso: string): string {
 }
 
 const KEEP_UPPER = new Set(["ABB", "ACC", "BSE", "CDSL", "HDFC", "ICICI", "IDBI", "IDFC", "IRCTC", "ITC", "LIC", "NTPC", "ONGC", "SBI", "TVS", "UPL", "IT", "AI", "II", "III"]);
-/** "GUFIC BIOSCIENCES LTD." → "Gufic Biosciences Ltd." (NSE names arrive in capitals). */
+const SMALL_WORDS = new Set(["of", "in", "on", "an", "to", "co", "a"]);
+/** "GUFIC BIOSCIENCES LTD." → "Gufic Biosciences Ltd.", "MM FORGINGS LTD" → "MM Forgings Ltd" (NSE names arrive in capitals). */
 export function titleCase(name: string): string {
   if (name !== name.toUpperCase()) return name;
   return name
     .toLowerCase()
     .split(/(\s+|-|\(|\))/)
-    .map((w) => (KEEP_UPPER.has(w.toUpperCase()) ? w.toUpperCase() : w.replace(/^[a-z]/, (c) => c.toUpperCase())))
+    .map((w, k) =>
+      k > 0 && SMALL_WORDS.has(w) && w !== "co"
+        ? w
+        : KEEP_UPPER.has(w.toUpperCase()) || (/^[a-z]{1,2}$/.test(w) && !SMALL_WORDS.has(w))
+        ? w.toUpperCase() // initials such as "MM", "JK", "SG"
+        : w.replace(/^[a-z]/, (c) => c.toUpperCase()),
+    )
     .join("");
 }

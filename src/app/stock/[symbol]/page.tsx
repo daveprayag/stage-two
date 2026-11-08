@@ -25,11 +25,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: decodeURIComponent(symbol).toUpperCase() };
 }
 
-function Fact({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+function Fact({ label, children, hint, note }: { label: string; children: React.ReactNode; hint?: string; note?: string }) {
   return (
     <div title={hint} className="bg-surface px-4 py-2.5 sm:px-5 sm:py-3">
       <dt className="text-xs text-ink-3">{label}</dt>
       <dd className="num mt-1 text-[15px] text-ink">{children}</dd>
+      {note && <dd className="mt-0.5 text-[11px] leading-snug text-ink-3">{note}</dd>}
     </div>
   );
 }
@@ -88,7 +89,7 @@ export default async function StockPage({ params }: Props) {
 
       <Card>
         <dl className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
-          <Fact label="RS rating" hint="Relative strength rating, 1–99">{row ? <RsMeter rs={row.rs} /> : "—"}</Fact>
+          <Fact label="RS rating" hint="Relative Strength rating, 1–99: 3–12 month performance ranked against all liquid NSE stocks" note={row ? `Beat ${row.rs}% of NSE stocks over the past year` : undefined}>{row ? <RsMeter rs={row.rs} /> : "—"}</Fact>
           <Fact label="From 52-week high">{fromHigh < 0.05 ? "At high" : `−${fromHigh.toFixed(1)}%`}</Fact>
           <Fact label="1 month"><Change value={row?.ret1m} /></Fact>
           <Fact label="3 months"><Change value={row?.ret3m} /></Fact>

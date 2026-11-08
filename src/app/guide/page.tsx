@@ -58,7 +58,7 @@ export default function GuidePage() {
         <p>
           Stan Weinstein split a stock&apos;s life into four stages using the 30-week (≈150-day) average. Swing traders only want stage 2. This app calls a stock
           stage 2 when it closes above a 150-day average that rose more than 1% over the last 20 sessions; stage 4 is the mirror image; a flat average is
-          stage 3 after an advance and stage 1 otherwise. &quot;Fresh stage 2&quot; finds stocks that crossed into stage 2 within the last 30 sessions: the
+          stage 3 after an advance and stage 1 otherwise. The &quot;New uptrends&quot; list finds stocks that crossed into stage 2 within the last 30 sessions: the
           earliest point at which a new leader shows up.
         </p>
         <Card className="p-4">
@@ -93,7 +93,18 @@ export default function GuidePage() {
         </p>
       </Section>
 
-      <Section title="What the screens are, and are not">
+      <Section title="The five lists">
+        <ul className="list-disc pl-5">
+          <li><strong className="text-ink">Breaking out:</strong> closed above the top of a sideways range of 8+ weeks today, on at least 1.5× normal volume, while in an uptrend.</li>
+          <li><strong className="text-ink">Tight near highs:</strong> uptrend intact, within 15% of the 52-week high, a narrow 10-day range and falling volume. Often what a stock looks like just before a breakout.</li>
+          <li><strong className="text-ink">New uptrends:</strong> moved into stage 2 within the last 30 sessions with RS 70 or more.</li>
+          <li><strong className="text-ink">Strongest:</strong> RS 90 or more with the uptrend intact.</li>
+          <li><strong className="text-ink">Ankur&apos;s scans:</strong> Ankur Patel&apos;s own Chartink scans (volume expansion, 20 EMA pullback, flag) or one of his setups fired today.</li>
+        </ul>
+        <p>A stock can be on several lists at once; the best candidates usually are.</p>
+      </Section>
+
+      <Section title="What the lists are, and are not">
         <p>
           Every screen here is a shortlist for your own review, not a buy signal. Tested mechanically on 2021–2024 NSE data with real delivery costs, rules like
           these (Ankur Patel&apos;s setups, trend filters, breakouts with stops) came out roughly breakeven before costs and below a NIFTY 500 index fund after
