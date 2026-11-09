@@ -274,11 +274,14 @@ function marketSnapshot(store: PriceStore, liquid: Work[], name = BENCHMARK): Ma
 }
 
 /** Every liquid stock's row (tagged or not), plus the internals the market snapshot needs. */
-function analyseAll(store: PriceStore): { all: ScreenRow[]; liquid: Work[] } {
+/** Symbol → NSE sector for every stock (blob meta/sectors.json); overrides the store's index-list labels. */
+export type Sectors = Record<string, string>;
+
+function analyseAll(store: PriceStore, sectors?: Sectors): { all: ScreenRow[]; liquid: Work[] } {
   const bench = store.indices[BENCHMARK] ?? [];
   const work: Work[] = [];
   for (const s of Object.values(store.stocks)) {
-    const w = analyseStock(store, s, bench);
+    const w = analyseStock(store, sectors?.[s.symbol] ? { ...s, industry: sectors[s.symbol] as string } : s, bench);
     if (w) work.push(w);
   }
   const liquid = work.filter((w) => w.liquid);
@@ -329,12 +332,12 @@ function industryRanks(rows: ScreenRow[]): Map<string, { ret3m: number; rank: nu
 }
 
 /** All liquid stocks' rows, keyed by symbol (for the stock page). */
-export function allRows(store: PriceStore): Map<string, ScreenRow> {
-  return new Map(analyseAll(store).all.map((r) => [r.symbol, r]));
+export function allRows(store: PriceStore, sectors?: Sectors): Map<string, ScreenRow> {
+  return new Map(analyseAll(store, sectors).all.map((r) => [r.symbol, r]));
 }
 
-export function computeScreen(store: PriceStore): Omit<ScreenFile, "news" | "newsAt"> {
-  const { all, liquid } = analyseAll(store);
+export function computeScreen(store: PriceStore, sectorMap?: Sectors): Omit<ScreenFile, "news" | "newsAt"> {
+  const { all, liquid } = analyseAll(store, sectorMap);
   const byIndustry = new Map<string, ScreenRow[]>();
   for (const r of all) if (r.industry) (byIndustry.get(r.industry) ?? byIndustry.set(r.industry, []).get(r.industry))!.push(r);
   const sectors: SectorRow[] = [...byIndustry.entries()]

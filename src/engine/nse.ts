@@ -292,3 +292,14 @@ export function parseAnnouncements(json: unknown): Announcement[] {
   }
   return out;
 }
+
+/** NSE's per-stock sector (same names as the index lists' "Industry" column); see livermore sources/nseIndustry.ts. */
+export const sectorUrl = (symbol: string) =>
+  `https://www.nseindia.com/api/NextApi/apiClient/GetQuoteApi?functionName=getSymbolData&marketType=N&series=EQ&symbol=${encodeURIComponent(symbol)}`;
+
+export function parseSector(json: unknown): string | null {
+  const er = (json as { equityResponse?: unknown[] } | null)?.equityResponse;
+  const first = Array.isArray(er) ? (er[0] as { secInfo?: { sector?: unknown } } | undefined) : undefined;
+  const sector = first?.secInfo?.sector;
+  return typeof sector === "string" && sector.trim() ? sector.trim() : null;
+}

@@ -3,7 +3,7 @@ import { zipSync, strToU8 } from "fflate";
 import { applyFactor, corpActionFactor, gapFactor } from "./adjust";
 import { basePivot, cluster, supportResistance, swingHighs, trendline } from "./levels";
 import { companyQuery, parseGoogleNews } from "./news";
-import { parseAnnouncements, parseBhavcopyZip, parseCsv, parseIndexClose, parseNseDate, parsePriceBands } from "./nse";
+import { parseAnnouncements, parseBhavcopyZip, parseCsv, parseIndexClose, parseNseDate, parsePriceBands, parseSector } from "./nse";
 import { newsShortlist } from "./pipeline";
 import { allRows, computeScreen, isFund } from "./screen";
 import { countRallies, findBase, findResume, phaseOf, smaArr, stageAt } from "./series";
@@ -220,6 +220,28 @@ describe("momentum leaders", () => {
     expect(rows.get("LEADCOLD")?.rs).toBeGreaterThanOrEqual(80);
     expect(rows.get("LEADCOLD")?.tags).not.toContain("momentum");
     expect(rows.get("MID0")?.tags ?? []).not.toContain("momentum");
+  });
+});
+
+describe("sector labels for every stock", () => {
+  it("reads NSE's per-stock sector", () => {
+    expect(parseSector({ equityResponse: [{ secInfo: { sector: "Capital Goods" } }] })).toBe("Capital Goods");
+    expect(parseSector({ equityResponse: [] })).toBeNull();
+  });
+  it("lets a stock outside the index lists qualify once it has a sector", () => {
+    const n = 260;
+    const dates = Array.from({ length: n }, (_, k) => `2025-${String(1 + Math.floor(k / 22)).padStart(2, "0")}-${String(1 + (k % 22)).padStart(2, "0")}`);
+    const mk = (isin: string, industry: string | null, f: (k: number) => number, swing: number): StockSeries => {
+      const c = Array.from({ length: n }, (_, k) => Math.round(f(k) * 100) / 100);
+      return { isin, symbol: isin, name: `${isin} LTD`, series: "EQ", industry, band: 20, listed: null, o: c, h: c.map((x) => x * (1 + swing)), l: c.map((x) => x * (1 - swing)), c, v: c.map(() => 400_000) };
+    };
+    const stocks: Record<string, StockSeries> = {};
+    for (let j = 0; j < 4; j++) stocks[`HOT${j}`] = mk(`HOT${j}`, "Hot", (k) => 100 * 1.005 ** k * (1 + 0.01 * Math.sin(k + j)), 0.03);
+    for (let j = 0; j < 4; j++) stocks[`COLD${j}`] = mk(`COLD${j}`, "Cold", (k) => 200 + 5 * Math.sin(k / 9 + j), 0.01);
+    stocks.SMALL = mk("SMALL", null, (k) => 100 * 1.005 ** k * (1 + 0.01 * Math.sin(k)), 0.03);
+    const store: PriceStore = { version: 1, asOf: dates[n - 1]!, dates, stocks, indices: { "NIFTY 500": dates.map((_, k) => 20000 + k) } };
+    expect(allRows(store).get("SMALL")?.tags ?? []).not.toContain("momentum");
+    expect(allRows(store, { SMALL: "Hot" }).get("SMALL")?.tags).toContain("momentum");
   });
 });
 

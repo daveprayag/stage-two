@@ -11,9 +11,10 @@ import { PATHS, readJson, writeJson } from "./blob";
 import { fetchHeadlines, verdicts } from "./news";
 import {
   announcementsUrl, bhavcopyUrl, corpActionsUrl, indexCloseUrl, parseAnnouncements, parseBhavcopyZip,
-  parseCorpActions, parseIndexClose, parseNseDate, parsePriceBands, politeGet, politeHead, priceBandUrl, type CorpAction,
+  parseCorpActions, parseIndexClose, parseNseDate, parsePriceBands, parseSector, politeGet, politeHead, priceBandUrl, sectorUrl,
+  type CorpAction,
 } from "./nse";
-import { computeScreen } from "./screen";
+import { computeScreen, type Sectors } from "./screen";
 import type { Filing, ISODate, NewsBundle, PriceStore, RunRecord, ScreenFile, ScreenRow } from "./types";
 import { appendSession } from "./update";
 import { picksFor, upsertEntry, type TrackEntry } from "./track";
@@ -60,6 +61,31 @@ async function finish(rec: Omit<RunRecord, "finishedAt">): Promise<RunRecord> {
   const done: RunRecord = { ...rec, finishedAt: new Date().toISOString() };
   await appendRun(done).catch(() => undefined);
   return done;
+}
+
+const LABELS_PER_RUN = 30;
+
+/** Label up to LABELS_PER_RUN unlabelled EQ stocks (new listings) with NSE's sector; returns the updated map. */
+async function labelNewStocks(store: PriceStore, log: string[]): Promise<Sectors> {
+  const sectors = (await readJson<Sectors>(PATHS.sectors, true)) ?? {};
+  const todo = Object.values(store.stocks).filter((s) => s.series === "EQ" && !sectors[s.symbol]).map((s) => s.symbol).slice(0, LABELS_PER_RUN);
+  let added = 0;
+  for (const symbol of todo) {
+    try {
+      const raw = await politeGet(sectorUrl(symbol), "application/json", 1);
+      const sector = raw ? parseSector(JSON.parse(new TextDecoder().decode(raw))) : null;
+      // "" marks a symbol NSE has no sector for, so it is not asked again every night.
+      sectors[symbol] = sector ?? "";
+      if (sector) added++;
+    } catch {
+      // try again next run
+    }
+  }
+  if (todo.length) {
+    await writeJson(PATHS.sectors, sectors);
+    log.push(`sectors: ${added} of ${todo.length} unlabelled stocks labelled`);
+  }
+  return sectors;
 }
 
 /** Save the session's picks to the forward track record (replacing an earlier save for the same session). */
@@ -152,7 +178,8 @@ export async function runEod(opts: JobOptions = {}): Promise<RunRecord> {
         await writeJson(PATHS.pricesPrev, before);
         await writeJson(PATHS.prices, store);
       }
-      const screen: ScreenFile = { ...computeScreen(store), news: {}, newsAt: null };
+      const sectors = await labelNewStocks(store, log).catch(() => ({}) as Sectors);
+      const screen: ScreenFile = { ...computeScreen(store, sectors), news: {}, newsAt: null };
       await writeJson(PATHS.screen, screen);
       await writeJson(PATHS.screenOn(screen.asOf), screen);
       log.push(`screen ${screen.asOf}: ${screen.rows.length} rows`);
