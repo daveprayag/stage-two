@@ -240,8 +240,10 @@ export async function runEod(st: Storage, opts: JobOptions = {}): Promise<RunRec
     await st.putJson(P.closes, closes);
     const ranked = rankWork(work);
     // Same session rebuilt: keep the news already fetched; newsAt null makes the news job refresh the shortlist.
-    const prev = sessions.length ? null : await st.getJson<ScreenFile>(P.screen);
-    const screen: ScreenFile = { ...screenFromWork(head, ranked), news: prev?.asOf === head.asOf ? prev.news : {}, newsAt: null };
+    // Carry the last news over until the news job replaces it (newsAt null makes it run), so a new session does not
+    // briefly show no stars between the two jobs.
+    const prev = await st.getJson<ScreenFile>(P.screen);
+    const screen: ScreenFile = { ...screenFromWork(head, ranked), news: prev?.news ?? {}, newsAt: null };
     await st.putJson(P.screen, screen);
     await st.putJson(P.screenOn(screen.asOf), screen);
     await st.putJson(P.rows, ranked.all);
@@ -369,7 +371,9 @@ export async function runFilings(st: Storage, enrich: Enricher, opts: JobOptions
       if (g) {
         b.headlines = g.headlines.length ? g.headlines : b.headlines;
         if (g.ai) {
-          b.ai = g.ai;
+          // Stars are set once a day by the evening news job. A new filing updates the summary and can add a red flag
+          // (which removes the star), but the sentiment stays as judged that evening, so stars do not flip on re-wording.
+          b.ai = b.ai ? { ...g.ai, sentiment: b.ai.sentiment } : g.ai;
           n++;
         }
       }
