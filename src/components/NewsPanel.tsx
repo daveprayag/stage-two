@@ -21,6 +21,7 @@ function Points({ title, items, tone }: { title: string; items: string[]; tone: 
 }
 
 export function AiSummary({ ai }: { ai: NewsVerdict | null }) {
+  if (!ai) return null;
   return (
     <Card>
       <CardHeader
@@ -49,7 +50,7 @@ export function AiSummary({ ai }: { ai: NewsVerdict | null }) {
 
 export function Sources({ filings, headlines }: { filings: Filing[]; headlines: Headline[] }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <>
       <Card>
         <CardHeader title="NSE filings" aside={<span className="text-xs text-ink-3">Last 3 weeks</span>} />
         <ul className="mt-2 divide-y divide-line">
@@ -86,6 +87,6 @@ export function Sources({ filings, headlines }: { filings: Filing[]; headlines: 
           {!headlines.length && <li className="px-4 py-6 text-sm text-ink-3 sm:px-5">No headlines found.</li>}
         </ul>
       </Card>
-    </div>
+    </>
   );
 }

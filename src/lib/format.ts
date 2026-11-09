@@ -20,8 +20,12 @@ export function istTime(iso: string): string {
 }
 
 const KEEP_UPPER = new Set(["ABB", "ACC", "BSE", "CDSL", "HDFC", "ICICI", "IDBI", "IDFC", "IRCTC", "ITC", "LIC", "NTPC", "ONGC", "SBI", "TVS", "UPL", "IT", "AI", "II", "III"]);
+const NOT_ACRONYMS = new Set(["ltd", "pvt", "mfg", "bros"]);
 const SMALL_WORDS = new Set(["of", "in", "on", "an", "to", "co", "a"]);
-/** "GUFIC BIOSCIENCES LTD." → "Gufic Biosciences Ltd.", "MM FORGINGS LTD" → "MM Forgings Ltd" (NSE names arrive in capitals). */
+/**
+ * "GUFIC BIOSCIENCES LTD." → "Gufic Biosciences Ltd.", "MM FORGINGS LTD" → "MM Forgings Ltd"; vowel-less short words stay
+ * capitals as acronyms ("PVR INOX LIMITED" → "PVR Inox Limited", "JSW STEEL" → "JSW Steel"). NSE names arrive in capitals.
+ */
 export function titleCase(name: string): string {
   if (name !== name.toUpperCase()) return name;
   return name
@@ -30,7 +34,7 @@ export function titleCase(name: string): string {
     .map((w, k) =>
       k > 0 && SMALL_WORDS.has(w) && w !== "co"
         ? w
-        : KEEP_UPPER.has(w.toUpperCase()) || (/^[a-z]{1,2}$/.test(w) && !SMALL_WORDS.has(w))
+        : KEEP_UPPER.has(w.toUpperCase()) || (/^[a-z]{1,2}$/.test(w) && !SMALL_WORDS.has(w)) || (/^[^aeiou\W\d]{3,4}$/.test(w) && !NOT_ACRONYMS.has(w))
         ? w.toUpperCase() // initials such as "MM", "JK", "SG"
         : w.replace(/^[a-z]/, (c) => c.toUpperCase()),
     )

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Check, ChevronLeft, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, X } from "lucide-react";
 import { Change, RsMeter, StageLabel, TAG_LABEL } from "@/components/Badges";
 import { AiSummary, Sources } from "@/components/NewsPanel";
 import { Card, CardHeader, Page } from "@/components/Page";
@@ -87,24 +87,17 @@ export default async function StockPage({ params }: Props) {
                 <span>{screens.join(", ")}</span>
               </>
             )}
+            {(row.scans.length > 0 || row.setup) && (
+              <>
+                <span className="text-ink-3">·</span>
+                <span>Ankur&apos;s scans: {[...row.scans, ...(row.setup ? [`${row.setup} setup`] : [])].join(", ")}</span>
+              </>
+            )}
           </p>
         )}
       </div>
 
-      <Card>
-        <dl className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
-          <Fact label="RS rating" hint="Relative Strength rating, 1–99: 3–12 month performance ranked against all liquid NSE stocks" note={row ? `Beat ${row.rs}% of NSE stocks over the past year` : undefined}>{row ? <RsMeter rs={row.rs} /> : "—"}</Fact>
-          <Fact label="From 52-week high">{fromHigh < 0.05 ? "At high" : `−${fromHigh.toFixed(1)}%`}</Fact>
-          <Fact label="1 month"><Change value={row?.ret1m} /></Fact>
-          <Fact label="3 months"><Change value={row?.ret3m} /></Fact>
-          <Fact label="10-day range" hint="High–low range of the last 10 sessions as % of price">{row ? `${row.tight10.toFixed(1)}%` : "—"}</Fact>
-          <Fact label="Volume 5/50" hint="Below 1 means volume is drying up">{row ? row.dryUp.toFixed(2) : "—"}</Fact>
-          <Fact label="Avg daily value" hint="50-day average traded value">{row ? crore(row.turnoverCr) : "—"}</Fact>
-          <Fact label="Next resistance">{row?.resistance ? price(row.resistance) : "None nearby"}</Fact>
-        </dl>
-      </Card>
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <div className="flex min-w-0 flex-col gap-6">
           <Card className="p-4 sm:p-5">
             <PriceChart d={d} />
@@ -112,60 +105,101 @@ export default async function StockPage({ params }: Props) {
               Dashed: support (green) and resistance (red) where price has turned before. Solid: the longest trendline through rising lows or falling highs that price hasn&apos;t closed through.
             </p>
           </Card>
-          <AiSummary ai={shortlisted?.ai ?? null} />
-        </div>
-        <div className="flex flex-col gap-6">
-          {row && (
-            <Card className={top ? "border-up" : ""}>
-              <CardHeader
-                title="Top setup checks"
-                aside={<span className={`num text-sm ${top ? "text-up" : "text-ink-2"}`}>{topPassed} of {topChecks.length}</span>}
-              />
-              <p className="px-4 pt-1 text-xs leading-relaxed text-ink-3 sm:px-5">
-                {top ? "Passes every check. Not a guarantee: decide your stop before you buy." : "A top setup must pass all of these."}
-              </p>
-              <ul className="mt-2 divide-y divide-line">
-                {topChecks.map((c) => (
-                  <li key={c.key} className="flex gap-3 px-4 py-2.5 sm:px-5 sm:py-3">
-                    {c.pass ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-up" aria-label="Pass" /> : <X className="mt-0.5 h-4 w-4 shrink-0 text-down" aria-label="Fail" />}
-                    <div className="min-w-0">
-                      <div className="text-sm text-ink">{c.label}</div>
-                      <div className="num mt-0.5 text-xs text-ink-3">{c.value}</div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
           <Card>
-            <CardHeader title="Trend template" aside={<span className={`num text-sm ${passed >= 7 ? "text-up" : passed >= 5 ? "text-amber" : "text-down"}`}>{passed} of 8</span>} />
-            <ul className="mt-2 divide-y divide-line">
-              {d.checklist.map((c) => (
-                <li key={c.label} className="flex gap-3 px-4 py-2.5 sm:px-5 sm:py-3">
-                  {c.pass ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-up" aria-label="Pass" /> : <X className="mt-0.5 h-4 w-4 shrink-0 text-down" aria-label="Fail" />}
-                  <div className="min-w-0">
+            <dl className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
+              <Fact label="RS rating" hint="Relative Strength rating, 1–99: 3–12 month performance ranked against all liquid NSE stocks" note={row ? `Beat ${row.rs}% of NSE stocks` : undefined}>{row ? <RsMeter rs={row.rs} /> : "—"}</Fact>
+              <Fact label="From 52-week high">{fromHigh < 0.05 ? "At high" : `−${fromHigh.toFixed(1)}%`}</Fact>
+              <Fact label="1 month"><Change value={row?.ret1m} /></Fact>
+              <Fact label="3 months"><Change value={row?.ret3m} /></Fact>
+              <Fact label="10-day range" hint="High–low range of the last 10 sessions as % of price">{row ? `${row.tight10.toFixed(1)}%` : "—"}</Fact>
+              <Fact label="Volume 5/50" hint="Below 1 means volume is drying up">{row ? row.dryUp.toFixed(2) : "—"}</Fact>
+              <Fact label="Avg daily value" hint="50-day average traded value">{row ? crore(row.turnoverCr) : "—"}</Fact>
+              <Fact label="Next resistance">{row?.resistance ? price(row.resistance) : "None nearby"}</Fact>
+            </dl>
+          </Card>
+        </div>
+
+        <Card className={top ? "border-up" : ""}>
+          <CardHeader
+            title={row ? "Top setup checks" : "Trend template"}
+            aside={
+              row ? (
+                <span className={`num text-sm ${top ? "text-up" : "text-ink-2"}`}>
+                  {topPassed} of {topChecks.length}
+                </span>
+              ) : (
+                <span className="num text-sm text-ink-2">{passed} of 8</span>
+              )
+            }
+          />
+          <p className="px-4 pt-1 text-xs leading-relaxed text-ink-3 sm:px-5">
+            {!row ? "This stock is outside the liquid universe the screener ranks." : top ? "Passes every check. Not a guarantee: decide your stop before you buy." : "A top setup must pass all of these."}
+          </p>
+          <ul className="mt-2 divide-y divide-line">
+            {(row ? topChecks : []).map((c) => (
+              <li key={c.key} className="px-4 py-2.5 sm:px-5">
+                <div className="flex gap-3">
+                  <CheckIcon pass={c.pass} />
+                  <div className="min-w-0 flex-1">
                     <div className="text-sm text-ink">{c.label}</div>
                     <div className="num mt-0.5 text-xs text-ink-3">{c.value}</div>
                   </div>
-                </li>
-              ))}
-            </ul>
-          </Card>
-          {row && (row.scans.length > 0 || row.setup) && (
-            <Card>
-              <CardHeader title="Ankur Patel's scans today" />
-              <ul className="space-y-1.5 px-4 pt-2 pb-4 text-sm text-ink-2 sm:px-5 sm:pb-5">
-                {row.scans.map((s) => (
-                  <li key={s}>{s}</li>
-                ))}
-                {row.setup && <li>Rule-engine setup: {row.setup}</li>}
-              </ul>
-            </Card>
+                </div>
+                {c.key === "template" && (
+                  <details className="group mt-2 ml-7">
+                    <summary className="flex cursor-pointer list-none items-center gap-1 text-xs text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+                      Show the 8 points
+                      <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" aria-hidden="true" />
+                    </summary>
+                    <TemplateList items={d.checklist} />
+                  </details>
+                )}
+              </li>
+            ))}
+          </ul>
+          {!row && (
+            <div className="px-4 pb-4 sm:px-5">
+              <TemplateList items={d.checklist} />
+            </div>
           )}
-        </div>
+        </Card>
       </div>
 
-      <Sources filings={filings} headlines={headlines} />
+      {shortlisted?.ai ? (
+        <div className="grid items-start gap-6 lg:grid-cols-3">
+          <AiSummary ai={shortlisted.ai} />
+          <Sources filings={filings} headlines={headlines} />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-ink-3">
+            No AI news summary for this stock today: the nightly job summarises the 60 strongest candidates. Its filings and headlines are below.
+          </p>
+          <div className="grid items-start gap-6 lg:grid-cols-2">
+            <Sources filings={filings} headlines={headlines} />
+          </div>
+        </div>
+      )}
     </Page>
+  );
+}
+
+function CheckIcon({ pass }: { pass: boolean }) {
+  return pass ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-up" aria-label="Pass" /> : <X className="mt-0.5 h-4 w-4 shrink-0 text-down" aria-label="Fail" />;
+}
+
+function TemplateList({ items }: { items: { label: string; pass: boolean; value: string }[] }) {
+  return (
+    <ul className="mt-2 space-y-2">
+      {items.map((c) => (
+        <li key={c.label} className="flex gap-2.5">
+          <CheckIcon pass={c.pass} />
+          <div className="min-w-0">
+            <div className="text-[13px] text-ink-2">{c.label}</div>
+            <div className="num text-[11px] text-ink-3">{c.value}</div>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }

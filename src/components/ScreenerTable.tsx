@@ -47,10 +47,13 @@ export const SCREENS: { key: TabKey; label: string; short: string; blurb: string
     key: "ankur",
     label: "Ankur's scans",
     short: "His own Chartink scans fired today",
-    blurb: "Ankur Patel's Chartink scans (volume expansion, 20 EMA pullback, flag) or one of his setups from the Livermore rule engine fired today.",
+    blurb: "Three of Ankur Patel's Chartink scans merged into one list (volume expansion, 20 EMA pullback, flag), plus his setups from the Livermore rule engine. He runs each scan separately: pick one under Scan to compare with his Chartink list.",
   },
   { key: "all", label: "All", short: "Everything above, ranked", blurb: "Every stock on at least one list." },
 ];
+
+/** The scans that put a stock in the "Ankur's scans" list (his broad momentum list is a watchlist, shown as a label only). */
+const ANKUR_SCANS = ["Volume (range expansion)", "20 EMA pullback", "Flag"];
 
 const SORTS: { key: SortKey; label: string; fn: (a: ScreenRow, b: ScreenRow) => number }[] = [
   { key: "score", label: "Best match", fn: (a, b) => b.score - a.score },
@@ -225,6 +228,16 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
   const [sector, setSector] = useState("");
   const [sort, setSort] = useState<SortKey>("score");
   const [positive, setPositive] = useState(false);
+  // Inside "Ankur's scans": view one of his lists at a time, as he runs them on Chartink.
+  const [scan, setScan] = useState("");
+  const scanOptions = useMemo(() => {
+    const n = (f: (r: ScreenRow) => boolean) => rows.filter((r) => r.tags.includes("ankur") && f(r)).length;
+    return [
+      { value: "", label: `All his scans (${n(() => true)})` },
+      ...ANKUR_SCANS.map((x) => ({ value: x, label: `${x} (${n((r) => r.scans.includes(x))})` })),
+      { value: "setup", label: `Rule-engine setups (${n((r) => !!r.setup)})` },
+    ];
+  }, [rows]);
   // The open tab lives in the URL (?tab=setup) so a view can be shared or bookmarked.
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
@@ -246,11 +259,12 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
         (r) =>
           (tab === "all" || (tab === "top" ? isTopSetup(r, news[r.symbol]) : r.tags.includes(tab))) &&
           (!sector || r.industry === sector) &&
+          (tab !== "ankur" || !scan || (scan === "setup" ? !!r.setup : r.scans.includes(scan))) &&
           (!positive || news[r.symbol]?.ai?.sentiment === "positive") &&
           (!needle || r.symbol.includes(needle) || r.name.toUpperCase().includes(needle)),
       )
       .sort(fn);
-  }, [rows, tab, q, sector, sort, positive, news]);
+  }, [rows, tab, q, sector, sort, positive, news, scan]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -285,6 +299,7 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
           <Search className="h-4 w-4 shrink-0 text-ink-3" aria-hidden="true" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search symbol or name" aria-label="Search" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-ink-3" />
         </label>
+        {tab === "ankur" && <Select label="Scan" value={scan} onChange={setScan} options={scanOptions} className="col-span-2 min-w-0 md:w-72" />}
         <Select label="Sector" value={sector} onChange={setSector} options={[{ value: "", label: "All" }, ...sectors.map((x) => ({ value: x, label: x }))]} className="min-w-0 md:w-60" />
         <Select label="Sort" value={sort} onChange={(v) => setSort(v as SortKey)} options={SORTS.map((x) => ({ value: x.key, label: x.label }))} className="min-w-0 md:w-56" />
       </div>

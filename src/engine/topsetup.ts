@@ -36,7 +36,7 @@ export function technicalChecks(r: ScreenRow): Check[] {
       pass: r.close > ema20 && r.close > ema50,
       value: Number.isFinite(ema20) ? `${pct((r.close / ema20 - 1) * 100)} / ${pct((r.close / ema50 - 1) * 100)} above` : "n/a",
     },
-    { key: "rsi", label: "RSI(14) between 50 and 75: strong, not overbought", pass: rsi >= 50 && rsi <= 75, value: Number.isFinite(rsi) ? `RSI ${rsi.toFixed(0)}` : "n/a" },
+    { key: "rsi", label: "RSI(14) between 50 and 75: strong, not overbought", pass: rsi >= 50 && rsi <= 75, value: Number.isFinite(rsi) ? `RSI ${rsi.toFixed(1)}` : "n/a" },
     { key: "rs", label: "RS rating 80 or more", pass: r.rs >= 80, value: `RS ${r.rs}` },
     {
       key: "stretch",
