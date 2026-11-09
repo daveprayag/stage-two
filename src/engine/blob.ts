@@ -5,6 +5,7 @@
  *   screens/latest.json        latest screen (+ screens/<date>.json, one per session, for the track record)
  *   news/announcements.json    NSE filings, last ~3 weeks, by symbol
  *   runs/log.json              cron history (newest first)
+ *   meta/eod.json, meta/filings.json   last check times and the store date, for cheap frequent checks
  */
 import { get, put } from "@vercel/blob";
 import { gunzipSync, gzipSync, strFromU8, strToU8 } from "fflate";
@@ -16,6 +17,9 @@ export const PATHS = {
   screenOn: (d: string) => `screens/${d}.json`,
   announcements: "news/announcements.json",
   runs: "runs/log.json",
+  /** Small state files so frequent checks never load the big price store. */
+  eodState: "meta/eod.json",
+  filingsState: "meta/filings.json",
 } as const;
 
 async function readBytes(path: string, fresh: boolean): Promise<Uint8Array | null> {

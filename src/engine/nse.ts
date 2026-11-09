@@ -58,6 +58,20 @@ export async function politeGet(url: string, accept = "*/*", attempts = 3): Prom
   return null;
 }
 
+/** HEAD request: does the file exist yet? (Same etiquette as politeGet; one attempt.) */
+export async function politeHead(url: string): Promise<boolean> {
+  const wait = lastRequest + 700 - Date.now();
+  if (wait > 0) await sleep(wait);
+  lastRequest = Date.now();
+  const res = await fetch(url, {
+    method: "HEAD",
+    headers: { "User-Agent": UA, Accept: "*/*", Referer: "https://www.nseindia.com/" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
+  return res.ok;
+}
+
 /** Minimal RFC-4180 CSV parser (quoted fields, embedded commas/quotes). */
 export function parseCsv(text: string): string[][] {
   const out: string[][] = [];

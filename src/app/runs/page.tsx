@@ -1,20 +1,33 @@
 import type { Metadata } from "next";
 import { ChevronDown } from "lucide-react";
 import { Card, Page, PageTitle } from "@/components/Page";
-import { getRuns } from "@/lib/data";
+import { getEodState, getFilingsState, getRuns } from "@/lib/data";
 import { istTime } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Runs" };
 export const dynamic = "force-dynamic";
 
 export default async function RunsPage() {
-  const runs = (await getRuns()) ?? [];
+  const [runs, eod, filings] = await Promise.all([getRuns().then((r) => r ?? []), getEodState(), getFilingsState()]);
+  const JOB = { eod: "Prices", news: "News", filings: "Filings" } as const;
+  const SOURCE: Record<string, string> = { cloudflare: "scheduler", vercel: "daily backup", manual: "manual" };
   return (
     <Page narrow>
-      <PageTitle title="Nightly runs">
-        At about 9 pm IST the price job adds the day&apos;s NSE data (catching up any missed days) and rebuilds the screen. At about 10:30 pm the news job adds
-        filings, headlines and summaries. Every run&apos;s log is kept here.
+      <PageTitle title="Runs">
+        From 5:30 pm IST the scheduler checks every 15 minutes for the day&apos;s NSE file; as soon as it is out, the screen is rebuilt and the news job adds
+        filings, headlines and summaries. During market hours it checks NSE filings every 30 minutes and re-summarises shortlisted stocks that got a new
+        one. Checks that find nothing new are not listed.
       </PageTitle>
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line text-sm">
+        <div className="bg-surface px-4 py-3 sm:px-5">
+          <dt className="text-xs text-ink-3">Last check for NSE prices</dt>
+          <dd className="mt-1 text-ink">{eod?.lastCheck ? istTime(eod.lastCheck) : "—"}</dd>
+        </div>
+        <div className="bg-surface px-4 py-3 sm:px-5">
+          <dt className="text-xs text-ink-3">Last check for NSE filings</dt>
+          <dd className="mt-1 text-ink">{filings?.lastCheck ? istTime(filings.lastCheck) : "—"}</dd>
+        </div>
+      </dl>
       <Card>
         <ul className="divide-y divide-line">
           {runs.slice(0, 120).map((r) => (
@@ -24,7 +37,10 @@ export default async function RunsPage() {
                   <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${r.ok ? "bg-up" : "bg-down"}`} aria-label={r.ok ? "Succeeded" : "Failed"} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-sm font-medium text-ink">{r.job === "eod" ? "Prices" : "News"}</span>
+                      <span className="text-sm font-medium text-ink">
+                        {JOB[r.job]}
+                        {r.source && <span className="ml-2 text-xs font-normal text-ink-3">{SOURCE[r.source] ?? r.source}</span>}
+                      </span>
                       <span className="num shrink-0 text-xs text-ink-3">
                         {istTime(r.startedAt)} · {((Date.parse(r.finishedAt) - Date.parse(r.startedAt)) / 1000).toFixed(0)}s
                       </span>

@@ -1,0 +1,20 @@
+{
+  
+  // Stage Two scheduler: Cloudflare Cron Triggers call the app's job routes on Vercel, which do the work.
+  // No public URL (workers_dev off); it only runs on schedule.
+  "name": "stage-two-scheduler",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": { "APP_URL": "https://stage-two-pd.vercel.app" },
+  "triggers": {
+    "crons": [
+      // 17:30–23:15 IST every 15 min: new NSE session? then news for it.
+      "*/15 12-17 * * *",
+      // 08:30–16:30 IST every 30 min on weekdays: new NSE filings for shortlisted stocks.
+      "*/30 3-10 * * 1-5"
+    ]
+  },
+  "observability": { "enabled": true }
+}

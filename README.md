@@ -25,9 +25,14 @@ two rising lows / falling highs that no close has broken. These are shortlists, 
 - `src/engine/` — pure screening code: NSE parsers (`nse.ts`), split/bonus adjustment (`adjust.ts`, `update.ts`),
   screens (`screen.ts`), levels (`levels.ts`), news (`news.ts`), jobs (`pipeline.ts`), Blob storage (`blob.ts`).
 - `src/engine/core/` — vendored copy of livermore's rule engine (Ankur Patel's setups and scanners). Do not edit here.
-- Vercel Cron (`vercel.json`): `/api/cron/eod` at 21:00 IST adds new sessions (and catches up any missed days) from the NSE bhavcopy,
-  index closes, price bands and corporate actions, then rebuilds the screen; `/api/cron/news` at 22:30 IST adds NSE
-  filings, Google News headlines and Gemini summaries for the top 60. Both are idempotent. History: `/runs`.
+- Scheduling: a Cloudflare Worker (`worker/`, free plan) calls the job routes; the work runs on Vercel.
+  - `/api/cron/eod` every 15 min from 17:30 to 23:15 IST: one HEAD request checks for a new NSE bhavcopy; only when
+    one exists does it add the session (index closes, price bands, corporate actions) and rebuild the screen.
+  - `/api/cron/news` right after: NSE filings, Google News headlines and Gemini summaries for the top 60.
+  - `/api/cron/filings` every 30 min, 08:30–16:30 IST on weekdays: new NSE filings; re-summarises shortlisted stocks
+    that got one.
+  - All jobs are idempotent and throttled; a daily Vercel Cron (`vercel.json`) is the backup. History: `/runs`.
+  - Deploy the Worker: `cd worker && npx wrangler deploy`.
 - Storage: private Vercel Blob store `stage-two-data` (`prices/latest.json.gz` rolling 300 sessions,
   `screens/<date>.json` per session, `news/announcements.json`, `runs/log.json`).
 
@@ -47,6 +52,6 @@ pnpm install
 vercel env pull .env.local
 pnpm dev                       # http://localhost:3000
 pnpm test                      # engine unit tests
-pnpm job eod | news [--force]  # run a nightly job locally against Blob
+pnpm job eod | news | filings [--force]  # run a job locally against Blob
 pnpm bootstrap <prices.json.gz> # one-time: seed Blob from a livermore export
 ```

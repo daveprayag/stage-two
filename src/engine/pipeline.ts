@@ -1,20 +1,25 @@
 /**
- * Nightly jobs (called by Vercel Cron, see vercel.json):
- *  - runEod:  add any new NSE sessions to the price store, then recompute the screen.
- *  - runNews: fetch filings + headlines for the shortlist and add Gemini summaries.
- * Both are idempotent: running them twice for the same session does nothing the second time.
+ * Scheduled jobs. A Cloudflare Worker (worker/) calls them often; a daily Vercel Cron (vercel.json) is the backup.
+ *  - runEod:     every 15 min in the evening. Cheap check first (one HEAD request to NSE); only when a new session's
+ *                bhavcopy exists does it load the price store, add the session and recompute the screen.
+ *  - runNews:    after a new screen: filings, Google News headlines and Gemini summaries for the shortlist.
+ *  - runFilings: every 30 min in market hours: new NSE filings; re-summarises only shortlisted stocks that got one.
+ * All are idempotent and throttled (a minimum gap between runs), so calling them too often does no harm.
+ * Runs that had nothing to do are not written to the history.
  */
 import { PATHS, readJson, writeJson } from "./blob";
 import { fetchHeadlines, verdicts } from "./news";
 import {
   announcementsUrl, bhavcopyUrl, corpActionsUrl, indexCloseUrl, parseAnnouncements, parseBhavcopyZip,
-  parseCorpActions, parseIndexClose, parseNseDate, parsePriceBands, politeGet, priceBandUrl, type CorpAction,
+  parseCorpActions, parseIndexClose, parseNseDate, parsePriceBands, politeGet, politeHead, priceBandUrl, type CorpAction,
 } from "./nse";
 import { computeScreen } from "./screen";
 import type { Filing, ISODate, NewsBundle, PriceStore, RunRecord, ScreenFile, ScreenRow } from "./types";
 import { appendSession } from "./update";
 
 const IST_OFFSET_MS = 5.5 * 3600_000;
+const MIN_EOD_GAP_MS = 5 * 60_000;
+const MIN_FILINGS_GAP_MS = 20 * 60_000;
 
 export function istNow(now = Date.now()): { date: ISODate; hour: number } {
   const d = new Date(now + IST_OFFSET_MS);
@@ -27,10 +32,33 @@ export function addDays(d: ISODate, n: number): ISODate {
   return t.toISOString().slice(0, 10);
 }
 
+export interface JobOptions {
+  force?: boolean;
+  source?: string;
+}
+
+interface EodState {
+  asOf: ISODate | null;
+  lastCheck: string | null;
+}
+
+interface FilingsState {
+  lastCheck: string | null;
+}
+
+const ago = (iso: string | null | undefined) => (iso ? Date.now() - Date.parse(iso) : Number.POSITIVE_INFINITY);
+
 async function appendRun(rec: RunRecord): Promise<void> {
+  if (rec.skipped) return;
   const runs = (await readJson<RunRecord[]>(PATHS.runs, true)) ?? [];
   runs.unshift(rec);
   await writeJson(PATHS.runs, runs.slice(0, 400));
+}
+
+async function finish(rec: Omit<RunRecord, "finishedAt">): Promise<RunRecord> {
+  const done: RunRecord = { ...rec, finishedAt: new Date().toISOString() };
+  await appendRun(done).catch(() => undefined);
+  return done;
 }
 
 async function text(url: string): Promise<string | null> {
@@ -38,18 +66,42 @@ async function text(url: string): Promise<string | null> {
   return b ? new TextDecoder().decode(b) : null;
 }
 
-export async function runEod(opts: { force?: boolean; maxDays?: number } = {}): Promise<RunRecord> {
+/** Sessions to look for: every calendar day after `asOf` up to today (IST), at most `max`. */
+function pendingDays(asOf: ISODate, max = 10): ISODate[] {
+  const today = istNow().date;
+  const days: ISODate[] = [];
+  for (let d = addDays(asOf, 1); d <= today && days.length < max; d = addDays(d, 1)) days.push(d);
+  return days;
+}
+
+export async function runEod(opts: JobOptions = {}): Promise<RunRecord> {
   const startedAt = new Date().toISOString();
+  const base = { job: "eod" as const, startedAt, ...(opts.source ? { source: opts.source } : {}) };
   const log: string[] = [];
-  let ok = true;
-  let detail = "";
   try {
+    const state = (await readJson<EodState>(PATHS.eodState, true)) ?? { asOf: null, lastCheck: null };
+    if (!opts.force && ago(state.lastCheck) < MIN_EOD_GAP_MS) {
+      return finish({ ...base, ok: true, skipped: true, detail: "checked less than 5 minutes ago", log });
+    }
+    await writeJson(PATHS.eodState, { ...state, lastCheck: startedAt });
+    // Cheap path: is there a new bhavcopy at all? One HEAD request per pending day, no big downloads.
+    if (state.asOf && !opts.force) {
+      const days = pendingDays(state.asOf);
+      let found = false;
+      for (const d of days) {
+        if (await politeHead(bhavcopyUrl(d)).catch(() => false)) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) return finish({ ...base, ok: true, skipped: true, detail: days.length ? `no new NSE file yet (${days.join(", ")})` : "up to date", log });
+    }
+
     const store = await readJson<PriceStore>(PATHS.prices, true);
     if (!store) throw new Error("no price store in Blob (run scripts/bootstrap.mts first)");
     const before = JSON.parse(JSON.stringify(store)) as PriceStore;
     const now = istNow();
-    const days: ISODate[] = [];
-    for (let d = addDays(store.asOf, 1); d <= now.date && days.length < (opts.maxDays ?? 10); d = addDays(d, 1)) days.push(d);
+    const days = pendingDays(store.asOf);
     log.push(`store as of ${store.asOf}; IST now ${now.date} ${now.hour}h; checking ${days.join(", ") || "nothing"}`);
 
     let corp: CorpAction[] | undefined;
@@ -96,15 +148,14 @@ export async function runEod(opts: { force?: boolean; maxDays?: number } = {}): 
       await writeJson(PATHS.screenOn(screen.asOf), screen);
       log.push(`screen ${screen.asOf}: ${screen.rows.length} rows`);
     }
-    detail = added.length ? `added ${added.join(", ")}` : "no new session";
+    await writeJson(PATHS.eodState, { asOf: store.asOf, lastCheck: startedAt });
+    if (!added.length && !opts.force) return finish({ ...base, ok: true, skipped: true, detail: "no new session", log });
+    return finish({ ...base, ok: true, detail: added.length ? `added ${added.join(", ")}` : `screen rebuilt for ${store.asOf}`, log });
   } catch (e) {
-    ok = false;
-    detail = String(e instanceof Error ? e.message : e);
+    const detail = String(e instanceof Error ? e.message : e);
     log.push(`ERROR ${detail}`);
+    return finish({ ...base, ok: false, detail, log });
   }
-  const rec: RunRecord = { job: "eod", startedAt, finishedAt: new Date().toISOString(), ok, detail, log };
-  await appendRun(rec).catch(() => undefined);
-  return rec;
 }
 
 interface AnnouncementStore {
@@ -112,106 +163,154 @@ interface AnnouncementStore {
   bySymbol: Record<string, Filing[]>;
 }
 
-/** Shortlist for news: breakouts and setups first, then the rest by score; at most `max`. */
+const filingKey = (x: Filing) => `${x.date}|${x.category}|${x.text}`;
+
+/** Fetch NSE filings since `from`, merge into the rolling 21-day store; returns the symbols that got new ones. */
+async function refreshFilings(from: ISODate, cutoffFrom: ISODate, log: string[]): Promise<{ ann: AnnouncementStore; changed: Set<string> }> {
+  const ann = (await readJson<AnnouncementStore>(PATHS.announcements, true)) ?? { updated: "", bySymbol: {} };
+  const changed = new Set<string>();
+  try {
+    const raw = await politeGet(announcementsUrl(from, istNow().date), "application/json");
+    const fresh = raw ? parseAnnouncements(JSON.parse(new TextDecoder().decode(raw))) : [];
+    for (const a of fresh) {
+      const list = (ann.bySymbol[a.symbol] ??= []);
+      const f: Filing = { date: a.date, category: a.category, text: a.text, url: a.url };
+      if (!list.some((x) => filingKey(x) === filingKey(f))) {
+        list.push(f);
+        changed.add(a.symbol);
+      }
+    }
+    const cutoff = addDays(cutoffFrom, -21);
+    for (const [sym, list] of Object.entries(ann.bySymbol)) {
+      const kept = list
+        .filter((x) => (parseNseDate(x.date) ?? "") >= cutoff)
+        .sort((a, b) => ((parseNseDate(b.date) ?? "") < (parseNseDate(a.date) ?? "") ? -1 : (parseNseDate(b.date) ?? "") > (parseNseDate(a.date) ?? "") ? 1 : b.date.localeCompare(a.date)));
+      if (kept.length) ann.bySymbol[sym] = kept.slice(0, 15);
+      else delete ann.bySymbol[sym];
+    }
+    ann.updated = new Date().toISOString();
+    await writeJson(PATHS.announcements, ann);
+    log.push(`NSE filings: ${fresh.length} fetched, ${changed.size} symbols with new ones`);
+  } catch (e) {
+    log.push(`NSE filings unavailable: ${String(e)}`);
+  }
+  return { ann, changed };
+}
+
+/** Shortlist for news: top-setup candidates first, then breakouts and setups, then the rest by score; at most `max`. */
 export function newsShortlist(rows: ScreenRow[], max = 60): ScreenRow[] {
-  // Stocks that pass every technical check of a top setup come first: their news decides the final list.
   const rank = (r: ScreenRow) =>
     (r.tags.includes("qualified") ? 8 : 0) +
     (r.tags.includes("breakout") ? 4 : 0) + (r.tags.includes("setup") ? 3 : 0) + (r.tags.includes("fresh2") ? 2 : 0) + (r.tags.includes("leader") ? 1 : 0);
   return [...rows].sort((a, b) => rank(b) - rank(a) || b.score - a.score).slice(0, max);
 }
 
-export async function runNews(opts: { force?: boolean; max?: number; backDays?: number } = {}): Promise<RunRecord> {
+/** Gemini summaries for `rows` (batches of `size` in parallel, then a retry pass in sixes for any still missing). */
+async function summarise(rows: ScreenRow[], news: Record<string, NewsBundle>, log: string[], replace = false): Promise<number> {
+  let n = 0;
+  const done = new Set<string>();
+  const ask = async (list: ScreenRow[], size: number) => {
+    const batches: ScreenRow[][] = [];
+    for (let k = 0; k < list.length; k += size) batches.push(list.slice(k, k + size));
+    const results = await Promise.allSettled(
+      batches.map((b) => verdicts(b.map((row) => ({ row, filings: news[row.symbol]?.filings ?? [], headlines: news[row.symbol]?.headlines ?? [] })))),
+    );
+    for (const res of results) {
+      if (res.status === "rejected") {
+        log.push(`Gemini batch failed: ${String(res.reason).slice(0, 200)}`);
+        continue;
+      }
+      for (const [sym, v] of Object.entries(res.value)) {
+        const b = news[sym];
+        if (b && !done.has(sym) && (replace || !b.ai)) {
+          b.ai = v;
+          done.add(sym);
+          n++;
+        }
+      }
+    }
+  };
+  await ask(rows, 12);
+  const missing = rows.filter((r) => !done.has(r.symbol));
+  if (missing.length) await ask(missing, 6);
+  return n;
+}
+
+export async function runNews(opts: JobOptions & { max?: number; backDays?: number } = {}): Promise<RunRecord> {
   const startedAt = new Date().toISOString();
+  const base = { job: "news" as const, startedAt, ...(opts.source ? { source: opts.source } : {}) };
   const log: string[] = [];
-  let ok = true;
-  let detail = "";
   try {
     const screen = await readJson<ScreenFile>(PATHS.screen, true);
     if (!screen) throw new Error("no screen yet");
-    if (screen.newsAt && !opts.force) {
-      detail = `news already added for ${screen.asOf}`;
-    } else {
-      // NSE filings: last 3 days into a rolling 21-day store.
-      const ann = (await readJson<AnnouncementStore>(PATHS.announcements, true)) ?? { updated: "", bySymbol: {} };
-      try {
-        // First run: backfill three weeks; afterwards the last three days (filings land after hours and on weekends).
-        const back = opts.backDays ?? (Object.keys(ann.bySymbol).length ? 3 : 21);
-        const raw = await politeGet(announcementsUrl(addDays(screen.asOf, -back), istNow().date), "application/json");
-        const fresh = raw ? parseAnnouncements(JSON.parse(new TextDecoder().decode(raw))) : [];
-        for (const a of fresh) {
-          const list = (ann.bySymbol[a.symbol] ??= []);
-          if (!list.some((x) => x.date === a.date && x.category === a.category && x.text === a.text)) {
-            list.push({ date: a.date, category: a.category, text: a.text, url: a.url });
-          }
-        }
-        const cutoff = addDays(screen.asOf, -21);
-        for (const [sym, list] of Object.entries(ann.bySymbol)) {
-          const kept = list.filter((x) => (parseNseDate(x.date) ?? "") >= cutoff).sort((a, b) => ((parseNseDate(b.date) ?? "") < (parseNseDate(a.date) ?? "") ? -1 : 1));
-          if (kept.length) ann.bySymbol[sym] = kept.slice(0, 15);
-          else delete ann.bySymbol[sym];
-        }
-        ann.updated = new Date().toISOString();
-        await writeJson(PATHS.announcements, ann);
-        log.push(`NSE filings: ${fresh.length} records fetched, ${Object.keys(ann.bySymbol).length} symbols kept`);
-      } catch (e) {
-        log.push(`NSE filings unavailable: ${String(e)}`);
-      }
+    if (screen.newsAt && !opts.force) return finish({ ...base, ok: true, skipped: true, detail: `news already added for ${screen.asOf}`, log });
 
-      const shortlist = newsShortlist(screen.rows, opts.max ?? 60);
-      const news: Record<string, NewsBundle> = {};
-      // Google News, four requests at a time.
-      for (let k = 0; k < shortlist.length; k += 4) {
-        const part = shortlist.slice(k, k + 4);
-        const got = await Promise.all(part.map((r) => fetchHeadlines(r.name, r.symbol).catch(() => [])));
-        part.forEach((r, j) => {
-          news[r.symbol] = { filings: (ann.bySymbol[r.symbol] ?? []).slice(0, 6), headlines: got[j] ?? [], ai: null };
-        });
-        await new Promise((res) => setTimeout(res, 200));
-      }
-      log.push(`headlines for ${shortlist.length} stocks`);
+    // First run: backfill three weeks; afterwards the last three days (filings land after hours and on weekends).
+    const existing = await readJson<AnnouncementStore>(PATHS.announcements, true);
+    const back = opts.backDays ?? (existing && Object.keys(existing.bySymbol).length ? 3 : 21);
+    const { ann } = await refreshFilings(addDays(screen.asOf, -back), screen.asOf, log);
 
-      // Gemini in batches of 12 (parallel), then one retry pass in batches of 6 for any stock still missing.
-      let n = 0;
-      const ask = async (rows: ScreenRow[], size: number) => {
-        const batches: ScreenRow[][] = [];
-        for (let k = 0; k < rows.length; k += size) batches.push(rows.slice(k, k + size));
-        const results = await Promise.allSettled(
-          batches.map((b) => verdicts(b.map((row) => ({ row, filings: news[row.symbol]?.filings ?? [], headlines: news[row.symbol]?.headlines ?? [] })))),
-        );
-        for (const res of results) {
-          if (res.status === "rejected") {
-            log.push(`Gemini batch failed: ${String(res.reason).slice(0, 200)}`);
-            continue;
-          }
-          for (const [sym, v] of Object.entries(res.value)) {
-            const b = news[sym];
-            if (b && !b.ai) {
-              b.ai = v;
-              n++;
-            }
-          }
-        }
-      };
-      await ask(shortlist, 12);
-      const missing = shortlist.filter((r) => !news[r.symbol]?.ai);
-      if (missing.length) await ask(missing, 6);
-      log.push(`AI summaries for ${n} stocks`);
-      // Re-read in case the eod job replaced the screen meanwhile; only attach to the same session.
-      const latest = (await readJson<ScreenFile>(PATHS.screen, true)) ?? screen;
-      if (latest.asOf !== screen.asOf) throw new Error(`screen changed to ${latest.asOf} while fetching news for ${screen.asOf}`);
-      latest.news = news;
-      latest.newsAt = new Date().toISOString();
-      await writeJson(PATHS.screen, latest);
-      await writeJson(PATHS.screenOn(latest.asOf), latest);
-      detail = `news for ${shortlist.length} stocks (${n} with AI summaries), session ${latest.asOf}`;
+    const shortlist = newsShortlist(screen.rows, opts.max ?? 60);
+    const news: Record<string, NewsBundle> = {};
+    // Google News, four requests at a time.
+    for (let k = 0; k < shortlist.length; k += 4) {
+      const part = shortlist.slice(k, k + 4);
+      const got = await Promise.all(part.map((r) => fetchHeadlines(r.name, r.symbol).catch(() => [])));
+      part.forEach((r, j) => {
+        news[r.symbol] = { filings: (ann.bySymbol[r.symbol] ?? []).slice(0, 6), headlines: got[j] ?? [], ai: null };
+      });
+      await new Promise((res) => setTimeout(res, 200));
     }
+    log.push(`headlines for ${shortlist.length} stocks`);
+    const n = await summarise(shortlist, news, log);
+    log.push(`AI summaries for ${n} stocks`);
+    // Re-read in case the eod job replaced the screen meanwhile; only attach to the same session.
+    const latest = (await readJson<ScreenFile>(PATHS.screen, true)) ?? screen;
+    if (latest.asOf !== screen.asOf) throw new Error(`screen changed to ${latest.asOf} while fetching news for ${screen.asOf}`);
+    latest.news = news;
+    latest.newsAt = new Date().toISOString();
+    await writeJson(PATHS.screen, latest);
+    await writeJson(PATHS.screenOn(latest.asOf), latest);
+    await writeJson(PATHS.filingsState, { lastCheck: latest.newsAt } satisfies FilingsState);
+    return finish({ ...base, ok: true, detail: `news for ${shortlist.length} stocks (${n} with AI summaries), session ${latest.asOf}`, log });
   } catch (e) {
-    ok = false;
-    detail = String(e instanceof Error ? e.message : e);
+    const detail = String(e instanceof Error ? e.message : e);
     log.push(`ERROR ${detail}`);
+    return finish({ ...base, ok: false, detail, log });
   }
-  const rec: RunRecord = { job: "news", startedAt, finishedAt: new Date().toISOString(), ok, detail, log };
-  await appendRun(rec).catch(() => undefined);
-  return rec;
+}
+
+export async function runFilings(opts: JobOptions = {}): Promise<RunRecord> {
+  const startedAt = new Date().toISOString();
+  const base = { job: "filings" as const, startedAt, ...(opts.source ? { source: opts.source } : {}) };
+  const log: string[] = [];
+  try {
+    const state = (await readJson<FilingsState>(PATHS.filingsState, true)) ?? { lastCheck: null };
+    if (!opts.force && ago(state.lastCheck) < MIN_FILINGS_GAP_MS) {
+      return finish({ ...base, ok: true, skipped: true, detail: "checked less than 20 minutes ago", log });
+    }
+    await writeJson(PATHS.filingsState, { lastCheck: startedAt } satisfies FilingsState);
+    const screen = await readJson<ScreenFile>(PATHS.screen, true);
+    if (!screen?.newsAt) return finish({ ...base, ok: true, skipped: true, detail: "waiting for the news job", log });
+
+    const { ann, changed } = await refreshFilings(addDays(istNow().date, -1), screen.asOf, log);
+    const targets = screen.rows.filter((r) => screen.news[r.symbol] && changed.has(r.symbol));
+    if (!targets.length) return finish({ ...base, ok: true, skipped: true, detail: "no new filings for shortlisted stocks", log });
+    for (const r of targets) {
+      const b = screen.news[r.symbol] as NewsBundle;
+      b.filings = (ann.bySymbol[r.symbol] ?? []).slice(0, 6);
+    }
+    const n = await summarise(targets, screen.news, log, true);
+    const latest = (await readJson<ScreenFile>(PATHS.screen, true)) ?? screen;
+    if (latest.asOf !== screen.asOf) throw new Error(`screen changed to ${latest.asOf} meanwhile`);
+    for (const r of targets) latest.news[r.symbol] = screen.news[r.symbol] as NewsBundle;
+    latest.newsAt = new Date().toISOString();
+    await writeJson(PATHS.screen, latest);
+    await writeJson(PATHS.screenOn(latest.asOf), latest);
+    return finish({ ...base, ok: true, detail: `new filings for ${targets.map((r) => r.symbol).join(", ")}; ${n} summaries updated`, log });
+  } catch (e) {
+    const detail = String(e instanceof Error ? e.message : e);
+    log.push(`ERROR ${detail}`);
+    return finish({ ...base, ok: false, detail, log });
+  }
 }

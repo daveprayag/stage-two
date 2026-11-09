@@ -181,7 +181,11 @@ export interface ScreenFile {
 }
 
 export interface RunRecord {
-  job: "eod" | "news";
+  job: "eod" | "news" | "filings";
+  /** What triggered it: "cloudflare" (scheduler Worker), "vercel" (daily backup cron), "manual". */
+  source?: string;
+  /** Nothing to do (no new data, or checked moments ago). Skipped runs are not written to the history. */
+  skipped?: boolean;
   startedAt: string;
   finishedAt: string;
   ok: boolean;

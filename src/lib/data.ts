@@ -6,6 +6,8 @@ import type { Filing, PriceStore, RunRecord, ScreenFile, ScreenRow } from "@/eng
 export const getScreen = () => readCached<ScreenFile>(PATHS.screen, 5 * 60_000);
 export const getStore = () => readCached<PriceStore>(PATHS.prices, 30 * 60_000);
 export const getRuns = () => readCached<RunRecord[]>(PATHS.runs, 60_000);
+export const getEodState = () => readCached<{ asOf: string | null; lastCheck: string | null }>(PATHS.eodState, 60_000);
+export const getFilingsState = () => readCached<{ lastCheck: string | null }>(PATHS.filingsState, 60_000);
 
 export async function getFilings(symbol: string): Promise<Filing[]> {
   const ann = await readCached<{ bySymbol: Record<string, Filing[]> }>(PATHS.announcements, 30 * 60_000);
