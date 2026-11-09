@@ -101,15 +101,33 @@ export default function GuidePage() {
         </p>
       </Section>
 
-      <Section title="The five lists">
+      <Section title="The lists">
         <ul className="list-disc pl-5">
           <li><strong className="text-ink">Breaking out:</strong> closed above the top of a sideways range of 8+ weeks today, on at least 1.5× normal volume, while in an uptrend.</li>
           <li><strong className="text-ink">Tight near highs:</strong> uptrend intact, within 15% of the 52-week high, a narrow 10-day range and falling volume. Often what a stock looks like just before a breakout.</li>
           <li><strong className="text-ink">New uptrends:</strong> moved into stage 2 within the last 30 sessions with RS 70 or more.</li>
           <li><strong className="text-ink">Strongest:</strong> RS 90 or more with the uptrend intact.</li>
+          <li><strong className="text-ink">Momentum leaders:</strong> RS 80+, volatility in the top 40%, a top-40% sector, in stage 2 (see below).</li>
           <li><strong className="text-ink">Ankur&apos;s scans:</strong> Ankur Patel&apos;s own Chartink scans (volume expansion, 20 EMA pullback, flag) or one of his setups fired today.</li>
         </ul>
         <p>A stock can be on several lists at once; the best candidates usually are.</p>
+      </Section>
+
+      <Section title="Choosing which stock to buy">
+        <p>
+          Our 2021–24 research found that <em>which</em> stock you buy matters far more than the exact entry. Stocks that went on to rise 50%+ within six months
+          had a common profile before the move: strong relative strength, bigger daily swings than most stocks, and a strong sector. The Momentum leaders
+          list is that profile; on data it was not built from, its stocks hit +50% 47% of the time against 29% for the average stock.
+        </p>
+        <ol className="list-decimal space-y-2 pl-5">
+          <li><strong className="text-ink">Start from Momentum leaders</strong>, with the phase filter on Early or Early + mid. Early-phase picks had the same upside and far fewer 20%+ losers (4% vs 6%).</li>
+          <li><strong className="text-ink">Prefer the strongest of them:</strong> RS 90+, and sectors with several leaders at once (check the Sectors page): a group moving together is sturdier than one stock alone.</li>
+          <li><strong className="text-ink">Check the news:</strong> a real catalyst (results, orders, guidance) and no red flags. Skip anything with a governance or pledge problem, however good the chart.</li>
+          <li><strong className="text-ink">Own several, not one.</strong> About half of these picks reach +50%; the rest go nowhere or fall, and you cannot tell which in advance. Five to ten positions across different sectors is what turns those odds into a result.</li>
+          <li><strong className="text-ink">Size by the stop.</strong> These stocks move 4–6% a day, and winners typically dipped 6% (a quarter of them 11%+) before running, so very tight stops shake you out. Decide the stop first, then buy only as many shares as that loss allows.</li>
+          <li><strong className="text-ink">Give winners time.</strong> The edge was measured over six months, not days. Exits for this list have not been tested yet; check the Track record page as it builds.</li>
+          <li><strong className="text-ink">Respect the market.</strong> In 2021–22 the same profile still lost money, just less than other stocks. When the NIFTY 500 is below its 200-day average, buy less.</li>
+        </ol>
       </Section>
 
       <Section title="What the lists are, and are not">

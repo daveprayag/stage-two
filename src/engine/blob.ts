@@ -18,6 +18,8 @@ export const PATHS = {
   announcements: "news/announcements.json",
   runs: "runs/log.json",
   /** Small state files so frequent checks never load the big price store. */
+  /** Forward track record: each session's picks per list with that day's close. */
+  track: "track/picks.json",
   eodState: "meta/eod.json",
   filingsState: "meta/filings.json",
 } as const;

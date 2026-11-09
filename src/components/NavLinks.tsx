@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, History, LayoutGrid, ListFilter } from "lucide-react";
+import { BookOpen, History, LayoutGrid, ListFilter, TrendingUp } from "lucide-react";
 
 const LINKS = [
   { href: "/", label: "Screener", icon: ListFilter },
   { href: "/sectors", label: "Sectors", icon: LayoutGrid },
+  { href: "/track", label: "Track", icon: TrendingUp },
   { href: "/guide", label: "Guide", icon: BookOpen },
   { href: "/runs", label: "Runs", icon: History },
 ];
@@ -39,7 +40,7 @@ export function BottomNav() {
   const active = useActive();
   return (
     <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-      <div className="mx-auto grid max-w-md grid-cols-4">
+      <div className="mx-auto grid max-w-lg grid-cols-5">
         {LINKS.map(({ href, label, icon: Icon }) => {
           const on = active(href);
           return (

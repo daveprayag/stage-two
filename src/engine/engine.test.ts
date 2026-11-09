@@ -5,9 +5,9 @@ import { basePivot, cluster, supportResistance, swingHighs, trendline } from "./
 import { companyQuery, parseGoogleNews } from "./news";
 import { parseAnnouncements, parseBhavcopyZip, parseCsv, parseIndexClose, parseNseDate, parsePriceBands } from "./nse";
 import { newsShortlist } from "./pipeline";
-import { computeScreen, isFund } from "./screen";
+import { allRows, computeScreen, isFund } from "./screen";
 import { countRallies, findBase, phaseOf, smaArr, stageAt } from "./series";
-import type { PriceStore, ScreenRow, StockSeries } from "./types";
+import type { PriceStore, ScreenFile, ScreenRow, StockSeries } from "./types";
 import { appendSession } from "./update";
 
 const UDIFF_HEADER =
@@ -171,7 +171,7 @@ describe("top setups", () => {
     stageAge: 40, template: 8, tight10: 7, dryUp: 0.7, rvol: 80, adr: 3, turnoverCr: 25, band: 20, resistance: 113,
     pctToResistance: 2.7, breakout: false, scans: [], setup: null, tags: ["setup" as const], score: 100,
     rsi14: 62, ema20: 106, ema50: 101, ma50Rising: true, ma200Rising: true, upDownVol: 1.6, runUp2m: 18,
-    rallies: 1, riseFromBase: 35, inBase: false, baseDate: "2026-08-01", largestRallyPct: 35, phase: "early" as const,
+    sectorRank: 0.8, rallies: 1, riseFromBase: 35, inBase: false, baseDate: "2026-08-01", largestRallyPct: 35, phase: "early" as const,
   } satisfies ScreenRow;
   const good = { filings: [], headlines: [], ai: { summary: "Order win", sentiment: "positive" as const, catalysts: ["₹500 Cr order"], redFlags: [] } };
 
@@ -196,6 +196,30 @@ describe("top setups", () => {
     expect(isTopSetup(q, undefined)).toBe(false);
     expect(isTopSetup(q, { ...good, ai: { ...good.ai, sentiment: "neutral" } })).toBe(false);
     expect(isTopSetup(q, { ...good, ai: { ...good.ai, redFlags: ["promoter pledge"] } })).toBe(false);
+  });
+});
+
+describe("momentum leaders", () => {
+  it("tags strong, volatile stage 2 stocks in a strong industry, not the same stock in a weak one", () => {
+    const n = 260;
+    const dates = Array.from({ length: n }, (_, k) => `2025-${String(1 + Math.floor(k / 22)).padStart(2, "0")}-${String(1 + (k % 22)).padStart(2, "0")}`);
+    // Volatile uptrend: alternating ±3% days around a 0.5%/day trend.
+    const mk = (isin: string, industry: string, f: (k: number) => number, swing: number): StockSeries => {
+      const c = Array.from({ length: n }, (_, k) => Math.round(f(k) * 100) / 100);
+      return { isin, symbol: isin, name: `${isin} LTD`, series: "EQ", industry, band: 20, listed: null, o: c, h: c.map((x) => x * (1 + swing)), l: c.map((x) => x * (1 - swing)), c, v: c.map(() => 400_000) };
+    };
+    const stocks: Record<string, StockSeries> = {};
+    for (let j = 0; j < 4; j++) stocks[`HOT${j}`] = mk(`HOT${j}`, "Hot", (k) => 100 * 1.005 ** k * (1 + 0.01 * Math.sin(k + j)), 0.03);
+    for (let j = 0; j < 4; j++) stocks[`COLD${j}`] = mk(`COLD${j}`, "Cold", (k) => 200 + 5 * Math.sin(k / 9 + j), 0.01);
+    for (let j = 0; j < 4; j++) stocks[`MID${j}`] = mk(`MID${j}`, "Mid", (k) => 100 * 1.001 ** k, 0.01);
+    stocks.LEADCOLD = mk("LEADCOLD", "Cold", (k) => 100 * 1.005 ** k * (1 + 0.01 * Math.sin(k)), 0.03);
+    const store: PriceStore = { version: 1, asOf: dates[n - 1]!, dates, stocks, indices: { "NIFTY 500": dates.map((_, k) => 20000 + k) } };
+    const rows = allRows(store);
+    expect(rows.get("HOT0")?.tags).toContain("momentum");
+    expect(rows.get("HOT0")?.sectorRank).toBe(1);
+    expect(rows.get("LEADCOLD")?.rs).toBeGreaterThanOrEqual(80);
+    expect(rows.get("LEADCOLD")?.tags).not.toContain("momentum");
+    expect(rows.get("MID0")?.tags ?? []).not.toContain("momentum");
   });
 });
 
@@ -253,5 +277,34 @@ describe("rallies and phase", () => {
     expect(phaseOf(2, { count: 1, largestPct: 95, lastPct: 95 })).toBe("late");
     expect(phaseOf(3, { count: 1, largestPct: 20, lastPct: 20 })).toBeNull();
     expect(phaseOf(2, { count: 0, largestPct: 0, lastPct: 0 }, false)).toBe("late");
+  });
+});
+
+import { picksFor, trackPerformance, upsertEntry } from "./track";
+
+describe("track record", () => {
+  it("saves picks per list and measures them against the NIFTY 500 since the pick date", () => {
+    const row = (symbol: string, close: number, tags: ScreenRow["tags"], phase: ScreenRow["phase"] = "early") => ({ symbol, isin: `IN${symbol}`, close, tags, phase }) as ScreenRow;
+    const screen = { asOf: "2026-11-02", market: { close: 1000 }, news: {}, rows: [row("AAA", 100, ["momentum"]), row("BBB", 50, ["momentum", "breakout"], "late"), row("CCC", 10, ["setup"])] } as unknown as ScreenFile;
+    const e = picksFor(screen);
+    expect(e.lists.momentum?.map((p) => p.symbol)).toEqual(["AAA", "BBB"]);
+    expect(e.lists.momentumEarly?.map((p) => p.symbol)).toEqual(["AAA"]);
+    expect(e.lists.top).toEqual([]);
+    const store: PriceStore = {
+      version: 1, asOf: "2026-11-04", dates: ["2026-11-02", "2026-11-03", "2026-11-04"],
+      stocks: {
+        INAAA: { ...series([100, 105, 110]), isin: "INAAA", symbol: "AAA" },
+        INBBB: { ...series([50, 48, 45]), isin: "INBBB", symbol: "BBB" },
+        INCCC: { ...series([10, 10, 11]), isin: "INCCC", symbol: "CCC" },
+      },
+      indices: { "NIFTY 500": [1000, 1010, 1020] },
+    };
+    const perf = trackPerformance(upsertEntry([], e), store);
+    const m = perf.lists.find((l) => l.key === "momentum")!;
+    expect(m.avgReturn).toBeCloseTo(0, 6); // (+10% + −10%) / 2
+    expect(m.niftyReturn).toBeCloseTo(2, 6);
+    expect(m.upShare).toBe(0.5);
+    expect(perf.days[0]?.sessionsSince).toBe(2);
+    expect(upsertEntry(upsertEntry([], e), { ...e, nifty: 999 })).toHaveLength(1);
   });
 });

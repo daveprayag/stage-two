@@ -38,8 +38,12 @@ export interface PriceStore {
 
 export type Stage = 1 | 2 | 3 | 4;
 
-/** "qualified" = passes every technical check of a top setup (news is checked after the news job). */
-export type ScreenTag = "breakout" | "setup" | "fresh2" | "leader" | "ankur" | "qualified";
+/**
+ * "qualified" = passes every technical check of a top setup (news is checked after the news job).
+ * "momentum" = momentum leader: the winner profile from livermore's research (RS ≥ 80, volatility in the top 40% of
+ * liquid stocks, industry in the top 40% by 3-month return, stage 2).
+ */
+export type ScreenTag = "breakout" | "setup" | "fresh2" | "leader" | "ankur" | "qualified" | "momentum";
 
 export interface Level {
   price: number;
@@ -113,6 +117,8 @@ export interface ScreenRow {
   /** Last session of the base (the stock left it the next session). */
   baseDate: string | null;
   largestRallyPct: number;
+  /** Industry's percentile (0–1) among industries by median 3-month return of their liquid stocks; null = unclassified. */
+  sectorRank: number | null;
   /** Stage 2 only: early (in/just out of the base, or first rally), mid (second), late (third+, an 80%+ rally, or no base). */
   phase: "early" | "mid" | "late" | null;
   /** Ankur Patel's Chartink scans that fired today. */
@@ -127,6 +133,9 @@ export interface ScreenRow {
 export interface SectorRow {
   industry: string;
   stocks: number;
+  /** Median 3-month return (%) and its percentile among industries (0–1). */
+  ret3m: number;
+  rank: number;
   /** Median RS of members. */
   rs: number;
   /** Share of members in stage 2. */

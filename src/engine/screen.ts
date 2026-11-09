@@ -3,6 +3,9 @@
  * least one screen, plus market breadth and sector strength. Pure (no I/O).
  *
  * Screens (descriptive shortlists for a human to review; none is a tested buy signal):
+ *  - momentum: the winner profile from livermore's research (EXPERIMENTS "Winner patterns", 2021–24, checked on a later
+ *              period): RS ≥ 80, 20-day ADR in the top 40% of liquid stocks, industry in the top 40% by median 3-month
+ *              return, stage 2. Those stocks hit +50% within 6 months 47% of the time vs 29% for all liquid stocks.
  *  - breakout: closed above the top of a ≥ 8-week base on ≥ 1.5× average volume, in a stage-2 uptrend.
  *  - setup:    trend template ≥ 7/8, within 15% of the 52-week high, tight 10-day range, volume drying up.
  *  - fresh2:   entered stage 2 within the last 30 sessions, RS ≥ 70, template ≥ 6/8, within 25% of the high.
@@ -211,6 +214,7 @@ function analyseStock(store: PriceStore, s: StockSeries, bench: (number | null)[
       ma200Rising: has200 && m200ago !== undefined && Number.isFinite(m200ago) && m200 > m200ago,
       upDownVol,
       runUp2m: (c / minIn(cp.low, i - 41, i) - 1) * 100,
+      sectorRank: null,
       rallies: rallyCount.count,
       riseFromBase,
       inBase: base?.inBase ?? false,
@@ -233,7 +237,7 @@ function tagsFor(r: ScreenRow): ScreenTag[] {
 
 function scoreFor(r: ScreenRow): number {
   return Math.round(
-    (r.tags.includes("qualified") ? 25 : 0) +
+    (r.tags.includes("qualified") ? 25 : 0) + (r.tags.includes("momentum") ? 15 : 0) +
     r.rs * 0.5 + r.template * 5 + (r.pctFromHigh <= 10 ? 10 : 0) + (r.tight10 <= 8 ? 10 : 0) +
       (r.breakout ? 15 : 0) + (r.tags.includes("fresh2") ? 10 : 0) + (r.rsLineHigh ? 10 : 0) + (r.setup ? 5 : 0),
   );
@@ -282,14 +286,40 @@ function analyseAll(store: PriceStore): { all: ScreenRow[]; liquid: Work[] } {
   const all: ScreenRow[] = liquid.map((w) => {
     const rs = rsOf.get(w) ?? 1;
     const { templateBase, ...rest } = w.row;
-    const row: ScreenRow = { ...rest, rs, template: templateBase + (rs >= 70 ? 1 : 0), tags: [], score: 0 };
+    return { ...rest, rs, template: templateBase + (rs >= 70 ? 1 : 0), tags: [], score: 0 };
+  });
+  // Industry momentum: median 3-month return of each industry's liquid stocks, as a percentile among industries.
+  const sectorRanks = industryRanks(all);
+  const adrCut = quantile(all.map((r) => r.adr), MOMENTUM.adrQuantile);
+  for (const row of all) {
+    row.sectorRank = row.industry ? (sectorRanks.get(row.industry)?.rank ?? null) : null;
     row.tags = tagsFor(row);
+    if (row.rs >= MOMENTUM.minRs && row.adr >= adrCut && (row.sectorRank ?? 0) >= MOMENTUM.minSectorRank && row.stage === 2) row.tags.push("momentum");
     // Checked after the other tags: the entry-pattern check reads them.
     if (row.tags.length && technicalPass(row)) row.tags.push("qualified");
     row.score = scoreFor(row);
-    return row;
-  });
+  }
   return { all, liquid };
+}
+
+/** Momentum-leader thresholds (livermore EXPERIMENTS "Winner patterns"). */
+export const MOMENTUM = { minRs: 80, adrQuantile: 0.6, minSectorRank: 0.6 } as const;
+
+function quantile(xs: number[], q: number): number {
+  const v = xs.filter(Number.isFinite).sort((a, b) => a - b);
+  if (!v.length) return Number.NaN;
+  return v[Math.min(v.length - 1, Math.floor(q * v.length))] as number;
+}
+
+/** Industry → median 3-month return and its percentile rank among industries with ≥ 3 liquid stocks. */
+function industryRanks(rows: ScreenRow[]): Map<string, { ret3m: number; rank: number; n: number }> {
+  const by = new Map<string, number[]>();
+  for (const r of rows) if (r.industry && r.ret3m !== null) (by.get(r.industry) ?? by.set(r.industry, []).get(r.industry))!.push(r.ret3m);
+  const meds = [...by.entries()].filter(([, v]) => v.length >= 3).map(([k, v]) => ({ k, m: median(v), n: v.length }));
+  const sorted = [...meds].sort((a, b) => a.m - b.m);
+  const out = new Map<string, { ret3m: number; rank: number; n: number }>();
+  sorted.forEach((x, idx) => out.set(x.k, { ret3m: x.m, rank: (idx + 1) / sorted.length, n: x.n }));
+  return out;
 }
 
 /** All liquid stocks' rows, keyed by symbol (for the stock page). */
@@ -306,6 +336,8 @@ export function computeScreen(store: PriceStore): Omit<ScreenFile, "news" | "new
     .map(([industry, rows]) => ({
       industry,
       stocks: rows.length,
+      ret3m: median(rows.map((r) => r.ret3m ?? 0)),
+      rank: industryRanks(all).get(industry)?.rank ?? 0,
       rs: Math.round(median(rows.map((r) => r.rs))),
       stage2: rows.filter((r) => r.stage === 2).length / rows.length,
       ret1m: median(rows.map((r) => r.ret1m ?? 0)),

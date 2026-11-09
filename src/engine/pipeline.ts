@@ -16,6 +16,7 @@ import {
 import { computeScreen } from "./screen";
 import type { Filing, ISODate, NewsBundle, PriceStore, RunRecord, ScreenFile, ScreenRow } from "./types";
 import { appendSession } from "./update";
+import { picksFor, upsertEntry, type TrackEntry } from "./track";
 
 const IST_OFFSET_MS = 5.5 * 3600_000;
 const MIN_EOD_GAP_MS = 5 * 60_000;
@@ -59,6 +60,14 @@ async function finish(rec: Omit<RunRecord, "finishedAt">): Promise<RunRecord> {
   const done: RunRecord = { ...rec, finishedAt: new Date().toISOString() };
   await appendRun(done).catch(() => undefined);
   return done;
+}
+
+/** Save the session's picks to the forward track record (replacing an earlier save for the same session). */
+async function recordPicks(screen: ScreenFile, log: string[]): Promise<void> {
+  const entries = (await readJson<TrackEntry[]>(PATHS.track, true)) ?? [];
+  const e = picksFor(screen);
+  await writeJson(PATHS.track, upsertEntry(entries, e));
+  log.push(`track record: ${Object.entries(e.lists).map(([k, v]) => `${k} ${v?.length ?? 0}`).join(", ")}`);
 }
 
 async function text(url: string): Promise<string | null> {
@@ -147,6 +156,7 @@ export async function runEod(opts: JobOptions = {}): Promise<RunRecord> {
       await writeJson(PATHS.screen, screen);
       await writeJson(PATHS.screenOn(screen.asOf), screen);
       log.push(`screen ${screen.asOf}: ${screen.rows.length} rows`);
+      if (added.length) await recordPicks(screen, log);
     }
     await writeJson(PATHS.eodState, { asOf: store.asOf, lastCheck: startedAt });
     if (!added.length && !opts.force) return finish({ ...base, ok: true, skipped: true, detail: "no new session", log });
@@ -197,10 +207,10 @@ async function refreshFilings(from: ISODate, cutoffFrom: ISODate, log: string[])
   return { ann, changed };
 }
 
-/** Shortlist for news: top-setup candidates first, then breakouts and setups, then the rest by score; at most `max`. */
+/** Shortlist for news: top-setup candidates, then momentum leaders, breakouts and setups, then the rest by score; at most `max`. */
 export function newsShortlist(rows: ScreenRow[], max = 60): ScreenRow[] {
   const rank = (r: ScreenRow) =>
-    (r.tags.includes("qualified") ? 8 : 0) +
+    (r.tags.includes("qualified") ? 8 : 0) + (r.tags.includes("momentum") ? 6 : 0) +
     (r.tags.includes("breakout") ? 4 : 0) + (r.tags.includes("setup") ? 3 : 0) + (r.tags.includes("fresh2") ? 2 : 0) + (r.tags.includes("leader") ? 1 : 0);
   return [...rows].sort((a, b) => rank(b) - rank(a) || b.score - a.score).slice(0, max);
 }
@@ -272,6 +282,8 @@ export async function runNews(opts: JobOptions & { max?: number; backDays?: numb
     await writeJson(PATHS.screen, latest);
     await writeJson(PATHS.screenOn(latest.asOf), latest);
     await writeJson(PATHS.filingsState, { lastCheck: latest.newsAt } satisfies FilingsState);
+    // Top setups need the news, so the session's picks are saved again now that it is in.
+    await recordPicks(latest, log);
     return finish({ ...base, ok: true, detail: `news for ${shortlist.length} stocks (${n} with AI summaries), session ${latest.asOf}`, log });
   } catch (e) {
     const detail = String(e instanceof Error ? e.message : e);

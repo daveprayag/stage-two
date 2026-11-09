@@ -72,6 +72,7 @@ export const TAG_LABEL: Record<ScreenTag, string> = {
   fresh2: "New uptrend",
   leader: "Strongest",
   qualified: "All technical checks",
+  momentum: "Momentum leader",
   ankur: "Ankur scan",
 };
 

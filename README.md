@@ -9,6 +9,7 @@ Formerly *StockGenius* (Yahoo Finance, ~380 hardcoded symbols). Now every EQ sto
 
 | Screen | Rule |
 | --- | --- |
+| Momentum leaders | RS ≥ 80, 20-day ADR in the top 40% of liquid stocks, industry in the top 40% by median 3-month return, stage 2 (livermore "Winner patterns": hit +50% in 6 months 47% vs 29% for all stocks, out of sample) |
 | Breaking out | Close above the top of a ≥ 8-week base on ≥ 1.5× average volume, in stage 2 (or trend template ≥ 6/8) |
 | Tight near highs | Trend template ≥ 7/8, within 15% of the 52-week high, 10-day range ≤ 12%, 5/50-day volume ≤ 0.9 |
 | New uptrends | Entered stage 2 in the last 30 sessions, RS ≥ 70, template ≥ 6/8, within 25% of the high |
@@ -39,7 +40,8 @@ two rising lows / falling highs that no close has broken. These are shortlists, 
   - All jobs are idempotent and throttled; a daily Vercel Cron (`vercel.json`) is the backup. History: `/runs`.
   - Deploy the Worker: `cd worker && npx wrangler deploy`.
 - Storage: private Vercel Blob store `stage-two-data` (`prices/latest.json.gz` rolling 300 sessions,
-  `screens/<date>.json` per session, `news/announcements.json`, `runs/log.json`).
+  `screens/<date>.json` per session, `news/announcements.json`, `runs/log.json`, `track/picks.json` = each session's
+  picks per list with that day's close, for the forward track record at /track).
 
 ## Environment
 

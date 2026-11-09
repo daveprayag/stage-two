@@ -39,8 +39,8 @@ export default async function SectorsPage() {
   return (
     <Page>
       <PageTitle title="Sector strength">
-        Leaders tend to come in groups. Sectors are ranked by the median RS rating of their liquid stocks, with the share already in a stage 2 uptrend. Groups follow
-        NSE&apos;s industry classification.
+        Leaders tend to come in groups. Sectors are ranked by the median RS rating of their liquid stocks, with the share already in a stage 2 uptrend. &quot;Strong&quot;
+        marks the top 40% of industries by 3-month return, the ones that count for Momentum leaders. Groups follow NSE&apos;s industry classification.
       </PageTitle>
       <Card>
         <ol className="divide-y divide-line md:hidden">
@@ -48,7 +48,10 @@ export default async function SectorsPage() {
             <li key={s.industry} className="px-4 py-4">
               <div className="flex items-baseline gap-3">
                 <span className="num w-5 shrink-0 text-xs text-ink-3">{k + 1}</span>
-                <span className="min-w-0 flex-1 text-[15px] font-medium text-ink">{s.industry}</span>
+                <span className="min-w-0 flex-1 text-[15px] font-medium text-ink">
+                  {s.industry}
+                  {s.rank >= 0.6 && <span className="ml-2 text-xs font-normal text-up">Strong</span>}
+                </span>
                 <span className="num shrink-0 text-xs text-ink-3">{s.stocks} stocks</span>
               </div>
               <dl className="mt-3 grid grid-cols-3 gap-2 pl-8 text-xs">
@@ -61,9 +64,9 @@ export default async function SectorsPage() {
                   <dd className="num mt-0.5 text-sm text-ink">{(s.stage2 * 100).toFixed(0)}%</dd>
                 </div>
                 <div>
-                  <dt className="text-ink-3">1 month</dt>
+                  <dt className="text-ink-3">3 months</dt>
                   <dd className="mt-0.5 text-sm">
-                    <Change value={s.ret1m} />
+                    <Change value={s.ret3m} />
                   </dd>
                 </div>
               </dl>
@@ -81,6 +84,7 @@ export default async function SectorsPage() {
               <th className={th}>Median RS</th>
               <th className={th}>In stage 2</th>
               <th className={`${th} text-right`}>Median 1M</th>
+              <th className={`${th} text-right`}>Median 3M</th>
               <th className={th}>Strongest stocks</th>
             </tr>
           </thead>
@@ -89,7 +93,10 @@ export default async function SectorsPage() {
               <tr key={s.industry}>
                 <td className={`${td} num text-ink-3`}>{k + 1}</td>
                 <td className={td}>
-                  <div className="text-ink">{s.industry}</div>
+                  <div className="text-ink">
+                    {s.industry}
+                    {s.rank >= 0.6 && <span className="ml-2 text-xs text-up">Strong</span>}
+                  </div>
                   <div className="mt-0.5 text-xs text-ink-3">{s.stocks} stocks</div>
                 </td>
                 <td className={td}>
@@ -100,6 +107,9 @@ export default async function SectorsPage() {
                 </td>
                 <td className={`${td} text-right`}>
                   <Change value={s.ret1m} />
+                </td>
+                <td className={`${td} text-right`}>
+                  <Change value={s.ret3m} />
                 </td>
                 <td className={td}>
                   <Leaders s={s} />

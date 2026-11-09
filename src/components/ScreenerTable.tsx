@@ -20,6 +20,13 @@ export const SCREENS: { key: TabKey; label: string; short: string; blurb: string
       "Every check at once: a live uptrend (not a dying one), all moving averages stacked, above the 20- and 50-day EMAs, RSI 50–75, RS 80+, near the high but not stretched, buyers in control on volume, breaking out or tight near the high, liquid, and positive news with no red flags. The strongest shortlist the data gives, not a guarantee: always use a stop.",
   },
   {
+    key: "momentum",
+    label: "Momentum leaders",
+    short: "Strong, volatile, in a strong sector",
+    blurb:
+      "RS 80+, bigger daily swings than most stocks (top 40%), industry in the top 40% by 3-month return, in stage 2. The profile that came before 50%+ moves in our 2021–24 research: these hit +50% within 6 months 47% of the time vs 29% for the average stock, and beat it in 30 of 33 months. Big failures happen too; add the Early filter to cut the worst ones.",
+  },
+  {
     key: "breakout",
     label: "Breaking out",
     short: "Broke above a multi-week ceiling today on heavy volume",
@@ -316,7 +323,7 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
         </div>
         <p className="text-xs leading-relaxed text-ink-3">{PHASES.find((p) => p.key === phase)?.hint}</p>
       </div>
-      <div role="radiogroup" aria-label="Screens" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-7">
+      <div role="radiogroup" aria-label="Screens" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {SCREENS.map((t) => {
           const on = tab === t.key;
           const top = t.key === "top";
@@ -326,7 +333,7 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
               role="radio"
               aria-checked={on}
               onClick={() => choose(t.key)}
-              className={`flex flex-col rounded-xl border p-3 text-left transition-colors ${top ? "col-span-2 sm:col-span-3 xl:col-span-1" : ""} ${
+              className={`flex flex-col rounded-xl border p-3 text-left transition-colors ${top ? "col-span-2 sm:col-span-1" : ""} ${
                 on ? (top ? "border-up bg-up-soft/60" : "border-ink bg-surface") : top ? "border-up/40 bg-up-soft/30 hover:border-up" : "border-line hover:border-line-strong"
               }`}
             >
