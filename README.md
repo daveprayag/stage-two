@@ -9,7 +9,7 @@ Formerly *StockGenius* (Yahoo Finance, ~380 hardcoded symbols). Now every EQ sto
 
 | Screen | Rule |
 | --- | --- |
-| Momentum leaders | RS ≥ 80, 20-day ADR in the top 40% of liquid stocks, industry in the top 40% by median 3-month return, stage 2 (livermore "Winner patterns": hit +50% in 6 months 47% vs 29% for all stocks, out of sample) |
+| Momentum leaders | RS ≥ 80, 20-day ADR in the top 40% of liquid stocks, industry in the top 40% by median 3-month return, stage 2 (livermore "Winner patterns": hit +50% in 6 months 41% vs 29% for all stocks in 2021–24; on the 2025–26 hold-out 17% vs 13% with no better average return, which fails the pre-registered test) |
 | Resuming after a pause | Rallied 20%+, paused 5+ sessions within 25%, closed back above the pause top in the last 5 sessions, ≤ 8% above it; stop = pause low |
 | Breaking out | Close above the top of a ≥ 8-week base on ≥ 1.5× average volume, in stage 2 (or trend template ≥ 6/8) |
 | Tight near highs | Trend template ≥ 7/8, within 15% of the 52-week high, 10-day range ≤ 12%, 5/50-day volume ≤ 0.9 |

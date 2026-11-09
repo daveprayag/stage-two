@@ -29,7 +29,7 @@ export const SCREENS: { key: TabKey; label: string; short: string; blurb: string
     label: "Momentum leaders",
     short: "Strong, volatile, in a strong sector",
     blurb:
-      "RS 80+, bigger daily swings than most stocks (top 40%), industry in the top 40% by 3-month return, in stage 2. The profile that came before 50%+ moves in our 2021–24 research: these hit +50% within 6 months 47% of the time vs 29% for the average stock, and beat it in 30 of 33 months. Big failures happen too; add the Early filter to cut the worst ones.",
+      "RS 80+, bigger daily swings than most stocks (top 40%), industry in the top 40% by 3-month return, in stage 2. The profile that came before 50%+ moves in our 2021–24 research: 41% hit +50% within 6 months vs 29% for the average stock. On 2025–26 data it was not built from, the edge mostly faded (17% vs 13%, no better average return, more 20%+ losers). A shortlist to research, not a buy list.",
   },
   {
     key: "resuming",
