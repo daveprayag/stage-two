@@ -102,7 +102,7 @@ export default async function StockPage({ params }: Props) {
           <Card className="p-4 sm:p-5">
             <PriceChart d={d} />
             <p className="mt-4 text-xs leading-relaxed text-ink-3">
-              Horizontal lines: support (green) and resistance (red), prices where the stock has turned before. Sloped lines: the longest trendline through rising lows or falling highs that price hasn&apos;t closed through.
+              Red line: resistance, the nearest price above where the stock turned down before (a close above it is a breakout). Green line: support, the nearest price below where it bounced before. &quot;2 touches&quot; = it turned there twice; more touches, stronger level. Trendlines: sloped lines through rising lows or falling highs, off by default.
             </p>
           </Card>
           <Card>

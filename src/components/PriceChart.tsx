@@ -33,7 +33,7 @@ function alpha(hex: string, a: number): string {
 export function PriceChart({ d }: { d: StockDetail }) {
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
-  const [on, setOn] = useState<Record<Overlay, boolean>>({ ma50: true, ma150: false, ma200: true, levels: true, trend: true });
+  const [on, setOn] = useState<Record<Overlay, boolean>>({ ma50: true, ma150: false, ma200: true, levels: true, trend: false });
   const [range, setRange] = useState(126);
   const [theme, setTheme] = useState(0);
 
@@ -80,12 +80,19 @@ export function PriceChart({ d }: { d: StockDetail }) {
     if (on.ma50) line(d.ma50, css("--chart-ma50"));
 
     if (on.levels) {
+      // Only the nearest level each side: the next hurdle above and the floor below. Thin and translucent so the
+      // candles stay in front; the label says what the line is.
       const wide = el.current.clientWidth >= 560;
-      for (const [levels, color, tag] of [[d.resistance, down, "R"], [d.support, up, "S"]] as const) {
-        for (const l of levels) {
-          // Solid and 2px so the levels read clearly against candles; slightly translucent so price stays on top.
-          candles.createPriceLine({ price: l.price, color: alpha(color, 0.85), lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: wide, title: wide ? `${tag} ${l.touches}×` : "" });
-        }
+      const nearest = [
+        [d.resistance[0], down, "Resistance"],
+        [d.support[0], up, "Support"],
+      ] as const;
+      for (const [l, color, name] of nearest) {
+        if (!l) continue;
+        candles.createPriceLine({
+          price: l.price, color: alpha(color, 0.75), lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true,
+          axisLabelColor: color, title: wide ? `${name} · ${l.touches} ${l.touches === 1 ? "touch" : "touches"}` : name,
+        });
       }
     }
     if (on.trend) {
@@ -111,7 +118,14 @@ export function PriceChart({ d }: { d: StockDetail }) {
       aria-pressed={on[k]}
       className={`flex shrink-0 items-center gap-2 py-1 text-xs transition-colors ${on[k] ? "text-ink" : "text-ink-3 line-through decoration-ink-3/60"}`}
     >
-      <span className="h-0 w-4 border-t-2" style={{ borderColor: on[k] ? color : "var(--line-strong)", borderStyle: dashed ? "dashed" : "solid" }} />
+      {k === "levels" ? (
+        <span className="flex w-4 flex-col gap-[3px]">
+          <span className="h-0 border-t-2" style={{ borderColor: on[k] ? "var(--down)" : "var(--line-strong)" }} />
+          <span className="h-0 border-t-2" style={{ borderColor: on[k] ? "var(--up)" : "var(--line-strong)" }} />
+        </span>
+      ) : (
+        <span className="h-0 w-4 border-t-2" style={{ borderColor: on[k] ? color : "var(--line-strong)", borderStyle: dashed ? "dashed" : "solid" }} />
+      )}
       {label}
     </button>
   );
@@ -123,7 +137,7 @@ export function PriceChart({ d }: { d: StockDetail }) {
           {toggle("ma50", "50-day", "var(--chart-ma50)")}
           {toggle("ma200", "200-day", "var(--chart-ma200)")}
           {toggle("ma150", "150-day", "var(--chart-ma150)", true)}
-          {toggle("levels", "Support / resistance", "var(--down)")}
+          {toggle("levels", "Resistance / support", "var(--down)")}
           {toggle("trend", "Trendlines", "var(--up)")}
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
