@@ -4,7 +4,13 @@ import {
   CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, LineStyle,
   type IChartApi, type ISeriesApi, type Time,
 } from "lightweight-charts";
+import { ArrowUpRight } from "lucide-react";
 import type { StockDetail } from "@/engine/detail";
+
+/** TradingView chart for an NSE symbol (TradingView writes "&" and "-" as "_": M&M → NSE:M_M, BAJAJ-AUTO → NSE:BAJAJ_AUTO). */
+export function tradingViewUrl(symbol: string): string {
+  return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(`NSE:${symbol.replace(/[&-]/g, "_")}`)}`;
+}
 
 type Overlay = "ma50" | "ma150" | "ma200" | "levels" | "trend";
 const RANGES = [
@@ -77,7 +83,8 @@ export function PriceChart({ d }: { d: StockDetail }) {
       const wide = el.current.clientWidth >= 560;
       for (const [levels, color, tag] of [[d.resistance, down, "R"], [d.support, up, "S"]] as const) {
         for (const l of levels) {
-          candles.createPriceLine({ price: l.price, color, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: wide, title: wide ? `${tag} ${l.touches}×` : "" });
+          // Solid and 2px so the levels read clearly against candles; slightly translucent so price stays on top.
+          candles.createPriceLine({ price: l.price, color: alpha(color, 0.85), lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: wide, title: wide ? `${tag} ${l.touches}×` : "" });
         }
       }
     }
@@ -116,10 +123,11 @@ export function PriceChart({ d }: { d: StockDetail }) {
           {toggle("ma50", "50-day", "var(--chart-ma50)")}
           {toggle("ma200", "200-day", "var(--chart-ma200)")}
           {toggle("ma150", "150-day", "var(--chart-ma150)", true)}
-          {toggle("levels", "Levels", "var(--down)", true)}
+          {toggle("levels", "Support / resistance", "var(--down)")}
           {toggle("trend", "Trendlines", "var(--up)")}
         </div>
-        <div className="flex self-start rounded-lg bg-surface-2 p-0.5 sm:self-auto">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex rounded-lg bg-surface-2 p-0.5">
           {RANGES.map((r) => (
             <button
               key={r.label}
@@ -130,6 +138,15 @@ export function PriceChart({ d }: { d: StockDetail }) {
               {r.label}
             </button>
           ))}
+        </div>
+        <a
+          href={tradingViewUrl(d.symbol)}
+          target="_blank"
+          rel="noreferrer"
+          className="flex h-7 items-center gap-1 rounded-lg border border-line px-2.5 text-xs whitespace-nowrap text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
+        >
+          TradingView <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </a>
         </div>
       </div>
       <div ref={el} className="h-[300px] w-full sm:h-[420px]" />

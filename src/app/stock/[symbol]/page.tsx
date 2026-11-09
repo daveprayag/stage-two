@@ -102,7 +102,7 @@ export default async function StockPage({ params }: Props) {
           <Card className="p-4 sm:p-5">
             <PriceChart d={d} />
             <p className="mt-4 text-xs leading-relaxed text-ink-3">
-              Dashed: support (green) and resistance (red) where price has turned before. Solid: the longest trendline through rising lows or falling highs that price hasn&apos;t closed through.
+              Horizontal lines: support (green) and resistance (red), prices where the stock has turned before. Sloped lines: the longest trendline through rising lows or falling highs that price hasn&apos;t closed through.
             </p>
           </Card>
           <Card>
