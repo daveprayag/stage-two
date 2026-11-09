@@ -3,7 +3,8 @@
  * Cron (wrangler.jsonc, UTC):
  *   every 15 min 12:00–18:59  (17:30–00:29 IST)  new NSE session? → prices, screen, track; then news
  *   01:15                     (06:45 IST)        catch-up of the same, in case the evening runs missed it
- *   every 5 min 03:00–10:59 Mon–Fri (08:30–16:29 IST) live quotes for the watch set; filings every 30 min
+ *   every minute 03:00–10:59 Mon–Fri (08:30–16:29 IST) live prices for every stock and index (2 NSE requests,
+ *                             only 09:15–15:45 IST); new filings every 30 min
  * Public read-only API (CORS *), used by the Vercel site:
  *   /api/screen  /api/stock/:symbol  /api/live  /api/live/:symbol  /api/track  /api/runs
  *   /api/run/:job  (eod | news | filings | live) — manual trigger; the jobs throttle themselves
@@ -111,6 +112,9 @@ async function daytime(env: Env, scheduledTime: number, source: string): Promise
   return out;
 }
 
+/** Must match the weekday cron in wrangler.jsonc. */
+const DAYTIME_CRON = "* 3-10 * * 1-5";
+
 const CORS = { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, OPTIONS" };
 
 function json(value: unknown, maxAge = 60, status = 200): Response {
@@ -185,13 +189,13 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
       return cached(req, ctx, `v2|${head?.asOf ?? ""}|${screen?.newsAt ?? ""}`, () => stockApi(env, symbol));
     }
     case "live": {
-      if (!parts[2]) return json((await st.getJson<LiveFile>(P.live)) ?? { at: null, marketOpen: marketOpen(), quotes: {} }, 30);
+      if (!parts[2]) return json((await st.getJson<LiveFile>(P.live)) ?? { at: "", marketOpen: marketOpen(), time: "", date: null, indices: {}, q: {} }, 20);
       const symbol = decodeURIComponent(parts[2]).toUpperCase();
       const open = marketOpen();
-      const bucket = Math.floor(Date.now() / (open ? 60_000 : 600_000));
+      const bucket = Math.floor(Date.now() / (open ? 30_000 : 600_000));
       return cached(req, ctx, String(bucket), async () => {
         const q = await fetchQuote(symbol).catch(() => null);
-        return json({ marketOpen: open, quote: q }, open ? 60 : 600);
+        return json({ marketOpen: open, quote: q }, open ? 30 : 600);
       });
     }
     case "track": {
@@ -215,7 +219,7 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
       }
       const rec =
         job === "eod" ? await runEod(st, { source }) : job === "news" ? await runNews(st, enricher(env), { source })
-          : job === "filings" ? await runFilings(st, enricher(env), { source }) : job === "live" ? await runLive(st, { source }) : null;
+          : job === "filings" ? await runFilings(st, enricher(env), { source }) : job === "live" ? await runLive(st, { source, anyTime: true }) : null;
       return rec ? json(rec, 0) : json({ error: "job must be eod, news, filings or live" }, 0, 400);
     }
     default:
@@ -238,7 +242,7 @@ export default {
 
   async scheduled(controller: Controller, env: Env, ctx: Ctx): Promise<void> {
     const source = "cloudflare";
-    const daytimeCron = controller.cron.startsWith("*/5");
+    const daytimeCron = controller.cron === DAYTIME_CRON;
     ctx.waitUntil(
       (daytimeCron ? daytime(env, controller.scheduledTime, source) : evening(env, source)).then((lines) => {
         for (const l of lines) console.log(l);

@@ -18,7 +18,7 @@ function nextNote(asOf: string): string | null {
   const n = istNow();
   if (!n.weekday || asOf >= n.date) return null;
   if (n.mins < 9 * 60 + 15) return null;
-  if (n.mins < 15 * 60 + 30) return "market open · live prices on stock pages";
+  if (n.mins < 15 * 60 + 30) return "market open · prices live";
   return "today's close usually arrives 5–7 pm";
 }
 

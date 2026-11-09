@@ -343,3 +343,60 @@ export function parseQuote(symbol: string, json: unknown): LiveQuote | null {
     date: parseNseDate(time),
   };
 }
+
+/** Every stock traded today in one response (~3,700 rows, ~1.4 MB): last price, % change, volume. No intraday high/low. */
+export const STOCKS_TRADED_URL = "https://www.nseindia.com/api/live-analysis-stocksTraded";
+/** Every NSE index: last, change, open, high, low, previous close. */
+export const ALL_INDICES_URL = "https://www.nseindia.com/api/allIndices";
+
+export interface LiveIndex {
+  last: number;
+  change: number;
+  pChange: number;
+  open: number;
+  high: number;
+  low: number;
+  prevClose: number;
+}
+
+export interface TradedRow {
+  symbol: string;
+  series: string;
+  last: number;
+  pChange: number;
+  volume: number;
+}
+
+const finite = (x: unknown): number | null => {
+  const n = typeof x === "number" ? x : typeof x === "string" ? Number(x.replace(/,/g, "")) : NaN;
+  return Number.isFinite(n) ? n : null;
+};
+
+export function parseStocksTraded(json: unknown): { time: string; rows: TradedRow[] } {
+  const j = json as { timestamp?: unknown; total?: { data?: unknown } } | null;
+  const data = Array.isArray(j?.total?.data) ? (j.total.data as Record<string, unknown>[]) : [];
+  const rows: TradedRow[] = [];
+  for (const r of data) {
+    const symbol = typeof r["symbol"] === "string" ? r["symbol"] : null;
+    const last = finite(r["lastPrice"]);
+    if (!symbol || last === null || last <= 0) continue;
+    rows.push({ symbol, series: String(r["series"] ?? ""), last, pChange: finite(r["pchange"]) ?? 0, volume: finite(r["totalTradedVolumecsv"]) ?? 0 });
+  }
+  return { time: typeof j?.timestamp === "string" ? j.timestamp : "", rows };
+}
+
+export function parseAllIndices(json: unknown): { time: string; indices: Record<string, LiveIndex> } {
+  const j = json as { timestamp?: unknown; data?: unknown } | null;
+  const data = Array.isArray(j?.data) ? (j.data as Record<string, unknown>[]) : [];
+  const indices: Record<string, LiveIndex> = {};
+  for (const r of data) {
+    const name = typeof r["index"] === "string" ? r["index"] : null;
+    const last = finite(r["last"]);
+    if (!name || last === null) continue;
+    indices[name] = {
+      last, change: finite(r["variation"]) ?? 0, pChange: finite(r["percentChange"]) ?? 0, open: finite(r["open"]) ?? last,
+      high: finite(r["high"]) ?? last, low: finite(r["low"]) ?? last, prevClose: finite(r["previousClose"]) ?? last,
+    };
+  }
+  return { time: typeof j?.timestamp === "string" ? j.timestamp : "", indices };
+}

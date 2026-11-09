@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { strToU8, zipSync } from "fflate";
-import { runEod, runNews, watchSet } from "./jobs";
+import { runEod, runLive, runNews, type LiveFile } from "./jobs";
 import { MemoryStorage, P } from "./storage";
 import { decodeStore, encodeStore, type StoreHeadFile } from "./storefile";
 import type { PriceStore, ScreenFile, StockSeries } from "./types";
@@ -77,6 +77,28 @@ describe("jobs on storage", () => {
     const s = (await st.getJson<ScreenFile>(P.screen))!;
     expect(s.news.AAA?.ai?.summary).toBe("ok");
     expect(s.newsAt).not.toBeNull();
-    expect(watchSet(s)).toEqual(["AAA"]);
+  }, 30_000);
+
+  it("live job: every stored stock and every index from two NSE requests", async () => {
+    const st = new MemoryStorage();
+    await st.putJson(P.closes, { AAA: ["INE000A", 100], BBB: ["INE000B", 50] });
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      urls.push(url);
+      if (url.includes("stocksTraded"))
+        return Response.json({ timestamp: "09-Nov-2026 14:05:10", total: { data: [
+          { symbol: "AAA", series: "EQ", lastPrice: 104.5, pchange: 4.5, totalTradedVolumecsv: 1200 },
+          { symbol: "BBB", series: "SM", lastPrice: 51, pchange: 2, totalTradedVolumecsv: 10 },
+          { symbol: "ZZZ", series: "EQ", lastPrice: 9, pchange: 1, totalTradedVolumecsv: 5 },
+        ] } });
+      return Response.json({ timestamp: "09-Nov-2026 14:05", data: [{ index: "NIFTY 500", last: 23567, variation: 77.8, percentChange: 0.33, open: 23543.1, high: 23567, low: 23388.2, previousClose: 23489.2 }] });
+    });
+    const rec = await runLive(st, { force: true });
+    expect(rec.ok).toBe(true);
+    expect(urls).toHaveLength(2);
+    const live = (await st.getJson<LiveFile>(P.live))!;
+    expect(live.date).toBe("2026-11-09");
+    expect(live.q).toEqual({ AAA: [104.5, 4.5, 1200] }); // BBB is SME series, ZZZ not stored
+    expect(live.indices["NIFTY 500"]).toMatchObject({ last: 23567, pChange: 0.33, prevClose: 23489.2 });
   }, 30_000);
 });

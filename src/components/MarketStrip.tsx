@@ -1,6 +1,7 @@
 import type { MarketSnapshot } from "@/engine/types";
-import { int, price } from "@/lib/format";
-import { Change, StageLabel } from "./Badges";
+import { int } from "@/lib/format";
+import { StageLabel } from "./Badges";
+import { LiveIndex } from "./LiveIndex";
 import { Card } from "./Page";
 
 function Breadth({ label, value }: { label: string; value: number }) {
@@ -27,7 +28,7 @@ function Stat({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-export function MarketStrip({ m }: { m: MarketSnapshot }) {
+export function MarketStrip({ m, asOf }: { m: MarketSnapshot; asOf: string }) {
   const verdict =
     m.stage === 2 && m.pctAbove50 >= 50
       ? "Uptrend with broad participation: the backdrop breakouts need."
@@ -42,10 +43,7 @@ export function MarketStrip({ m }: { m: MarketSnapshot }) {
         <div className="flex items-end justify-between gap-4 sm:justify-start sm:gap-6">
           <div>
             <div className="text-xs text-ink-3">{m.index}</div>
-            <div className="mt-0.5 flex items-baseline gap-2">
-              <span className="num text-2xl text-ink">{price(m.close)}</span>
-              <Change value={m.chgPct} digits={2} className="text-sm" />
-            </div>
+            <LiveIndex name={m.index} close={m.close} chgPct={m.chgPct} asOf={asOf} />
           </div>
           <div className="text-right text-xs sm:text-left">
             <StageLabel stage={m.stage} className="text-sm" />

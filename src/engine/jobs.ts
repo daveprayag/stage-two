@@ -13,13 +13,11 @@
 import {
   announcementsUrl, bhavcopyUrl, corpActionsUrl, indexCloseUrl, parseAnnouncements, parseBhavcopyZip, parseCorpActions,
   parseIndexClose, parseNseDate, parsePriceBands, parseQuote, parseSector, politeGet, politeHead, priceBandUrl, sectorUrl,
-  type CorpAction, type LiveQuote,
+  ALL_INDICES_URL, parseAllIndices, parseStocksTraded, STOCKS_TRADED_URL, type CorpAction, type LiveIndex, type LiveQuote,
 } from "./nse";
 import { analyseStock, BENCHMARK, rankWork, screenFromWork, withSector, type Sectors, type Work } from "./screen";
-import { isStar } from "./star";
 import { P, type Storage } from "./storage";
 import { readStocks, StocksWriter, type StoreHeadFile } from "./storefile";
-import { isTopSetup } from "./topsetup";
 import { picksFor, upsertEntry, type TrackEntry } from "./track";
 import type { Filing, Headline, ISODate, NewsBundle, NewsVerdict, RunRecord, ScreenFile, ScreenRow } from "./types";
 import { SessionsUpdater, WINDOW, type SessionInput } from "./update";
@@ -28,9 +26,8 @@ import { SessionsUpdater, WINDOW, type SessionInput } from "./update";
 const IST_OFFSET_MS = 5.5 * 3600_000;
 const MIN_EOD_GAP_MS = 5 * 60_000;
 const MIN_FILINGS_GAP_MS = 20 * 60_000;
-const MIN_LIVE_GAP_MS = 2 * 60_000;
+const MIN_LIVE_GAP_MS = 45_000;
 const LABELS_PER_RUN = 30;
-const LIVE_MAX = 60;
 
 export function istNow(now = Date.now()): { date: ISODate; hour: number; minute: number; weekday: number } {
   const d = new Date(now + IST_OFFSET_MS);
@@ -44,6 +41,13 @@ export function marketOpen(now = Date.now()): boolean {
   return t.weekday >= 1 && t.weekday <= 5 && m >= 9 * 60 + 15 && m <= 15 * 60 + 30;
 }
 
+/** When the live job runs: market hours plus 15 minutes after the close, to catch the final prices. */
+export function liveWindow(now = Date.now()): boolean {
+  const t = istNow(now);
+  const m = t.hour * 60 + t.minute;
+  return t.weekday >= 1 && t.weekday <= 5 && m >= 9 * 60 + 15 && m <= 15 * 60 + 45;
+}
+
 export function addDays(d: ISODate, n: number): ISODate {
   const t = new Date(`${d}T00:00:00Z`);
   t.setUTCDate(t.getUTCDate() + n);
@@ -55,6 +59,8 @@ export interface JobOptions {
   /** EOD only: rebuild the screen from the stored prices even without a new session (e.g. after new sector labels).
    *  Unlike force, still throttled to one run per 5 minutes, so it can be exposed on the public API. */
   rebuild?: boolean;
+  /** Live only: run outside market hours (manual trigger); the one-minute throttle still applies. */
+  anyTime?: boolean;
   source?: string;
 }
 
@@ -380,20 +386,17 @@ export async function runFilings(st: Storage, enrich: Enricher, opts: JobOptions
   }
 }
 
+/** live/latest.json: every stored stock's latest price and every index, refreshed every minute in market hours. */
 export interface LiveFile {
+  /** When the engine fetched it (ISO). */
   at: string;
   marketOpen: boolean;
-  quotes: Record<string, LiveQuote>;
-}
-
-/** The stocks worth following live: starred, top setups, momentum leaders, resuming, breakouts. */
-export function watchSet(screen: ScreenFile, max = LIVE_MAX): string[] {
-  const out: string[] = [];
-  const add = (r: ScreenRow) => !out.includes(r.symbol) && out.length < max && out.push(r.symbol);
-  for (const r of screen.rows) if (isStar(r, screen.news[r.symbol])) add(r);
-  for (const r of screen.rows) if (isTopSetup(r, screen.news[r.symbol])) add(r);
-  for (const tag of ["momentum", "resuming", "breakout"] as const) for (const r of screen.rows) if (r.tags.includes(tag)) add(r);
-  return out;
+  /** NSE's own timestamp, "09-Nov-2026 15:30", and its date (the session these prices belong to). */
+  time: string;
+  date: ISODate | null;
+  indices: Record<string, LiveIndex>;
+  /** symbol → [last price, % change, volume]. */
+  q: Record<string, [number, number, number]>;
 }
 
 export async function fetchQuote(symbol: string): Promise<LiveQuote | null> {
@@ -407,20 +410,26 @@ export async function runLive(st: Storage, opts: JobOptions = {}): Promise<RunRe
   const log: string[] = [];
   try {
     const state = (await st.getJson<{ lastRun: string | null }>(P.liveState)) ?? { lastRun: null };
-    if (!opts.force && ago(state.lastRun) < MIN_LIVE_GAP_MS) return finish(st, { ...base, ok: true, skipped: true, detail: "ran less than 2 minutes ago", log });
-    if (!opts.force && !marketOpen()) return finish(st, { ...base, ok: true, skipped: true, detail: "market closed", log });
+    if (!opts.force && ago(state.lastRun) < MIN_LIVE_GAP_MS) return finish(st, { ...base, ok: true, skipped: true, detail: "ran less than a minute ago", log });
+    if (!opts.force && !opts.anyTime && !liveWindow()) return finish(st, { ...base, ok: true, skipped: true, detail: "market closed", log });
     await st.putJson(P.liveState, { lastRun: startedAt });
-    const screen = await st.getJson<ScreenFile>(P.screen);
-    if (!screen) throw new Error("no screen yet");
-    const symbols = watchSet(screen);
-    const quotes: Record<string, LiveQuote> = {};
-    for (const s of symbols) {
-      const q = await fetchQuote(s).catch(() => null);
-      if (q) quotes[s] = q;
-    }
-    await st.putJson(P.live, { at: startedAt, marketOpen: marketOpen(), quotes } satisfies LiveFile);
-    // Live refreshes run every 5 minutes; the history only needs to show that they work.
-    return finish(st, { ...base, ok: true, skipped: true, detail: `${Object.keys(quotes).length} of ${symbols.length} quotes`, log });
+    // Two requests cover every stock and index.
+    const [tradedRaw, indicesRaw, closes] = await Promise.all([
+      politeGet(STOCKS_TRADED_URL, "application/json"),
+      politeGet(ALL_INDICES_URL, "application/json"),
+      st.getJson<Record<string, [string, number]>>(P.closes),
+    ]);
+    const dec = new TextDecoder();
+    const traded = tradedRaw ? parseStocksTraded(JSON.parse(dec.decode(tradedRaw))) : { time: "", rows: [] };
+    const idx = indicesRaw ? parseAllIndices(JSON.parse(dec.decode(indicesRaw))) : { time: "", indices: {} };
+    // Only stocks we store (EQ/BE), so the file stays small (~100 KB).
+    const known = closes ?? {};
+    const q: LiveFile["q"] = {};
+    for (const r of traded.rows) if (known[r.symbol] && (r.series === "EQ" || r.series === "BE")) q[r.symbol] = [r.last, r.pChange, r.volume];
+    const time = traded.time || idx.time;
+    await st.putJson(P.live, { at: startedAt, marketOpen: marketOpen(), time, date: parseNseDate(time), indices: idx.indices, q } satisfies LiveFile);
+    // skipped: true keeps these every-minute runs out of the run history; the Runs page shows meta/live.json.
+    return finish(st, { ...base, ok: true, skipped: true, detail: `${Object.keys(q).length} stocks, ${Object.keys(idx.indices).length} indices at ${time}`, log });
   } catch (e) {
     const detail = String(e instanceof Error ? e.message : e);
     log.push(`ERROR ${detail}`);

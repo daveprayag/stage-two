@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import type { LiveFile } from "@/engine/jobs";
 import type { LiveQuote } from "@/engine/nse";
 import { ENGINE_URL } from "@/lib/engine";
 
@@ -8,7 +9,7 @@ export interface LiveState {
   marketOpen: boolean;
 }
 
-/** Poll the engine for one stock's live quote: every minute while the market is open and the tab is visible. */
+/** Poll the engine for one stock's live quote (with intraday high/low): every 30 s while the market is open and the tab is visible. */
 export function useLiveQuote(symbol: string): LiveState {
   const [state, setState] = useState<LiveState>({ quote: null, marketOpen: false });
   useEffect(() => {
@@ -21,14 +22,14 @@ export function useLiveQuote(symbol: string): LiveState {
           if (r.ok) {
             const j = (await r.json()) as LiveState;
             if (!stop) setState(j);
-            timer = setTimeout(load, j.marketOpen ? 60_000 : 10 * 60_000);
+            timer = setTimeout(load, j.marketOpen ? 30_000 : 10 * 60_000);
             return;
           }
         } catch {
           // keep the last value
         }
       }
-      if (!stop) timer = setTimeout(load, 60_000);
+      if (!stop) timer = setTimeout(load, 30_000);
     };
     void load();
     return () => {
@@ -39,33 +40,50 @@ export function useLiveQuote(symbol: string): LiveState {
   return state;
 }
 
-export interface LiveList {
-  at: string | null;
-  marketOpen: boolean;
-  quotes: Record<string, LiveQuote>;
+// One shared poll of /api/live per tab (every stock's last price + every index), whatever number of components use it.
+let liveFile: LiveFile | null = null;
+const listeners = new Set<(f: LiveFile | null) => void>();
+let liveTimer: ReturnType<typeof setTimeout> | undefined;
+
+async function pollLive(): Promise<void> {
+  if (document.visibilityState === "visible") {
+    try {
+      const r = await fetch(`${ENGINE_URL}/api/live`);
+      if (r.ok) {
+        const j = (await r.json()) as LiveFile;
+        // Older files (before every-stock live prices) have no q.
+        liveFile = j.q ? j : null;
+        for (const l of listeners) l(liveFile);
+      }
+    } catch {
+      // keep the last value
+    }
+  }
+  liveTimer = listeners.size ? setTimeout(pollLive, liveFile?.marketOpen ? 60_000 : 5 * 60_000) : undefined;
 }
 
-/** The engine's live quotes for the watch set (refreshed every 5 minutes in market hours). */
-export function useLiveList(): LiveList {
-  const [state, setState] = useState<LiveList>({ at: null, marketOpen: false, quotes: {} });
+/** Every stock's latest NSE price and every index (the engine refreshes them each minute in market hours). */
+export function useLiveFile(): LiveFile | null {
+  const [f, setF] = useState<LiveFile | null>(liveFile);
   useEffect(() => {
-    let stop = false;
-    const load = async () => {
-      try {
-        const r = await fetch(`${ENGINE_URL}/api/live`);
-        if (r.ok && !stop) setState((await r.json()) as LiveList);
-      } catch {
-        // keep the last value
-      }
-    };
-    void load();
-    const t = setInterval(() => document.visibilityState === "visible" && void load(), 2 * 60_000);
+    listeners.add(setF);
+    if (!liveTimer) void pollLive();
+    else setF(liveFile);
     return () => {
-      stop = true;
-      clearInterval(t);
+      listeners.delete(setF);
     };
   }, []);
-  return state;
+  return f;
+}
+
+/** The live file if its prices are from the screen's session or later (older ones would be stale). */
+export function freshFor(f: LiveFile | null, asOf: string): LiveFile | null {
+  return f && f.date && f.date >= asOf ? f : null;
+}
+
+/** "Live 2:18 pm" in market hours, else "NSE 3:30 pm". */
+export function liveLabel(f: LiveFile): string {
+  return `${f.marketOpen ? "Live" : "NSE"} ${quoteTime(f.time)}`;
 }
 
 /** "09-Nov-2026 13:36:23" → "1:36 pm". */

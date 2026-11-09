@@ -7,8 +7,10 @@ import { price, titleCase } from "@/lib/format";
 import { baseShort, Change, FirstLine, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
 import { isStar, starCount } from "@/engine/star";
 import { Select } from "./Select";
-import { quoteTime, useLiveList } from "./live";
-import type { LiveQuote } from "@/engine/nse";
+import { freshFor, liveLabel, useLiveFile } from "./live";
+
+/** A stock's latest NSE price during or after today's session. */
+type Px = { last: number; pChange: number };
 import { isTopSetup } from "@/engine/topsetup";
 
 type TabKey = Exclude<ScreenTag, "qualified"> | "all" | "top";
@@ -91,7 +93,7 @@ const phaseOk = (r: ScreenRow, p: PhaseFilter) => p === "all" || r.phase === "ea
 const href = (r: ScreenRow) => `/stock/${encodeURIComponent(r.symbol)}`;
 const fromHigh = (r: ScreenRow) => (r.pctFromHigh < 0.05 ? "At high" : `−${r.pctFromHigh.toFixed(1)}%`);
 
-function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: LiveQuote | undefined }) {
+function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: Px | undefined }) {
   return (
     <li>
       <Link href={href(r)} className="flex items-center gap-3 px-4 py-4 active:bg-surface-2">
@@ -102,7 +104,6 @@ function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: L
               {isStar(r, n) && <StarMark count={starCount(r, n)} />}
             </span>
             <span className="num flex shrink-0 items-center gap-1.5 text-[15px] text-ink">
-              {q && <span className="h-1.5 w-1.5 rounded-full bg-up" title={`Live ${quoteTime(q.time)}`} aria-label="Live price" />}
               {price(q ? q.last : r.close)}
             </span>
           </div>
@@ -149,7 +150,7 @@ function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: L
 const th = "px-3 py-3 text-xs font-normal text-ink-3 first:pl-5 last:pr-5";
 const td = "px-3 py-3.5 first:pl-5 last:pr-5";
 
-function DesktopTable({ rows, news, live }: { rows: ScreenRow[]; news: Record<string, NewsBundle>; live: Record<string, LiveQuote> }) {
+function DesktopTable({ rows, news, live }: { rows: ScreenRow[]; news: Record<string, NewsBundle>; live: Record<string, Px> }) {
   return (
     <table className="w-full table-fixed text-sm">
       <colgroup>
@@ -190,7 +191,6 @@ function DesktopTable({ rows, news, live }: { rows: ScreenRow[]; news: Record<st
               </td>
               <td className={`${td} text-right`}>
                 <span className="num flex items-center justify-end gap-1.5 text-ink">
-                  {live[r.symbol] && <span className="h-1.5 w-1.5 rounded-full bg-up" title={`Live ${quoteTime(live[r.symbol]!.time)}`} aria-label="Live price" />}
                   {price(live[r.symbol]?.last ?? r.close)}
                 </span>
                 <Change value={live[r.symbol]?.pChange ?? r.chgPct} className="text-xs" />
@@ -275,9 +275,12 @@ function Toggle({ on, set, label }: { on: boolean; set: (f: (x: boolean) => bool
 const control = "h-10 rounded-lg border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-line-strong md:h-9";
 
 export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: Record<string, NewsBundle>; asOf: string }) {
-  const liveList = useLiveList();
-  // Only quotes from a later session than the screen (or the same day) count as live.
-  const live = useMemo(() => Object.fromEntries(Object.entries(liveList.quotes).filter(([, q]) => q.date && q.date >= asOf)), [liveList, asOf]);
+  // Latest NSE prices for every stock, once they are from the screen's session or later.
+  const liveFile = freshFor(useLiveFile(), asOf);
+  const live = useMemo<Record<string, Px>>(
+    () => (liveFile ? Object.fromEntries(Object.entries(liveFile.q).map(([k, [last, pChange]]) => [k, { last, pChange }])) : {}),
+    [liveFile],
+  );
   const [phase, setPhase] = useState<PhaseFilter>("all");
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: 0, top: 0 };
@@ -404,10 +407,13 @@ export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: R
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 text-xs text-ink-3 md:px-5">
           <span>
             <span className="num text-ink-2">{shown.length}</span> {shown.length === 1 ? "stock" : "stocks"}
-            {liveList.marketOpen && Object.keys(live).length > 0 && liveList.at && (
-              <span className="ml-2 inline-flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-up" aria-hidden="true" />
-                live prices for {Object.keys(live).length} shortlisted stocks
+            {liveFile && (
+              <span
+                className="ml-2 inline-flex items-center gap-1.5"
+                title="Prices and today's change are live from NSE. Lists, stages and checks update after today's close."
+              >
+                <span className={`h-1.5 w-1.5 rounded-full bg-up ${liveFile.marketOpen ? "animate-pulse" : ""}`} aria-hidden="true" />
+                {liveFile.marketOpen ? `prices ${liveLabel(liveFile).toLowerCase()}` : `prices as of ${liveLabel(liveFile).replace("NSE ", "")}`}
               </span>
             )}
           </span>

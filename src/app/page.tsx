@@ -24,7 +24,7 @@ export default async function Home() {
           {screen.newsAt ? ` · News ${istTime(screen.newsAt)}` : " · News pending"}
         </p>
       </PageTitle>
-      {screen.market && <MarketStrip m={screen.market} />}
+      {screen.market && <MarketStrip m={screen.market} asOf={screen.asOf} />}
       <ScreenerTable rows={screen.rows} news={screen.news} asOf={screen.asOf} />
     </Page>
   );
