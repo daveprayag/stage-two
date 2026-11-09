@@ -6,7 +6,7 @@ import { companyQuery, parseGoogleNews } from "./news";
 import { parseAnnouncements, parseBhavcopyZip, parseCsv, parseIndexClose, parseNseDate, parsePriceBands } from "./nse";
 import { newsShortlist } from "./pipeline";
 import { computeScreen, isFund } from "./screen";
-import { advanceStart, countRallies, phaseOf, smaArr, stageAt } from "./series";
+import { countRallies, findBase, phaseOf, smaArr, stageAt } from "./series";
 import type { PriceStore, ScreenRow, StockSeries } from "./types";
 import { appendSession } from "./update";
 
@@ -171,7 +171,7 @@ describe("top setups", () => {
     stageAge: 40, template: 8, tight10: 7, dryUp: 0.7, rvol: 80, adr: 3, turnoverCr: 25, band: 20, resistance: 113,
     pctToResistance: 2.7, breakout: false, scans: [], setup: null, tags: ["setup" as const], score: 100,
     rsi14: 62, ema20: 106, ema50: 101, ma50Rising: true, ma200Rising: true, upDownVol: 1.6, runUp2m: 18,
-    rallies: 1, riseFromBase: 35, largestRallyPct: 35, phase: "early" as const,
+    rallies: 1, riseFromBase: 35, inBase: false, baseDate: "2026-08-01", largestRallyPct: 35, phase: "early" as const,
   } satisfies ScreenRow;
   const good = { filings: [], headlines: [], ai: { summary: "Order win", sentiment: "positive" as const, catalysts: ["₹500 Cr order"], redFlags: [] } };
 
@@ -223,11 +223,27 @@ describe("rallies and phase", () => {
     // A 7% dip inside a run is a pause, not a new rally.
     expect(countRallies([100, 125, 116, 140], 0, 3).count).toBe(1);
   });
-  it("finds where the current advance began: the low before the last real dip below the 150-day average", () => {
-    const close = [...Array.from({ length: 160 }, () => 100), 95, 94, 93, 92, 90, 91, 96, 102, 110, 120];
-    const ma = close.map(() => 100);
-    expect(advanceStart(close, ma, close.length - 1)).toBe(164);
-    expect(advanceStart(close.map(() => 120), ma, close.length - 1)).toBeNull();
+  it("finds the latest sideways base and where price left it", () => {
+    // 40 sessions falling 30% (a decline, not a base), then 90 sideways sessions 100–109, then a breakout and climb.
+    const decline = Array.from({ length: 40 }, (_, k) => 150 - k * 1.2);
+    const side = Array.from({ length: 90 }, (_, k) => 100 + (k % 10));
+    const climb = Array.from({ length: 30 }, (_, k) => 112 + k * 2);
+    const close = [...decline, ...side, ...climb];
+    const base = findBase(close, smaArr(close, 50), close.length - 1);
+    expect(base).not.toBeNull();
+    expect(base!.end).toBe(decline.length + side.length - 1);
+    expect(base!.high).toBe(109);
+    expect(base!.inBase).toBe(false);
+    // Still sideways: in base.
+    const flat = [...decline, ...side];
+    expect(findBase(flat, smaArr(flat, 50), flat.length - 1)!.inBase).toBe(true);
+    // A steady climb has no base.
+    const ramp = Array.from({ length: 120 }, (_, k) => 100 * 1.006 ** k);
+    expect(findBase(ramp, smaArr(ramp, 50), ramp.length - 1)).toBeNull();
+    // A 6-week pause right after a 60% run is a contraction inside the uptrend, not a side trend: no reset.
+    const run = [...Array.from({ length: 120 }, (_, k) => 100 + (k % 4)), ...Array.from({ length: 40 }, (_, k) => 104 * 1.012 ** k), ...Array.from({ length: 30 }, (_, k) => 166 + (k % 5))];
+    const b2 = findBase(run, smaArr(run, 50), run.length - 1);
+    expect(b2?.end).toBe(119);
   });
   it("labels the phase of a stage 2 advance", () => {
     expect(phaseOf(2, { count: 1, largestPct: 35, lastPct: 35 })).toBe("early");
@@ -236,5 +252,6 @@ describe("rallies and phase", () => {
     expect(phaseOf(2, { count: 3, largestPct: 30, lastPct: 20 })).toBe("late");
     expect(phaseOf(2, { count: 1, largestPct: 95, lastPct: 95 })).toBe("late");
     expect(phaseOf(3, { count: 1, largestPct: 20, lastPct: 20 })).toBeNull();
+    expect(phaseOf(2, { count: 0, largestPct: 0, lastPct: 0 }, false)).toBe("late");
   });
 });

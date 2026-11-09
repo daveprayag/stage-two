@@ -9,7 +9,7 @@ import { PriceChart } from "@/components/PriceChart";
 import { stockDetail } from "@/engine/detail";
 import { isTopSetup, topSetupChecks } from "@/engine/topsetup";
 import { fetchHeadlines } from "@/engine/news";
-import { crore, price, titleCase } from "@/lib/format";
+import { crore, day, price, titleCase } from "@/lib/format";
 import { getAllRows, getFilings, getScreen, getStore } from "@/lib/data";
 
 export const revalidate = 3600;
@@ -85,7 +85,8 @@ export default async function StockPage({ params }: Props) {
               <>
                 <span className="text-ink-3">·</span>
                 <span>
-                  <PhaseLabel phase={row.phase} stage={row.stage} /> in the uptrend ({phaseDetail(row.rallies, row.riseFromBase).toLowerCase()})
+                  <PhaseLabel phase={row.phase} stage={row.stage} /> in the uptrend ({phaseDetail(row).toLowerCase()}
+                  {row.baseDate && !row.inBase ? `, left its base after ${day(row.baseDate)}` : ""})
                 </span>
               </>
             )}

@@ -15,9 +15,10 @@ Formerly *StockGenius* (Yahoo Finance, ~380 hardcoded symbols). Now every EQ sto
 | Strongest | RS ≥ 90 and trend template ≥ 7/8 |
 | Ankur's scans | Ankur Patel's Chartink scans (volume, 20 EMA, flag) or a setup from the livermore rule engine |
 
-Phase (stage 2 only): rallies of 20%+ without a 10% pullback, counted from the base low before the last real dip
-(5+ closes) below the 150-day average. Early = first rally, mid = second, late = third or later or any 80%+ rally. The
-screener can show early only or early + mid; top setups must not be late.
+Phase (stage 2 only): rallies (20%+ without a 10% pullback) counted from when the stock left its latest side-trend base
+(40+ sessions within a 35% range, ending within 12% of where it started, 50-day average moving at most 5%). Early = in
+or just out of the base, or the first rally; mid = second; late = third or later, any 80%+ rally, or no base in the
+~14 months of history. The screener can show early only or early + mid; top setups must not be late.
 
 Universe: EQ series, not ETFs/index funds, close > ₹30, 50-day average traded value ≥ ₹2 Cr, not in the 2% / 5% price bands.
 Stage = Weinstein stage from the 150-day average; RS = percentile of 3/6/9/12-month returns (latest quarter double).

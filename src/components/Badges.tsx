@@ -39,10 +39,31 @@ export function PhaseLabel({ phase, stage }: { phase: "early" | "mid" | "late" |
   );
 }
 
-/** "Rally 1 · +37% from the base" */
-export function phaseDetail(rallies: number | undefined, riseFromBase: number | undefined): string {
-  if (rallies === undefined || riseFromBase === undefined) return "";
-  return `Rally ${Math.max(1, rallies)} · +${riseFromBase.toFixed(0)}% from base`;
+/** Next to the phase in tight spaces: the rally number, or why a stock is late. */
+export function phaseNote(r: { phase?: "early" | "mid" | "late" | null; rallies?: number; riseFromBase?: number | null; largestRallyPct?: number }): string {
+  if (!r.phase || r.rallies === undefined) return "";
+  if (r.phase === "late") {
+    if (r.riseFromBase === null) return "no base";
+    if (r.rallies >= 3) return `${r.rallies} rallies`;
+    return "80%+ rally";
+  }
+  return r.rallies ? `rally ${r.rallies}` : "";
+}
+
+/** "Rally 1 · +37% above base", "In base", "No base in 14 months". */
+export function phaseDetail(r: { rallies?: number; riseFromBase?: number | null; inBase?: boolean; largestRallyPct?: number }): string {
+  if (r.rallies === undefined || r.riseFromBase === undefined) return "";
+  if (r.riseFromBase === null) return "No base in 14 months";
+  if (r.inBase) return "In base";
+  return `${r.rallies ? `Rally ${r.rallies}` : "Just out of base"} · +${r.riseFromBase.toFixed(0)}% above base${(r.largestRallyPct ?? 0) >= 80 ? " · an 80%+ rally" : ""}`;
+}
+
+/** Short form for tight spaces: "+37%", "In base", "No base". */
+export function baseShort(r: { riseFromBase?: number | null; inBase?: boolean }): string {
+  if (r.riseFromBase === undefined) return "—";
+  if (r.riseFromBase === null) return "No base";
+  if (r.inBase) return "In base";
+  return `+${r.riseFromBase.toFixed(0)}%`;
 }
 
 export const TAG_LABEL: Record<ScreenTag, string> = {

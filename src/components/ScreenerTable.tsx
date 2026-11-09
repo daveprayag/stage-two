@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import type { NewsBundle, ScreenRow, ScreenTag } from "@/engine/types";
 import { price, titleCase } from "@/lib/format";
-import { Change, FirstLine, PhaseLabel, phaseDetail, RsMeter, SentimentDot, StageLabel } from "./Badges";
+import { baseShort, Change, FirstLine, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel } from "./Badges";
 import { Select } from "./Select";
 import { isTopSetup } from "@/engine/topsetup";
 
@@ -96,12 +96,12 @@ function MobileItem({ r, n }: { r: ScreenRow; n: NewsBundle | undefined }) {
               <dt className="text-ink-3">Phase</dt>
               <dd className="mt-0.5">
                 <PhaseLabel phase={r.phase} stage={r.stage} />
-                {r.phase && <span className="num text-ink-3"> · {Math.max(1, r.rallies)}</span>}
+                {phaseNote(r) && <span className="mt-0.5 block text-[11px] leading-tight text-ink-3">{phaseNote(r)}</span>}
               </dd>
             </div>
             <div>
-              <dt className="text-ink-3">From base</dt>
-              <dd className="num mt-0.5 text-ink">{r.riseFromBase === undefined ? "—" : `+${r.riseFromBase.toFixed(0)}%`}</dd>
+              <dt className="text-ink-3">Above base</dt>
+              <dd className="num mt-0.5 text-ink">{baseShort(r)}</dd>
             </div>
             <div>
               <dt className="text-ink-3">From high</dt>
@@ -174,7 +174,7 @@ function DesktopTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, 
                 {r.phase && (
                   <span className="mt-1 block whitespace-nowrap">
                     <PhaseLabel phase={r.phase} stage={r.stage} />
-                    <span className="text-ink-3"> · {phaseDetail(r.rallies, r.riseFromBase).replace(" from base", "")}</span>
+                    <span className="text-ink-3"> · {phaseDetail(r).replace(" above base", "")}</span>
                   </span>
                 )}
               </td>
@@ -205,7 +205,7 @@ const TERMS: [string, string][] = [
   ["RS", "Relative Strength rating, 1–99. Ranks how much the stock rose over 3, 6, 9 and 12 months against all ~1,350 liquid NSE stocks (last 3 months count double). 90 = beat 90% of the market. Not the same as RSI."],
   ["RSI", "Relative Strength Index (14 days), 0–100: momentum of recent price moves. Top setups need 50–75: rising, but not overbought (above ~75 a pullback is more likely)."],
   ["Stage", "Where the stock is in its cycle, from its 150-day average: 1 sideways base, 2 uptrend, 3 topping, 4 downtrend."],
-  ["Phase", "How far into its uptrend a stage 2 stock is. A rally is a rise of 20%+ without a 10% pullback, counted from the base the uptrend started from. Early = first rally (Ankur's best buy: the first pause after the base); mid = second; late = third or later, or any 80%+ rally. \u201cEarly · 1 \u00b7 +37%\u201d = first rally, 37% above the base low."],
+  ["Phase", "How far into its uptrend a stage 2 stock is, counted from when it left its latest base (8+ weeks sideways within a 35% range). A rally is a rise of 20%+ without a 10% pullback. Early = still in the base, just out of it, or in the first rally (Ankur's best buy: the first pause after the base); mid = second rally; late = third or later, any 80%+ rally, or no sideways base in the last 14 months. \u201cAbove base\u201d = how far the price is above the top of that base."],
   ["From high", "How far below its 52-week high it closed."],
   ["10d range", "Gap between the highest and lowest price of the last 10 sessions, as % of price. Small = quiet, tight."],
   ["Vol 5/50", "Average volume of the last 5 days ÷ last 50 days. Below 1 = volume drying up; well above 1 = heavy buying or selling."],

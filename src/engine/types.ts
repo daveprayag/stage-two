@@ -104,12 +104,16 @@ export interface ScreenRow {
   upDownVol: number;
   /** % above the lowest low of the last ~2 months (42 sessions). */
   runUp2m: number;
-  /** Rallies (≥ 20% without a 10% pullback) since the current advance began, and the largest one (%). */
+  /** Rallies (≥ 20% without a 10% pullback) since the stock left its latest sideways base, and the largest one (%). */
   rallies: number;
-  /** % above the base low the current advance started from. */
-  riseFromBase: number;
+  /** % above the top of that base (negative = still inside it); null = no base in our ~14 months of history. */
+  riseFromBase: number | null;
+  /** Still trading inside the base. */
+  inBase: boolean;
+  /** Last session of the base (the stock left it the next session). */
+  baseDate: string | null;
   largestRallyPct: number;
-  /** Stage 2 only: early (base breakout / first rally), mid (second), late (third+, or an 80%+ rally). */
+  /** Stage 2 only: early (in/just out of the base, or first rally), mid (second), late (third+, an 80%+ rally, or no base). */
   phase: "early" | "mid" | "late" | null;
   /** Ankur Patel's Chartink scans that fired today. */
   scans: string[];

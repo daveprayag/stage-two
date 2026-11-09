@@ -33,7 +33,9 @@ export function technicalChecks(r: ScreenRow): Check[] {
       key: "phase",
       label: "Early or mid in its uptrend, not late",
       pass: r.phase === "early" || r.phase === "mid",
-      value: r.phase ? `${r.phase[0]!.toUpperCase()}${r.phase.slice(1)}: rally ${Math.max(1, r.rallies)}, +${(r.riseFromBase ?? 0).toFixed(0)}% from the base low` : r.phase === undefined ? "n/a" : "Not in stage 2",
+      value: r.phase
+        ? `${r.phase[0]!.toUpperCase()}${r.phase.slice(1)}: ${r.riseFromBase === null ? "no sideways base in 14 months" : r.inBase ? "still in its base" : `${r.rallies ? `rally ${r.rallies}` : "just out of its base"}, +${(r.riseFromBase ?? 0).toFixed(0)}% above the base`}`
+        : r.phase === undefined ? "n/a" : "Not in stage 2",
     },
     { key: "template", label: "All moving averages stacked (trend template 8/8)", pass: r.template >= 8, value: `${r.template} of 8` },
     {

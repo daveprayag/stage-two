@@ -65,11 +65,12 @@ export default function GuidePage() {
           <StagesDiagram />
         </Card>
         <p>
-          <strong className="text-ink">Phase within stage 2.</strong> A stage 2 advance usually comes in rallies separated by pauses. The app counts
-          rallies (a rise of 20%+ without a 10% pullback) from the base the uptrend started from: <em>early</em> = the first rally, <em>mid</em> = the
-          second, <em>late</em> = the third or later, or any rally of 80%+. Ankur Patel&apos;s rule is that the best buy is the first pause after the base
-          and that buying after the second leg is late. In our 2021–24 test, stocks after an 80%+ rally had weaker returns over the next month; the
-          &quot;Early only&quot; filter on the screener hides everything else.
+          <strong className="text-ink">Phase within stage 2.</strong> Rallies are counted from the moment the stock leaves its latest side trend:
+          8+ weeks moving sideways within a 35% range while its 50-day average goes flat (Ankur: &quot;a re-base of 8+ weeks and ≤ 35% depth resets the
+          count&quot;). A short pause inside an uptrend, like his 4–5 bar contraction, keeps the 50-day rising and does not reset it. A rally is a rise
+          of 20%+ without a 10% pullback. <em>Early</em> = still in the base, just out of it, or in the first rally; <em>mid</em> = the second;
+          <em> late</em> = the third or later, any rally of 80%+, or no side trend at all in the last 14 months. In our 2021–24 test, stocks after an
+          80%+ rally had weaker returns over the next month; the &quot;Early only&quot; filter on the screener hides everything else.
         </p>
       </Section>
 

@@ -153,34 +153,72 @@ export function countRallies(close: readonly number[], from: number, to: number,
 
 export type Phase = "early" | "mid" | "late";
 
-/** Where a stage 2 stock is in its advance: early = base breakout or first rally; mid = second; late = third or more, or any 80%+ rally. */
-export function phaseOf(stage: Stage, r: RallyCount): Phase | null {
+/**
+ * Where a stage 2 stock is in its advance, counting rallies since it left its latest base: early = still in or just out
+ * of the base, or the first rally; mid = second; late = third or more, any 80%+ rally, or no base in our history.
+ */
+export function phaseOf(stage: Stage, r: RallyCount, hasBase = true): Phase | null {
   if (stage !== 2) return null;
-  if (r.count >= LATE_RALLIES || r.largestPct >= PARABOLIC_RALLY_PCT) return "late";
+  if (!hasBase || r.count >= LATE_RALLIES || r.largestPct >= PARABOLIC_RALLY_PCT) return "late";
   return r.count <= 1 ? "early" : "mid";
 }
 
-/** Closes below the 150-day average for this many sessions in a row = a real dip (end of a base or a stage 2 break). */
-export const STAGE2_RESET_BARS = 5;
-
 /**
- * Start of the current advance: the base low before price last left a real dip below the 150-day average (5+ closes
- * below it). Returns the index of that low, or null if price has been above the average for all the history we hold.
+ * A base (sideways range): BASE_BARS sessions whose closes span at most BASE_MAX_DEPTH_PCT (high/low) and end within
+ * BASE_MAX_DRIFT_PCT of where they started. Ankur: "a re-base of 8+ weeks and ≤ 35% depth resets the count" (livermore
+ * RULEBOOK "Momentum cycle", oCuI_gBkD0g). The drift limit is ours: it separates a sideways range from a steady climb.
  */
-export function advanceStart(close: readonly number[], ma150: readonly number[], i: number): number | null {
-  let below = 0;
-  for (let j = i; j >= 0; j--) {
-    const m = ma150[j] as number;
-    if (!Number.isFinite(m)) return null;
-    if ((close[j] as number) < m) {
-      below++;
-      if (below >= STAGE2_RESET_BARS) {
-        const end = j + below - 1; // most recent close of that dip
-        let low = end;
-        for (let k = Math.max(0, end - 40); k <= Math.min(i, end + 10); k++) if ((close[k] as number) < (close[low] as number)) low = k;
-        return low;
-      }
-    } else below = 0;
+export const BASE_BARS = 40;
+export const BASE_MAX_DEPTH_PCT = 35;
+export const BASE_MAX_DRIFT_PCT = 12;
+/** A side trend flattens the 50-day average: it moves at most this much (%) across the base window. A pause inside an
+ * uptrend (Ankur's 4–5 bar contraction, a few weeks of flag) keeps it rising, so it does not reset the count. */
+export const BASE_MAX_MA50_CHANGE_PCT = 5;
+
+export interface Base {
+  /** Index of the base's last session (the bar before price left the range, or the latest bar if still inside). */
+  end: number;
+  /** Highest and lowest close of the base window. */
+  high: number;
+  low: number;
+  /** Price is still inside the range (has not closed above its top since). */
+  inBase: boolean;
+}
+
+/** The most recent side-trend base before or at bar i (needs the 50-day average), or null if none in the history given. */
+export function findBase(close: readonly number[], ma50: readonly number[], i: number, bars = BASE_BARS): Base | null {
+  for (let b = i; b >= bars - 1; b--) {
+    const a = b - bars + 1;
+    const m0 = ma50[a] as number;
+    const m1 = ma50[b] as number;
+    if (!Number.isFinite(m0)) break;
+    if (Math.abs(m1 / m0 - 1) * 100 > BASE_MAX_MA50_CHANGE_PCT) continue;
+    let hi = -Infinity;
+    let lo = Infinity;
+    for (let j = a; j <= b; j++) {
+      const c = close[j] as number;
+      if (c > hi) hi = c;
+      if (c < lo) lo = c;
+    }
+    const depth = (hi / lo - 1) * 100;
+    const drift = Math.abs((close[b] as number) / (close[a] as number) - 1) * 100;
+    if (depth <= BASE_MAX_DEPTH_PCT && drift <= BASE_MAX_DRIFT_PCT) {
+      // Bars at the end of the window that close above everything before them are the breakout, not the base.
+      let top = b;
+      const maxBefore = (k: number) => {
+        let m = -Infinity;
+        for (let j = a; j < k; j++) m = Math.max(m, close[j] as number);
+        return m;
+      };
+      while (top > a + bars / 2 && (close[top] as number) > maxBefore(top)) top--;
+      hi = maxBefore(top + 1);
+      lo = Infinity;
+      for (let j = a; j <= top; j++) lo = Math.min(lo, close[j] as number);
+      // Extend the base to the last bar before price first closed above its top.
+      let end = top;
+      while (end < i && (close[end + 1] as number) <= hi) end++;
+      return { end, high: hi, low: lo, inBase: end === i };
+    }
   }
   return null;
 }
