@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Change } from "@/components/Badges";
 import { Card, Page, PageTitle } from "@/components/Page";
-import { TRACK_LISTS } from "@/engine/track";
+import { SHOWN_TRACK, TRACK_LISTS } from "@/engine/track";
 import { getTrack } from "@/lib/data";
 import { day } from "@/lib/format";
 
@@ -33,7 +33,7 @@ export default async function TrackPage() {
         <>
           <Card>
             <ul className="divide-y divide-line md:hidden">
-              {perf.lists.map((l) => (
+              {perf.lists.filter((l) => SHOWN_TRACK.has(l.key)).map((l) => (
                 <li key={l.key} className="px-4 py-3.5">
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-[15px] text-ink">{l.label}</span>
@@ -66,7 +66,7 @@ export default async function TrackPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {perf.lists.map((l) => (
+                  {perf.lists.filter((l) => SHOWN_TRACK.has(l.key)).map((l) => (
                     <tr key={l.key}>
                       <td className="px-3 py-3.5 pl-5 text-ink">{l.label}</td>
                       <td className="num px-3 py-3.5 text-right text-ink-2">{l.days}</td>
@@ -94,7 +94,7 @@ export default async function TrackPage() {
                     </span>
                   </div>
                   <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2 lg:grid-cols-4">
-                    {TRACK_LISTS.map(({ key, label }) => (
+                    {TRACK_LISTS.filter((l) => l.shown).map(({ key, label }) => (
                       <div key={key} className="flex items-baseline justify-between gap-2">
                         <dt className="truncate text-ink-3">{label}</dt>
                         <dd className="shrink-0">

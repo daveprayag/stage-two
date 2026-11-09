@@ -8,16 +8,20 @@ import { isTopSetup } from "./topsetup";
 import type { ISODate, PriceStore, ScreenFile, ScreenRow } from "./types";
 
 export const TRACK_LISTS = [
-  { key: "star", label: "Starred" },
-  { key: "top", label: "Top setups" },
-  { key: "momentum", label: "Momentum leaders" },
-  { key: "momentumEarly", label: "Momentum leaders, early phase" },
-  { key: "resuming", label: "Resuming after a pause" },
-  { key: "breakout", label: "Breaking out" },
-  { key: "setup", label: "Tight near highs" },
-  { key: "fresh2", label: "New uptrends" },
-  { key: "leader", label: "Strongest" },
+  { key: "star", label: "Starred", shown: true },
+  { key: "leader", label: "Strongest", shown: true },
+  { key: "momentum", label: "Momentum leaders", shown: true },
+  { key: "momentumEarly", label: "Momentum leaders, early phase", shown: true },
+  { key: "resuming", label: "Resuming after a pause", shown: true },
+  // Removed from the screener (2026-11-10) but still recorded, so the forward record can show whether that was right.
+  { key: "top", label: "Top setups", shown: false },
+  { key: "breakout", label: "Breaking out", shown: false },
+  { key: "setup", label: "Tight near highs", shown: false },
+  { key: "fresh2", label: "New uptrends", shown: false },
 ] as const;
+
+/** Keys of the lists the Track record page shows. */
+export const SHOWN_TRACK: ReadonlySet<string> = new Set(TRACK_LISTS.filter((l) => l.shown).map((l) => l.key));
 
 export type TrackListKey = (typeof TRACK_LISTS)[number]["key"];
 

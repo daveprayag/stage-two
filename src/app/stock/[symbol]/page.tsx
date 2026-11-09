@@ -2,12 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Check, ChevronLeft, X } from "lucide-react";
-import { Change, PhaseLabel, phaseDetail, RsMeter, StageLabel, StarMark, TAG_LABEL } from "@/components/Badges";
+import { Change, PhaseLabel, phaseDetail, RsMeter, SHOWN_TAGS, StageLabel, StarMark, TAG_LABEL } from "@/components/Badges";
 import { AiSummary, Sources } from "@/components/NewsPanel";
 import { Card, CardHeader, Page } from "@/components/Page";
 import { PriceChart } from "@/components/PriceChart";
 import { LivePrice } from "@/components/LivePrice";
-import { isTopSetup, topSetupChecks } from "@/engine/topsetup";
 import { isStar, marketNote, starChecks } from "@/engine/star";
 import { Checklists } from "@/components/Checklists";
 import { crore, day, price, titleCase } from "@/lib/format";
@@ -50,11 +49,9 @@ export default async function StockPage({ params }: Props) {
   const filings = shortlisted?.filings.length ? shortlisted.filings : data.filings;
   const headlines = data.headlines ?? shortlisted?.headlines ?? [];
   const passed = d.checklist.filter((c) => c.pass).length;
-  const top = row ? isTopSetup(row, shortlisted) : false;
-  const topChecks = row ? topSetupChecks(row, shortlisted) : [];
   const star = row ? starChecks(row, shortlisted) : [];
   const starred = row ? isStar(row, shortlisted) : false;
-  const screens = [...(starred ? ["Starred"] : []), ...(top ? ["Top setup"] : []), ...(row?.tags ?? []).filter((t) => t !== "ankur" && t !== "qualified").map((t) => TAG_LABEL[t])];
+  const screens = [...(starred ? ["Starred"] : []), ...(row?.tags ?? []).filter((t) => SHOWN_TAGS.includes(t)).map((t) => TAG_LABEL[t])];
   const fromHigh = (1 - last.close / d.hi52) * 100;
 
   return (
@@ -128,7 +125,7 @@ export default async function StockPage({ params }: Props) {
         </div>
 
         {row ? (
-          <Checklists star={star} starred={starred} market={marketNote(market)} top={topChecks} topSetup={top} template={d.checklist} />
+          <Checklists star={star} starred={starred} market={marketNote(market)} template={d.checklist} />
         ) : (
           <Card>
             <CardHeader title="Trend template" aside={<span className="num text-sm text-ink-2">{passed} of 8</span>} />

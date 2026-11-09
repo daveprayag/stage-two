@@ -9,13 +9,12 @@ Formerly *StockGenius* (Yahoo Finance, ~380 hardcoded symbols). Now every EQ sto
 
 | Screen | Rule |
 | --- | --- |
-| Momentum leaders | RS ≥ 80, 20-day ADR in the top 40% of liquid stocks, industry in the top 40% by median 3-month return, stage 2 (livermore "Winner patterns": hit +50% in 6 months 41% vs 29% for all stocks in 2021–24; on the 2025–26 hold-out 17% vs 13% with no better average return, which fails the pre-registered test) |
+| Strongest | RS ≥ 90 and trend template ≥ 7/8 (in livermore's 2021–26 data the best list for big gainers: 35% hit +50% in 6 months in 2021–24 vs 23% for all stocks, 17% vs 13% in 2025–26) |
+| Momentum leaders | RS ≥ 80, 20-day ADR in the top 40% of liquid stocks, industry in the top 40% by median 3-month return, stage 2 (similar odds to Strongest; the 2025–26 hold-out test of average returns failed) |
 | Resuming after a pause | Rallied 20%+, paused 5+ sessions within 25%, closed back above the pause top in the last 5 sessions, ≤ 8% above it; stop = pause low |
-| Breaking out | Close above the top of a ≥ 8-week base on ≥ 1.5× average volume, in stage 2 (or trend template ≥ 6/8) |
-| Tight near highs | Trend template ≥ 7/8, within 15% of the 52-week high, 10-day range ≤ 12%, 5/50-day volume ≤ 0.9 |
-| New uptrends | Entered stage 2 in the last 30 sessions, RS ≥ 70, template ≥ 6/8, within 25% of the high |
-| Strongest | RS ≥ 90 and trend template ≥ 7/8 |
-| Ankur's scans | Ankur Patel's Chartink scans (volume, 20 EMA, flag) or a setup from the livermore rule engine |
+
+Removed from the UI on 2026-11-10 (still tagged in the engine; all but Ankur's scans still recorded in the track record): Top setups, Breaking out,
+Tight near highs, New uptrends, Ankur's scans. Tight ranges and breakouts found big gainers no more often than a random stock.
 
 Star (★): a momentum leader that passes at least 5 of 6 checks (momentum profile, early/mid phase, RS ≥ 90, 3+ strong
 stocks in its industry, positive news without red flags, resuming after a pause with a stop ≤ 12%). Market (NIFTY 500 vs
@@ -24,7 +23,7 @@ its 200-day) is shown but not counted. A summary of the Guide's selection steps,
 Phase (stage 2 only): rallies (20%+ without a 10% pullback) counted from when the stock left its latest side-trend base
 (40+ sessions within a 35% range, ending within 12% of where it started, 50-day average moving at most 5%). Early = in
 or just out of the base, or the first rally; mid = second; late = third or later, any 80%+ rally, or no base in the
-~14 months of history. The screener can show early only or early + mid; top setups must not be late.
+~14 months of history. The screener can show early only or early + mid.
 
 Universe: EQ series, not ETFs/index funds, close > ₹30, 50-day average traded value ≥ ₹2 Cr, not in the 2% / 5% price bands.
 Stage = Weinstein stage from the 150-day average; RS = percentile of 3/6/9/12-month returns (latest quarter double).

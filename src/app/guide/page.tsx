@@ -58,8 +58,7 @@ export default function GuidePage() {
         <p>
           Stan Weinstein split a stock&apos;s life into four stages using the 30-week (≈150-day) average. Swing traders only want stage 2. This app calls a stock
           stage 2 when it closes above a 150-day average that rose more than 1% over the last 20 sessions; stage 4 is the mirror image; a flat average is
-          stage 3 after an advance and stage 1 otherwise. The &quot;New uptrends&quot; list finds stocks that crossed into stage 2 within the last 30 sessions: the
-          earliest point at which a new leader shows up.
+          stage 3 after an advance and stage 1 otherwise.
         </p>
         <Card className="p-4">
           <StagesDiagram />
@@ -103,13 +102,16 @@ export default function GuidePage() {
 
       <Section title="The lists">
         <ul className="list-disc pl-5">
-          <li><strong className="text-ink">Breaking out:</strong> closed above the top of a sideways range of 8+ weeks today, on at least 1.5× normal volume, while in an uptrend.</li>
-          <li><strong className="text-ink">Tight near highs:</strong> uptrend intact, within 15% of the 52-week high, a narrow 10-day range and falling volume. Often what a stock looks like just before a breakout.</li>
-          <li><strong className="text-ink">New uptrends:</strong> moved into stage 2 within the last 30 sessions with RS 70 or more.</li>
-          <li><strong className="text-ink">Strongest:</strong> RS 90 or more with the uptrend intact.</li>
-          <li><strong className="text-ink">Momentum leaders:</strong> RS 80+, volatility in the top 40%, a top-40% sector, in stage 2 (see below).</li>
-          <li><strong className="text-ink">Ankur&apos;s scans:</strong> Ankur Patel&apos;s own Chartink scans (volume expansion, 20 EMA pullback, flag) or one of his setups fired today.</li>
+          <li><strong className="text-ink">Strongest:</strong> RS 90 or more with the uptrend intact. The list most likely to hold the big gainers.</li>
+          <li><strong className="text-ink">Momentum leaders:</strong> RS 80+, volatility in the top 40%, a top-40% sector, in stage 2 (see below). The stars come from here.</li>
+          <li><strong className="text-ink">Resuming after a pause:</strong> rallied, paused, and moving again. Not a reason to buy on its own, but it gives a close, clear stop.</li>
         </ul>
+        <p>
+          Earlier versions had more lists (Top setups, Breaking out, Tight near highs, New uptrends, Ankur&apos;s scans). They were dropped because, in our
+          2021–26 tests, quiet tight charts and breakouts found big gainers no more often than a random stock, and in 2025–26 less often, and Ankur&apos;s
+          rules lost money after costs in our backtests. Strength was what mattered. All but Ankur&apos;s scans are still recorded behind the scenes, so
+          the forward record can show if that call was wrong.
+        </p>
         <p>A stock can be on several lists at once; the best candidates usually are.</p>
       </Section>
 
@@ -122,7 +124,7 @@ export default function GuidePage() {
           looking, not as a buy signal: the checks below and your own stop do the rest.
         </p>
         <ol className="list-decimal space-y-2 pl-5">
-          <li><strong className="text-ink">Start from Momentum leaders</strong>, with the phase filter on Early or Early + mid. In 2021–24 early-phase picks had fewer 20%+ losers than the rest (5% vs 7%); in 2025–26 the difference was small.</li>
+          <li><strong className="text-ink">Start from Strongest or Momentum leaders</strong>, with the phase filter on Early or Early + mid. In 2021–24 early-phase picks had fewer 20%+ losers than the rest (5% vs 7%); in 2025–26 the difference was small.</li>
           <li><strong className="text-ink">Prefer the strongest of them:</strong> RS 90+, and sectors with several leaders at once (check the Sectors page): a group moving together is sturdier than one stock alone.</li>
           <li><strong className="text-ink">Check the news:</strong> a real catalyst (results, orders, guidance) and no red flags. Skip anything with a governance or pledge problem, however good the chart.</li>
           <li><strong className="text-ink">Own several, not one.</strong> Even in 2021–24 only about 4 in 10 of these picks reached +50%, and in 2025–26 fewer than 2 in 10; the rest go nowhere or fall, and you cannot tell which in advance. Five to ten positions across different sectors is what turns those odds into a result.</li>

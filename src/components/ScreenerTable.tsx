@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
-import type { NewsBundle, ScreenRow, ScreenTag } from "@/engine/types";
+import type { NewsBundle, ScreenRow } from "@/engine/types";
 import { price, titleCase } from "@/lib/format";
 import { baseShort, Change, FirstLine, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
 import { isStar, starCount } from "@/engine/star";
@@ -11,68 +11,38 @@ import { freshFor, liveLabel, useLiveFile } from "./live";
 
 /** A stock's latest NSE price during or after today's session. */
 type Px = { last: number; pChange: number };
-import { isTopSetup } from "@/engine/topsetup";
 
-type TabKey = Exclude<ScreenTag, "qualified"> | "all" | "top";
+type TabKey = "leader" | "momentum" | "resuming";
 type SortKey = "score" | "rs" | "high" | "tight" | "move";
 
+/**
+ * The three lists that earned their place in livermore's research (2021–26, liquid NSE stocks, 6-month outcomes): strength
+ * is what found big gainers; tight ranges, breakouts and the all-checks list found them less often than a random stock in
+ * 2025–26. The engine still tags and tracks the removed lists (track.ts), it just doesn't show them.
+ */
 export const SCREENS: { key: TabKey; label: string; short: string; blurb: string }[] = [
   {
-    key: "top",
-    label: "Top setups",
-    short: "Pass every check, news included",
+    key: "leader",
+    label: "Strongest",
+    short: "Top 10% performers, uptrend intact",
     blurb:
-      "Every check at once: a live uptrend (not a dying one), all moving averages stacked, above the 20- and 50-day EMAs, RSI 50–75, RS 80+, near the high but not stretched, buyers in control on volume, breaking out or tight near the high, liquid, and positive news with no red flags. The strongest shortlist the data gives, not a guarantee: always use a stop.",
+      "RS 90+ (beat 90% of NSE stocks over the past year) with the uptrend intact. In our tests the list most likely to hold the big gainers: 35% of such stocks rose 50%+ within 6 months in 2021–24 (vs 23% of all stocks) and 17% in 2025–26 (vs 13%). About 1 in 5 also fell 20%+, so use a stop and own several.",
   },
   {
     key: "momentum",
     label: "Momentum leaders",
     short: "Strong, volatile, in a strong sector",
     blurb:
-      "RS 80+, bigger daily swings than most stocks (top 40%), industry in the top 40% by 3-month return, in stage 2. The profile that came before 50%+ moves in our 2021–24 research: 41% hit +50% within 6 months vs 29% for the average stock. On 2025–26 data it was not built from, the edge mostly faded (17% vs 13%, no better average return, more 20%+ losers). A shortlist to research, not a buy list.",
+      "RS 80+, bigger daily swings than most stocks (top 40%), industry in the top 40% by 3-month return, in stage 2. Similar odds to Strongest (35% rose 50%+ in 2021–24, 17% in 2025–26) with more sector support; the stars come from this list. A shortlist to research, not a buy list.",
   },
   {
     key: "resuming",
     label: "Resuming after a pause",
     short: "Rallied, paused, now moving again",
     blurb:
-      "Rallied 20%+, paused for 5+ sessions without falling more than 25%, and closed back above the top of the pause in the last 5 sessions (now no more than 8% above it). The low of the pause is a natural stop; the stock page shows how far away it is. In our tests this entry was no better on average than any stage 2 day; its value is a clear, close stop.",
+      "Rallied 20%+, paused for 5+ sessions without falling more than 25%, and closed back above the top of the pause in the last 5 sessions (now no more than 8% above it). The when, not the what: on average no better than any uptrend day, but the low of the pause is a natural, close stop. Best used on stocks that are also Strongest or Momentum leaders.",
   },
-  {
-    key: "breakout",
-    label: "Breaking out",
-    short: "Broke above a multi-week ceiling today on heavy volume",
-    blurb: "Closed above the top of a sideways range of 8+ weeks today, on at least 1.5× normal volume, while in an uptrend.",
-  },
-  {
-    key: "setup",
-    label: "Tight near highs",
-    short: "Quiet and narrow, close to its 52-week high",
-    blurb: "Uptrend intact (7–8 of the 8 trend checks), within 15% of the 52-week high, a narrow 10-day range and falling volume. Often what a stock looks like just before it breaks out.",
-  },
-  {
-    key: "fresh2",
-    label: "New uptrends",
-    short: "Turned into an uptrend in the last 6 weeks",
-    blurb: "Moved from going sideways or down into an uptrend (price above a rising 150-day average) within the last 30 sessions, with RS 70+. The earliest point a new leader shows up.",
-  },
-  {
-    key: "leader",
-    label: "Strongest",
-    short: "Top 10% performers, uptrend intact",
-    blurb: "RS rating 90 or more (beat 90% of NSE stocks over the past year) with the uptrend still intact.",
-  },
-  {
-    key: "ankur",
-    label: "Ankur's scans",
-    short: "His own Chartink scans fired today",
-    blurb: "Three of Ankur Patel's Chartink scans merged into one list (volume expansion, 20 EMA pullback, flag), plus his setups from the Livermore rule engine. He runs each scan separately: pick one under Scan to compare with his Chartink list.",
-  },
-  { key: "all", label: "All", short: "Everything above, ranked", blurb: "Every stock on at least one list." },
 ];
-
-/** The scans that put a stock in the "Ankur's scans" list (his broad momentum list is a watchlist, shown as a label only). */
-const ANKUR_SCANS = ["Volume (range expansion)", "20 EMA pullback", "Flag"];
 
 const SORTS: { key: SortKey; label: string; fn: (a: ScreenRow, b: ScreenRow) => number }[] = [
   { key: "score", label: "Best match", fn: (a, b) => b.score - a.score },
@@ -283,31 +253,19 @@ export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: R
   );
   const [phase, setPhase] = useState<PhaseFilter>("all");
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: 0, top: 0 };
+    const c: Record<string, number> = {};
     for (const r of rows) {
       if (!phaseOk(r, phase)) continue;
-      c.all = (c.all ?? 0) + 1;
       for (const t of r.tags) c[t] = (c[t] ?? 0) + 1;
-      if (isTopSetup(r, news[r.symbol])) c.top = (c.top ?? 0) + 1;
     }
     return c;
-  }, [rows, news, phase]);
-  const [tab, setTab] = useState<TabKey>(() => (counts.top ? "top" : counts.breakout ? "breakout" : "setup"));
+  }, [rows, phase]);
+  const [tab, setTab] = useState<TabKey>("leader");
   const [q, setQ] = useState("");
   const [sector, setSector] = useState("");
   const [sort, setSort] = useState<SortKey>("score");
   const [positive, setPositive] = useState(false);
   const [starred, setStarred] = useState(false);
-  // Inside "Ankur's scans": view one of his lists at a time, as he runs them on Chartink.
-  const [scan, setScan] = useState("");
-  const scanOptions = useMemo(() => {
-    const n = (f: (r: ScreenRow) => boolean) => rows.filter((r) => r.tags.includes("ankur") && f(r)).length;
-    return [
-      { value: "", label: `All his scans (${n(() => true)})` },
-      ...ANKUR_SCANS.map((x) => ({ value: x, label: `${x} (${n((r) => r.scans.includes(x))})` })),
-      { value: "setup", label: `Rule-engine setups (${n((r) => !!r.setup)})` },
-    ];
-  }, [rows]);
   // The open tab lives in the URL (?tab=setup) so a view can be shared or bookmarked.
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
@@ -336,16 +294,16 @@ export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: R
     return rows
       .filter(
         (r) =>
-          (tab === "all" || (tab === "top" ? isTopSetup(r, news[r.symbol]) : r.tags.includes(tab))) &&
+          // A search looks through every screened stock, not just the open list.
+          (!!needle || r.tags.includes(tab)) &&
           phaseOk(r, phase) &&
           (!sector || r.industry === sector) &&
-          (tab !== "ankur" || !scan || (scan === "setup" ? !!r.setup : r.scans.includes(scan))) &&
           (!positive || news[r.symbol]?.ai?.sentiment === "positive") &&
           (!starred || isStar(r, news[r.symbol])) &&
           (!needle || r.symbol.includes(needle) || r.name.toUpperCase().includes(needle)),
       )
       .sort(fn);
-  }, [rows, tab, q, sector, sort, positive, starred, news, scan, phase]);
+  }, [rows, tab, q, sector, sort, positive, starred, news, phase]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -365,22 +323,19 @@ export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: R
         </div>
         <p className="text-xs leading-relaxed text-ink-3">{PHASES.find((p) => p.key === phase)?.hint}</p>
       </div>
-      <div role="radiogroup" aria-label="Screens" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div role="radiogroup" aria-label="Screens" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {SCREENS.map((t) => {
           const on = tab === t.key;
-          const top = t.key === "top";
           return (
             <button
               key={t.key}
               role="radio"
               aria-checked={on}
               onClick={() => choose(t.key)}
-              className={`flex flex-col rounded-xl border p-3 text-left transition-colors ${top ? "col-span-2 sm:col-span-1" : ""} ${
-                on ? (top ? "border-up bg-up-soft/60" : "border-ink bg-surface") : top ? "border-up/40 bg-up-soft/30 hover:border-up" : "border-line hover:border-line-strong"
-              }`}
+              className={`flex flex-col rounded-xl border p-3 text-left transition-colors ${on ? "border-ink bg-surface" : "border-line hover:border-line-strong"}`}
             >
               <span className="flex items-baseline justify-between gap-2">
-                <span className={`text-sm font-medium ${top ? "text-up" : on ? "text-ink" : "text-ink-2"}`}>{t.label}</span>
+                <span className={`text-sm font-medium ${on ? "text-ink" : "text-ink-2"}`}>{t.label}</span>
                 <span className="num text-xs text-ink-3">{counts[t.key] ?? 0}</span>
               </span>
               <span className="mt-1 text-xs leading-snug text-ink-3">{t.short}</span>
@@ -394,9 +349,8 @@ export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: R
       <div className="grid grid-cols-2 gap-2 md:flex md:items-center">
         <label className={`${control} col-span-2 flex items-center gap-2 md:w-72`}>
           <Search className="h-4 w-4 shrink-0 text-ink-3" aria-hidden="true" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search symbol or name" aria-label="Search" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-ink-3" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search any screened stock" aria-label="Search" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-ink-3" />
         </label>
-        {tab === "ankur" && <Select label="Scan" value={scan} onChange={setScan} options={scanOptions} className="col-span-2 min-w-0 md:w-72" />}
         <Select label="Sector" value={sector} onChange={setSector} options={[{ value: "", label: "All" }, ...sectors.map((x) => ({ value: x, label: x }))]} className="min-w-0 md:w-60" />
         <Select label="Sort" value={sort} onChange={(v) => setSort(v as SortKey)} options={SORTS.map((x) => ({ value: x.key, label: x.label }))} className="min-w-0 md:w-56" />
       </div>
@@ -435,7 +389,7 @@ export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: R
           </>
         ) : (
           <p className="px-4 py-12 text-center text-sm leading-relaxed text-ink-3">
-            {tab === "top" ? "No stock passes every check today. That is normal: on most days none or a handful do, and none at all in weak markets." : "Nothing matches today. Lists like this are often empty when the market is weak."}
+            {q.trim() ? "No screened stock matches. The screener only covers stocks in or near an uptrend; open any stock at /stock/SYMBOL." : "Nothing matches today. Lists like this are often empty when the market is weak."}
           </p>
         )}
       </div>
