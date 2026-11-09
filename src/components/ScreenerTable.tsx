@@ -202,7 +202,7 @@ function DesktopTable({ rows, news, live }: { rows: ScreenRow[]; news: Record<st
 
 const TERMS: [string, string][] = [
   ["RS", "Relative Strength rating, 1–99. Ranks how much the stock rose over 3, 6, 9 and 12 months against all ~1,350 liquid NSE stocks (last 3 months count double). 90 = beat 90% of the market. Not the same as RSI."],
-  ["RSI", "Relative Strength Index (14 days), 0–100: momentum of recent price moves. Top setups need 50–75: rising, but not overbought (above ~75 a pullback is more likely)."],
+  ["RSI", "Relative Strength Index (14 days), 0–100: momentum of recent price moves. Above ~70 is usually called overbought, but the strongest stocks often stay there for weeks."],
   ["Stage", "Where the stock is in its cycle, from its 150-day average: 1 sideways base, 2 uptrend, 3 topping, 4 downtrend."],
   ["Phase", "How far into its uptrend a stage 2 stock is, counted from when it left its latest base (8+ weeks sideways within a 35% range). A rally is a rise of 20%+ without a 10% pullback. Early = still in the base, just out of it, or in the first rally (Ankur's best buy: the first pause after the base); mid = second rally; late = third or later, any 80%+ rally, or no sideways base in the last 14 months. \u201cAbove base\u201d = how far the price is above the top of that base."],
   ["From high", "How far below its 52-week high it closed."],
