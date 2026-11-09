@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { zipSync, strToU8 } from "fflate";
 import { applyFactor, corpActionFactor, gapFactor } from "./adjust";
 import { basePivot, cluster, supportResistance, swingHighs, trendline } from "./levels";
-import { companyQuery, parseGoogleNews } from "./news";
+import { companyQuery, parseBingNews, parseGoogleNews } from "./news";
 import { parseAnnouncements, parseBhavcopyZip, parseCsv, parseIndexClose, parseNseDate, parsePriceBands, parseSector } from "./nse";
 import { newsShortlist } from "./jobs";
 import { allRows, computeScreen, isFund } from "./screen";
@@ -155,6 +155,15 @@ describe("news helpers", () => {
   it("parses Google News RSS and strips the source suffix", () => {
     const xml = `<?xml version="1.0"?><rss><channel><item><title>BEL wins Rs 500 crore order - Economic Times</title><link>https://n/1</link><pubDate>Fri, 06 Nov 2026 10:00:00 GMT</pubDate><source url="https://et">Economic Times</source></item></channel></rss>`;
     expect(parseGoogleNews(xml)).toEqual([{ title: "BEL wins Rs 500 crore order", source: "Economic Times", url: "https://n/1", date: "2026-11-06" }]);
+  });
+  it("parses Bing News RSS: real article URL, MSN suffix dropped, old items skipped, newest first", () => {
+    const item = (t: string, d: string, src: string) =>
+      `<item><title>${t}</title><link>http://www.bing.com/news/apiclick.aspx?ref=FexRss&amp;url=https%3a%2f%2fwww.livemint.com%2f${t.length}&amp;mkt=en-in</link><pubDate>${d}</pubDate><News:Source>${src}</News:Source></item>`;
+    const xml = `<?xml version="1.0"?><rss xmlns:News="https://www.bing.com/news/search?q=x&amp;format=rss"><channel>${item("Old", "Mon, 05 Oct 2026 10:00:00 GMT", "Mint")}${item("Q2 profit up", "Thu, 05 Nov 2026 10:00:00 GMT", "Mint on MSN")}${item("Order win", "Sat, 07 Nov 2026 10:00:00 GMT", "Moneycontrol")}</channel></rss>`;
+    expect(parseBingNews(xml, new Date("2026-11-09T00:00:00Z"))).toEqual([
+      { title: "Order win", source: "Moneycontrol", url: "https://www.livemint.com/9", date: "2026-11-07" },
+      { title: "Q2 profit up", source: "Mint", url: "https://www.livemint.com/12", date: "2026-11-05" },
+    ]);
   });
   it("puts breakouts and setups first in the news shortlist", () => {
     const r = (symbol: string, tags: ScreenRow["tags"], score: number) => ({ symbol, tags, score }) as ScreenRow;

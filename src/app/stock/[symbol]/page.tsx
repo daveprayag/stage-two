@@ -10,7 +10,6 @@ import { LivePrice } from "@/components/LivePrice";
 import { isTopSetup, topSetupChecks } from "@/engine/topsetup";
 import { isStar, marketNote, starChecks } from "@/engine/star";
 import { Checklists } from "@/components/Checklists";
-import { fetchHeadlines } from "@/engine/news";
 import { crore, day, price, titleCase } from "@/lib/format";
 import { getStock } from "@/lib/data";
 
@@ -49,7 +48,7 @@ export default async function StockPage({ params }: Props) {
   const chg = prev ? (last.close / prev.close - 1) * 100 : 0;
   const shortlisted = data.news ?? undefined;
   const filings = shortlisted?.filings.length ? shortlisted.filings : data.filings;
-  const headlines = shortlisted?.headlines.length ? shortlisted.headlines : await fetchHeadlines(d.name, symbol).catch(() => []);
+  const headlines = data.headlines ?? shortlisted?.headlines ?? [];
   const passed = d.checklist.filter((c) => c.pass).length;
   const top = row ? isTopSetup(row, shortlisted) : false;
   const topChecks = row ? topSetupChecks(row, shortlisted) : [];

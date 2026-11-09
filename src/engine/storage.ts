@@ -15,6 +15,8 @@ export const P = {
   closes: "prices/closes.json",
   screen: "screens/latest.json",
   screenOn: (d: string) => `screens/${d}.json`,
+  /** Headlines + Gemini verdicts per stock for one session (so re-runs only pay for changed filings). */
+  enrichOn: (d: string) => `enrich/${d}.json`,
   /** Every liquid stock's row (tagged or not), for stock pages. */
   rows: "screens/rows.json",
   announcements: "news/announcements.json",

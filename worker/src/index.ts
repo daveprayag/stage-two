@@ -11,6 +11,8 @@
  * Data lives in the R2 bucket bound as DATA (see src/engine/storage.ts P for the keys).
  */
 import { stockDetail } from "../../src/engine/detail";
+import { enrich, type EnrichCacheFile } from "../../src/engine/enrich";
+import { fetchHeadlines } from "../../src/engine/news";
 import { fetchQuote, marketOpen, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile } from "../../src/engine/jobs";
 import { isStar, marketNote, starChecks } from "../../src/engine/star";
 import { P, type Storage } from "../../src/engine/storage";
@@ -31,6 +33,10 @@ interface R2Bucket {
 interface Env {
   DATA: R2Bucket;
   APP_URL: string;
+  /** Secret (wrangler secret put GEMINI_API_KEY). Without it, news enrichment falls back to the Vercel app. */
+  GEMINI_API_KEY?: string;
+  /** Optional comma-separated model fallbacks. */
+  GEMINI_MODEL?: string;
 }
 interface Ctx {
   waitUntil(p: Promise<unknown>): void;
@@ -61,8 +67,19 @@ class R2Storage implements Storage {
   }
 }
 
-/** Headlines and Gemini summaries come from the Vercel app (Google News blocks Cloudflare; the Gemini key is there). */
-const enricher = (env: Env): Enricher => async (asOf, items) => {
+/** Headlines (Bing News) and Gemini summaries, computed here and cached in R2 per session. */
+const enricher = (env: Env): Enricher => {
+  if (!env.GEMINI_API_KEY) return vercelEnricher(env);
+  const st = new R2Storage(env.DATA);
+  return async (asOf, items) =>
+    (await enrich(asOf, items, { apiKey: env.GEMINI_API_KEY!, models: env.GEMINI_MODEL }, {
+      load: (d) => st.getJson<EnrichCacheFile>(P.enrichOn(d)),
+      save: (d, v) => st.putJson(P.enrichOn(d), v),
+    })).news;
+};
+
+/** Fallback while the Worker has no Gemini key: the Vercel app does the same work. */
+const vercelEnricher = (env: Env): Enricher => async (asOf, items) => {
   const res = await fetch(`${env.APP_URL}/api/enrich`, {
     method: "POST",
     headers: { "content-type": "application/json", "user-agent": "stage-two-engine" },
@@ -137,9 +154,11 @@ async function stockApi(env: Env, symbol: string): Promise<Response> {
   const detail = stockDetail({ version: 1, asOf: head.asOf, dates: head.dates, indices: head.indices, stocks: { [found.isin]: found } }, symbol, row ?? undefined);
   if (!detail) return json({ error: "no detail" }, 300, 404);
   const news = screen?.news[symbol] ?? null;
+  // Stocks outside the news shortlist: fetch headlines now (this response is edge-cached per session).
+  const headlines = news?.headlines.length ? news.headlines : await fetchHeadlines(found.name, symbol).catch(() => []);
   return json(
     {
-      asOf: head.asOf, detail, row, news, filings: ann?.bySymbol[symbol] ?? [], market: screen?.market ?? null,
+      asOf: head.asOf, detail, row, news, headlines, filings: ann?.bySymbol[symbol] ?? [], market: screen?.market ?? null,
       star: row ? { checks: starChecks(row, news ?? undefined), starred: isStar(row, news ?? undefined), market: marketNote(screen?.market) } : null,
       top: row ? { checks: topSetupChecks(row, news ?? undefined), pass: isTopSetup(row, news ?? undefined) } : null,
     },
@@ -155,14 +174,15 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   switch (route) {
     case "health":
-      return json({ ok: true, marketOpen: marketOpen() }, 0);
+      return json({ ok: true, marketOpen: marketOpen(), news: env.GEMINI_API_KEY ? "worker" : "vercel fallback" }, 0);
     case "screen":
       return json((await st.getJson<ScreenFile>(P.screen)) ?? { error: "no screen" }, 60);
     case "stock": {
       const symbol = decodeURIComponent(parts[2] ?? "").toUpperCase();
       if (!symbol) return json({ error: "symbol?" }, 60, 400);
       const [head, screen] = await Promise.all([st.getJson<StoreHeadFile>(P.head), st.getJson<ScreenFile>(P.screen)]);
-      return cached(req, ctx, `${head?.asOf ?? ""}|${screen?.newsAt ?? ""}`, () => stockApi(env, symbol));
+      // "v2": bump when the response shape changes, so old edge-cached copies are not served.
+      return cached(req, ctx, `v2|${head?.asOf ?? ""}|${screen?.newsAt ?? ""}`, () => stockApi(env, symbol));
     }
     case "live": {
       if (!parts[2]) return json((await st.getJson<LiveFile>(P.live)) ?? { at: null, marketOpen: marketOpen(), quotes: {} }, 30);

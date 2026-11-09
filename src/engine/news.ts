@@ -1,16 +1,15 @@
 /**
  * News for shortlisted stocks:
  *  - NSE corporate announcements (official filings: results, orders, acquisitions, fund raises), one request a day.
- *  - Google News RSS headlines per company (last 14 days).
+ *  - News headlines per company (last 14 days): Bing News RSS (reachable from Cloudflare), Google News RSS as fallback.
  *  - A Gemini read of both: one-line summary, sentiment, catalysts and red flags. It only summarises what the
  *    filings and headlines say; it does not predict prices.
  */
-import { GoogleGenAI, Type } from "@google/genai";
 import { XMLParser } from "fast-xml-parser";
 import { UA } from "./nse";
 import type { Filing, Headline, NewsVerdict, ScreenRow } from "./types";
 
-/** "BHARAT ELECTRONICS LTD" → "Bharat Electronics" (search query for Google News). */
+/** "BHARAT ELECTRONICS LTD" → "Bharat Electronics" (news search query). */
 export function companyQuery(name: string, symbol: string): string {
   const cleaned = name
     .replace(/\b(limited|ltd\.?|ltd|pvt|private|\(india\)|india ltd)\b/gi, " ")
@@ -48,18 +47,62 @@ export function parseGoogleNews(text: string, max = 6): Headline[] {
   return out;
 }
 
+export function bingNewsUrl(query: string): string {
+  return `https://www.bing.com/news/search?q=${encodeURIComponent(`"${query}"`)}&format=rss&setlang=en-IN&cc=IN`;
+}
+
+/** Bing wraps article links in a click-tracker; the real URL is its url= parameter. */
+function bingTarget(link: string): string {
+  try {
+    return new URL(link).searchParams.get("url") ?? link;
+  } catch {
+    return link;
+  }
+}
+
+/** Bing News RSS → headlines from the last `days` days, newest first. */
+export function parseBingNews(text: string, now: Date, max = 6, days = 14): Headline[] {
+  const doc = xml.parse(text) as { rss?: { channel?: { item?: unknown } } };
+  const raw = doc.rss?.channel?.item;
+  const items = (Array.isArray(raw) ? raw : raw ? [raw] : []) as Record<string, unknown>[];
+  const cutoff = now.getTime() - days * 86_400_000;
+  const out: (Headline & { t: number })[] = [];
+  for (const it of items) {
+    const d = new Date(String(it.pubDate ?? ""));
+    const t = d.getTime();
+    if (Number.isNaN(t) || t < cutoff) continue;
+    const source = String(it["News:Source"] ?? "").replace(/ on MSN$/, "");
+    out.push({ title: String(it.title ?? ""), source, url: bingTarget(String(it.link ?? "")), date: d.toISOString().slice(0, 10), t });
+  }
+  return out
+    .sort((a, b) => b.t - a.t)
+    .slice(0, max)
+    .map((h) => ({ title: h.title, source: h.source, url: h.url, date: h.date }));
+}
+
+async function getText(url: string): Promise<string | null> {
+  const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/rss+xml,text/xml,*/*" }, signal: AbortSignal.timeout(15_000) });
+  return res.ok ? res.text() : null;
+}
+
 export async function fetchHeadlines(name: string, symbol: string): Promise<Headline[]> {
-  const res = await fetch(googleNewsUrl(companyQuery(name, symbol)), {
-    headers: { "User-Agent": UA, Accept: "application/rss+xml,text/xml,*/*" },
-    signal: AbortSignal.timeout(15_000),
-    next: { revalidate: 3600 },
-  });
-  if (!res.ok) return [];
-  return parseGoogleNews(await res.text());
+  const q = companyQuery(name, symbol);
+  const bing = await getText(bingNewsUrl(q)).catch(() => null);
+  const fromBing = bing ? parseBingNews(bing, new Date()) : [];
+  if (fromBing.length) return fromBing;
+  // Google News blocks Cloudflare (503) but works elsewhere.
+  const google = await getText(googleNewsUrl(q)).catch(() => null);
+  return google ? parseGoogleNews(google) : [];
 }
 
 /** Lite models answer a batch in ~10 s; the full flash model was overloaded (503s, minutes per call) when tested. */
-export const GEMINI_MODELS = (process.env.GEMINI_MODEL ?? "gemini-flash-lite-latest,gemini-3.5-flash-lite,gemini-3.1-flash-lite").split(",").map((m) => m.trim());
+export const DEFAULT_GEMINI_MODELS = "gemini-flash-lite-latest,gemini-3.5-flash-lite,gemini-3.1-flash-lite";
+
+export interface GeminiConfig {
+  apiKey: string;
+  /** Comma-separated, tried in order. */
+  models?: string;
+}
 const GEMINI_TIMEOUT_MS = 75_000;
 
 interface VerdictInput {
@@ -89,41 +132,47 @@ Do not predict prices, do not give advice, do not use outside knowledge, and ign
 ${blocks.join("\n\n")}`;
 }
 
-/** One Gemini call for a batch of stocks → verdict per symbol (missing on failure). */
-export async function verdicts(items: VerdictInput[]): Promise<Record<string, NewsVerdict>> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key || !items.length) return {};
-  const ai = new GoogleGenAI({ apiKey: key });
-  const request = (model: string) =>
-    ai.models.generateContent({
-      model,
-      contents: promptFor(items),
-      config: {
-        abortSignal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              symbol: { type: Type.STRING },
-              summary: { type: Type.STRING },
-              sentiment: { type: Type.STRING, enum: ["positive", "negative", "neutral", "none"] },
-              catalysts: { type: Type.ARRAY, items: { type: Type.STRING } },
-              redFlags: { type: Type.ARRAY, items: { type: Type.STRING } },
-            },
-            required: ["symbol", "summary", "sentiment", "catalysts", "redFlags"],
-          },
-        },
-      },
+const VERDICT_SCHEMA = {
+  type: "ARRAY",
+  items: {
+    type: "OBJECT",
+    properties: {
+      symbol: { type: "STRING" },
+      summary: { type: "STRING" },
+      sentiment: { type: "STRING", enum: ["positive", "negative", "neutral", "none"] },
+      catalysts: { type: "ARRAY", items: { type: "STRING" } },
+      redFlags: { type: "ARRAY", items: { type: "STRING" } },
+    },
+    required: ["symbol", "summary", "sentiment", "catalysts", "redFlags"],
+  },
+};
+
+/** One Gemini call (REST, works in Node and Workers) for a batch of stocks → verdict per symbol (missing on failure). */
+export async function verdicts(items: VerdictInput[], cfg: GeminiConfig | null): Promise<Record<string, NewsVerdict>> {
+  if (!cfg?.apiKey || !items.length) return {};
+  const body = JSON.stringify({
+    contents: [{ role: "user", parts: [{ text: promptFor(items) }] }],
+    generationConfig: { responseMimeType: "application/json", responseSchema: VERDICT_SCHEMA },
+  });
+  const request = async (model: string): Promise<string> => {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": cfg.apiKey },
+      body,
+      signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
     });
-  let res: Awaited<ReturnType<typeof request>> | null = null;
+    const text = await res.text();
+    if (!res.ok) throw new Error(`Gemini ${model} HTTP ${res.status}: ${text.slice(0, 200)}`);
+    const json = JSON.parse(text) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    return json.candidates?.[0]?.content?.parts?.map((x) => x.text ?? "").join("") ?? "[]";
+  };
+  let answer: string | null = null;
   let lastError: unknown = null;
   // Busy models return 503: try each model twice, a few seconds apart.
-  outer: for (const model of GEMINI_MODELS) {
+  outer: for (const model of (cfg.models || DEFAULT_GEMINI_MODELS).split(",").map((m) => m.trim()).filter(Boolean)) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        res = await request(model);
+        answer = await request(model);
         break outer;
       } catch (e) {
         lastError = e;
@@ -132,8 +181,8 @@ export async function verdicts(items: VerdictInput[]): Promise<Record<string, Ne
       }
     }
   }
-  if (!res) throw lastError ?? new Error("Gemini: no model answered");
-  const parsed = JSON.parse(res.text ?? "[]") as (NewsVerdict & { symbol: string })[];
+  if (answer === null) throw lastError ?? new Error("Gemini: no model answered");
+  const parsed = JSON.parse(answer) as (NewsVerdict & { symbol: string })[];
   const out: Record<string, NewsVerdict> = {};
   for (const v of parsed) {
     if (!v?.symbol) continue;

@@ -33,9 +33,9 @@ two rising lows / falling highs that no close has broken. These are shortlists, 
 
 ## How it runs
 
-All data work runs on a Cloudflare Worker (`worker/`, paid Workers plan, up to 5 min CPU per run); the Vercel app
-only renders pages and does the one step Cloudflare can't (Google News blocks Cloudflare IPs; the Gemini key lives on
-Vercel).
+All data work runs on a Cloudflare Worker (`worker/`, paid Workers plan, up to 5 min CPU per run), including news:
+headlines from Bing News RSS (Google News blocks Cloudflare IPs) and Gemini summaries over REST. The Vercel app only
+renders pages; its `/api/enrich` route is a fallback the Worker uses while it has no `GEMINI_API_KEY` secret.
 
 - `src/engine/` — pure screening code: NSE parsers and live quotes (`nse.ts`), split/bonus adjustment (`adjust.ts`,
   `update.ts`), screens (`screen.ts`), phases and bases (`series.ts`), levels (`levels.ts`), news (`news.ts`), jobs
@@ -51,8 +51,8 @@ Vercel).
 - Worker API (CORS *, read by the site): `/api/screen`, `/api/stock/:symbol`, `/api/live`, `/api/live/:symbol`
   (one stock's live quote, cached 60 s), `/api/track`, `/api/runs`, `/api/run/:job` (eod | news | filings | live,
   manual; throttled), `/api/run/eod?rebuild=1` (rebuild the screen from stored prices, e.g. after new sector labels).
-- Vercel: `/api/enrich` (POST from the Worker) returns Google News headlines and Gemini summaries for the shortlist,
-  cached per session in Vercel Blob. Pages revalidate every 5 minutes; the stock page and chart poll live quotes
+- News: shortlist headlines + Gemini verdicts cached per session in R2 `enrich/<date>.json` (only stocks whose filings
+  changed are recomputed); stock pages outside the shortlist get headlines fetched by the Worker. Pages revalidate every 5 minutes; the stock page and chart poll live quotes
   every 60 s while the market is open.
 - Storage: R2 bucket `stage-two-data` — `prices/head.json` + `prices/stocks.ndjson.gz` (rolling 300 sessions),
   `screens/latest.json`, `screens/<date>.json`, `screens/rows.json`, `news/announcements.json`, `live/latest.json`,
@@ -69,7 +69,9 @@ Vercel:
 | `GEMINI_MODEL` | Optional, comma-separated fallbacks (default `gemini-flash-lite-latest,gemini-3.5-flash-lite,gemini-3.1-flash-lite`) |
 | `NEXT_PUBLIC_ENGINE_URL` | Optional, Worker URL (default `https://stage-two-engine.prayagdave.workers.dev`) |
 
-Worker: `APP_URL` (in `wrangler.jsonc`) and the R2 binding `DATA`. No secrets.
+Worker: `APP_URL` (in `wrangler.jsonc`), the R2 binding `DATA`, secret `GEMINI_API_KEY`
+(`cd worker && npx wrangler secret put GEMINI_API_KEY`, or the Cloudflare dashboard), optional var `GEMINI_MODEL`.
+`/api/health` reports `news: "worker"` once the secret is set.
 
 ## Development
 
