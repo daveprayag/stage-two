@@ -42,6 +42,11 @@ export function SentimentDot({ s, className = "" }: { s: NewsVerdict["sentiment"
   return <span title={SENT[s].label} aria-label={SENT[s].label} className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${SENT[s].dot} ${className}`} />;
 }
 
+/** Holds a marker at the vertical centre of the first line of the text beside it (1lh = one line of that text). */
+export function FirstLine({ children }: { children: React.ReactNode }) {
+  return <span className="flex h-[1lh] shrink-0 items-center">{children}</span>;
+}
+
 export const sentimentLabel = (s: NewsVerdict["sentiment"]) => SENT[s].label;
 
 /** RS number with a thin meter. */

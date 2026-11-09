@@ -1,6 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import type { Filing, Headline, NewsVerdict } from "@/engine/types";
-import { SentimentDot, sentimentLabel } from "./Badges";
+import { FirstLine, SentimentDot, sentimentLabel } from "./Badges";
 import { Card, CardHeader } from "./Page";
 
 function Points({ title, items, tone }: { title: string; items: string[]; tone: "up" | "down" }) {
@@ -10,8 +10,10 @@ function Points({ title, items, tone }: { title: string; items: string[]; tone: 
       <div className="text-xs text-ink-3">{title}</div>
       <ul className="mt-1.5 space-y-1.5">
         {items.map((c) => (
-          <li key={c} className="flex gap-2 text-sm text-ink">
-            <span className={`mt-[7px] h-1 w-1 shrink-0 rounded-full ${tone === "up" ? "bg-up" : "bg-down"}`} />
+          <li key={c} className="flex items-start gap-2.5 text-sm leading-relaxed text-ink">
+            <FirstLine>
+              <span className={`h-1.5 w-1.5 rounded-full ${tone === "up" ? "bg-up" : "bg-down"}`} />
+            </FirstLine>
             {c}
           </li>
         ))}

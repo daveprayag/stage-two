@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import type { NewsBundle, ScreenRow, ScreenTag } from "@/engine/types";
 import { price, titleCase } from "@/lib/format";
-import { Change, RsMeter, SentimentDot, stageAge, StageLabel } from "./Badges";
+import { Change, FirstLine, RsMeter, SentimentDot, stageAge, StageLabel } from "./Badges";
 import { Select } from "./Select";
 import { isTopSetup } from "@/engine/topsetup";
 
@@ -101,8 +101,10 @@ function MobileItem({ r, n }: { r: ScreenRow; n: NewsBundle | undefined }) {
             </div>
           </dl>
           {n?.ai && n.ai.sentiment !== "none" && (
-            <p className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-ink-2">
-              <SentimentDot s={n.ai.sentiment} className="mt-[5px]" />
+            <p className="mt-3 flex items-start gap-2.5 text-xs leading-relaxed text-ink-2">
+              <FirstLine>
+                <SentimentDot s={n.ai.sentiment} />
+              </FirstLine>
               <span className="line-clamp-2">{n.ai.summary}</span>
             </p>
           )}
@@ -167,8 +169,10 @@ function DesktopTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, 
               <td className={`${td} num text-right ${r.dryUp <= 0.8 ? "text-up" : "text-ink"}`}>{r.dryUp.toFixed(2)}</td>
               <td className={td}>
                 {n?.ai && n.ai.sentiment !== "none" ? (
-                  <span className="flex items-start gap-2 text-xs leading-relaxed text-ink-2" title={n.ai.summary}>
-                    <SentimentDot s={n.ai.sentiment} className="mt-[5px]" />
+                  <span className="flex items-start gap-2.5 text-xs leading-relaxed text-ink-2" title={n.ai.summary}>
+                    <FirstLine>
+                <SentimentDot s={n.ai.sentiment} />
+              </FirstLine>
                     <span className="line-clamp-2">{n.ai.summary}</span>
                   </span>
                 ) : (
