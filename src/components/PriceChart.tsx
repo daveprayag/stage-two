@@ -6,6 +6,7 @@ import {
 } from "lightweight-charts";
 import { ArrowUpRight } from "lucide-react";
 import type { StockDetail } from "@/engine/detail";
+import { useLiveQuote } from "./live";
 
 /** TradingView chart for an NSE symbol (TradingView writes "&" and "-" as "_": M&M → NSE:M_M, BAJAJ-AUTO → NSE:BAJAJ_AUTO). */
 export function tradingViewUrl(symbol: string): string {
@@ -33,6 +34,9 @@ function alpha(hex: string, a: number): string {
 export function PriceChart({ d }: { d: StockDetail }) {
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
+  const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const volRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const { quote } = useLiveQuote(d.symbol);
   const [on, setOn] = useState<Record<Overlay, boolean>>({ ma50: true, ma150: false, ma200: true, levels: true, trend: false });
   const [range, setRange] = useState(126);
   const [theme, setTheme] = useState(0);
@@ -62,10 +66,12 @@ export function PriceChart({ d }: { d: StockDetail }) {
     });
     chart.current = c;
     const candles = c.addSeries(CandlestickSeries, { upColor: up, downColor: down, wickUpColor: up, wickDownColor: down, borderVisible: false, priceLineVisible: false });
+    candleRef.current = candles;
     candles.setData(d.bars.map((b) => ({ time: b.time as Time, open: b.open, high: b.high, low: b.low, close: b.close })));
     candles.priceScale().applyOptions({ scaleMargins: { top: 0.06, bottom: 0.24 } });
 
     const vol = c.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "vol", lastValueVisible: false, priceLineVisible: false });
+    volRef.current = vol;
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     const upA = alpha(up, 0.4);
     const downA = alpha(down, 0.4);
@@ -108,8 +114,30 @@ export function PriceChart({ d }: { d: StockDetail }) {
     return () => {
       c.remove();
       chart.current = null;
+      candleRef.current = null;
+      volRef.current = null;
     };
   }, [d, on, range, theme]);
+
+  // Today's candle from the live quote: replaces the last bar on the same day, or adds a new one.
+  useEffect(() => {
+    const last = d.bars[d.bars.length - 1];
+    if (!quote?.date || !last || quote.date < last.time || !candleRef.current || !volRef.current) return;
+    const open = Number.isFinite(quote.open) && quote.open > 0 ? quote.open : quote.last;
+    const bar = {
+      time: quote.date as Time,
+      open,
+      high: Number.isFinite(quote.high) && quote.high > 0 ? quote.high : Math.max(open, quote.last),
+      low: Number.isFinite(quote.low) && quote.low > 0 ? quote.low : Math.min(open, quote.last),
+      close: quote.last,
+    };
+    try {
+      candleRef.current.update(bar);
+      volRef.current.update({ time: bar.time, value: Number.isFinite(quote.volume) ? quote.volume : 0, color: alpha(css(bar.close >= open ? "--up" : "--down"), 0.4) });
+    } catch {
+      // the chart was being rebuilt; the next quote will land
+    }
+  }, [quote, d, on, range, theme]);
 
   const toggle = (k: Overlay, label: string, color: string, dashed = false) => (
     <button

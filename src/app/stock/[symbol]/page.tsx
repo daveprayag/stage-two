@@ -6,13 +6,13 @@ import { Change, PhaseLabel, phaseDetail, RsMeter, StageLabel, StarMark, TAG_LAB
 import { AiSummary, Sources } from "@/components/NewsPanel";
 import { Card, CardHeader, Page } from "@/components/Page";
 import { PriceChart } from "@/components/PriceChart";
-import { stockDetail } from "@/engine/detail";
+import { LivePrice } from "@/components/LivePrice";
 import { isTopSetup, topSetupChecks } from "@/engine/topsetup";
 import { isStar, marketNote, starChecks } from "@/engine/star";
 import { Checklists } from "@/components/Checklists";
 import { fetchHeadlines } from "@/engine/news";
 import { crore, day, price, titleCase } from "@/lib/format";
-import { getAllRows, getFilings, getScreen, getStore } from "@/lib/data";
+import { getStock } from "@/lib/data";
 
 export const revalidate = 3600;
 
@@ -40,17 +40,16 @@ function Fact({ label, children, hint, note }: { label: string; children: React.
 
 export default async function StockPage({ params }: Props) {
   const symbol = decodeURIComponent((await params).symbol).toUpperCase();
-  const [store, screen, rows] = await Promise.all([getStore(), getScreen(), getAllRows()]);
-  if (!store) notFound();
-  const row = rows.get(symbol);
-  const d = stockDetail(store, symbol, row);
-  if (!d) notFound();
+  const data = await getStock(symbol);
+  if (!data) notFound();
+  const { detail: d, row: rowOrNull, market } = data;
+  const row = rowOrNull ?? undefined;
   const last = d.bars[d.bars.length - 1]!;
   const prev = d.bars[d.bars.length - 2];
   const chg = prev ? (last.close / prev.close - 1) * 100 : 0;
-  const shortlisted = screen?.news[symbol];
-  const filings = shortlisted?.filings.length ? shortlisted.filings : await getFilings(symbol);
-  const headlines = shortlisted?.headlines ?? (await fetchHeadlines(d.name, symbol).catch(() => []));
+  const shortlisted = data.news ?? undefined;
+  const filings = shortlisted?.filings.length ? shortlisted.filings : data.filings;
+  const headlines = shortlisted?.headlines.length ? shortlisted.headlines : await fetchHeadlines(d.name, symbol).catch(() => []);
   const passed = d.checklist.filter((c) => c.pass).length;
   const top = row ? isTopSetup(row, shortlisted) : false;
   const topChecks = row ? topSetupChecks(row, shortlisted) : [];
@@ -77,12 +76,7 @@ export default async function StockPage({ params }: Props) {
               {d.band !== null ? ` · ${d.band}% price band` : ""}
             </p>
           </div>
-          <div className="sm:text-right">
-            <div className="num text-3xl text-ink">{price(last.close)}</div>
-            <div className="mt-1 text-sm">
-              <Change value={chg} digits={2} /> <span className="text-ink-3">· close {last.time}</span>
-            </div>
-          </div>
+          <LivePrice symbol={d.symbol} close={last.close} chg={chg} date={last.time} />
         </div>
         {row && (
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-2">
@@ -135,7 +129,7 @@ export default async function StockPage({ params }: Props) {
         </div>
 
         {row ? (
-          <Checklists star={star} starred={starred} market={marketNote(screen?.market)} top={topChecks} topSetup={top} template={d.checklist} />
+          <Checklists star={star} starred={starred} market={marketNote(market)} top={topChecks} topSetup={top} template={d.checklist} />
         ) : (
           <Card>
             <CardHeader title="Trend template" aside={<span className="num text-sm text-ink-2">{passed} of 8</span>} />

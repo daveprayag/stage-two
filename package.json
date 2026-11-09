@@ -9,8 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "bootstrap": "tsx --env-file=.env.local scripts/bootstrap.mts",
-    "job": "tsx --env-file=.env.local scripts/run-job.mts"
+    "worker:deploy": "cd worker && npx -y wrangler@4.158.0 deploy"
   },
   "dependencies": {
     "@google/genai": "^1.10.0",

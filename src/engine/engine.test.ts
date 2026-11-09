@@ -4,7 +4,7 @@ import { applyFactor, corpActionFactor, gapFactor } from "./adjust";
 import { basePivot, cluster, supportResistance, swingHighs, trendline } from "./levels";
 import { companyQuery, parseGoogleNews } from "./news";
 import { parseAnnouncements, parseBhavcopyZip, parseCsv, parseIndexClose, parseNseDate, parsePriceBands, parseSector } from "./nse";
-import { newsShortlist } from "./pipeline";
+import { newsShortlist } from "./jobs";
 import { allRows, computeScreen, isFund } from "./screen";
 import { countRallies, findBase, findResume, phaseOf, smaArr, stageAt } from "./series";
 import type { PriceStore, ScreenFile, ScreenRow, StockSeries } from "./types";

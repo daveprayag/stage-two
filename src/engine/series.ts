@@ -13,7 +13,7 @@ export interface Compact {
   volume: number[];
 }
 
-export function compact(store: PriceStore, s: StockSeries): Compact {
+export function compact(store: Pick<PriceStore, "dates">, s: StockSeries): Compact {
   const out: Compact = { dates: [], gidx: [], open: [], high: [], low: [], close: [], volume: [] };
   for (let k = 0; k < store.dates.length; k++) {
     const c = s.c[k];

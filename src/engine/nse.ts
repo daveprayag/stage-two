@@ -40,7 +40,6 @@ export async function politeGet(url: string, accept = "*/*", attempts = 3): Prom
     try {
       res = await fetch(url, {
         headers: { "User-Agent": UA, Accept: accept, "Accept-Language": "en-US,en;q=0.9", Referer: "https://www.nseindia.com/" },
-        cache: "no-store",
         signal: AbortSignal.timeout(25_000),
       });
     } catch (e) {
@@ -66,7 +65,6 @@ export async function politeHead(url: string): Promise<boolean> {
   const res = await fetch(url, {
     method: "HEAD",
     headers: { "User-Agent": UA, Accept: "*/*", Referer: "https://www.nseindia.com/" },
-    cache: "no-store",
     signal: AbortSignal.timeout(15_000),
   });
   return res.ok;
@@ -302,4 +300,46 @@ export function parseSector(json: unknown): string | null {
   const first = Array.isArray(er) ? (er[0] as { secInfo?: { sector?: unknown } } | undefined) : undefined;
   const sector = first?.secInfo?.sector;
   return typeof sector === "string" && sector.trim() ? sector.trim() : null;
+}
+
+/** A live (or last-session) quote from NSE's getSymbolData (same URL as sectorUrl). */
+export interface LiveQuote {
+  symbol: string;
+  last: number;
+  change: number;
+  pChange: number;
+  open: number;
+  high: number;
+  low: number;
+  prevClose: number;
+  volume: number;
+  /** NSE's "lastUpdateTime", e.g. "09-Nov-2026 13:36:23" (IST). */
+  time: string;
+  /** ISO date of that time. */
+  date: string | null;
+}
+
+export function parseQuote(symbol: string, json: unknown): LiveQuote | null {
+  const e = ((json as { equityResponse?: unknown[] } | null)?.equityResponse?.[0] ?? null) as Record<string, Record<string, unknown> | string> | null;
+  if (!e) return null;
+  const m = (e["metaData"] ?? {}) as Record<string, unknown>;
+  const t = (e["tradeInfo"] ?? {}) as Record<string, unknown>;
+  const o = (e["orderBook"] ?? {}) as Record<string, unknown>;
+  const num = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" ? Number(v.replace(/,/g, "")) : Number.NaN);
+  const last = num(t["lastPrice"] ?? o["lastPrice"] ?? m["closePrice"]);
+  if (!Number.isFinite(last) || last <= 0) return null;
+  const time = typeof e["lastUpdateTime"] === "string" ? (e["lastUpdateTime"] as string) : "";
+  return {
+    symbol,
+    last,
+    change: num(m["change"]),
+    pChange: num(m["pChange"]),
+    open: num(m["open"]),
+    high: num(m["dayHigh"]),
+    low: num(m["dayLow"]),
+    prevClose: num(m["previousClose"]),
+    volume: num(t["totalTradedVolume"]),
+    time,
+    date: parseNseDate(time),
+  };
 }

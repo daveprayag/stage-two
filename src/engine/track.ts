@@ -82,11 +82,18 @@ export interface DayPerformance {
   lists: Partial<Record<TrackListKey, { n: number; avg: number | null }>>;
 }
 
-/** Performance of every saved pick to the store's latest close (pure). */
-export function trackPerformance(entries: TrackEntry[], store: PriceStore): { lists: ListPerformance[]; days: DayPerformance[] } {
+export interface PriceLookup {
+  dates: ISODate[];
+  latestClose: (isin: string, symbol: string) => number | null;
+  niftyNow: number | null;
+}
+
+/** Lookup over a whole in-memory store. */
+export function storeLookup(store: PriceStore): PriceLookup {
   const last = store.dates.length - 1;
+  const bySymbol = new Map(Object.values(store.stocks).map((x) => [x.symbol, x]));
   const latestClose = (isin: string, symbol: string): number | null => {
-    const s = store.stocks[isin] ?? Object.values(store.stocks).find((x) => x.symbol === symbol);
+    const s = store.stocks[isin] ?? bySymbol.get(symbol);
     if (!s) return null;
     for (let k = last; k >= 0; k--) if (s.c[k] !== null && s.c[k] !== undefined) return s.c[k] as number;
     return null;
@@ -94,8 +101,26 @@ export function trackPerformance(entries: TrackEntry[], store: PriceStore): { li
   const niftyArr = store.indices["NIFTY 500"] ?? [];
   let niftyNow: number | null = null;
   for (let k = last; k >= 0 && niftyNow === null; k--) niftyNow = niftyArr[k] ?? null;
+  return { dates: store.dates, latestClose, niftyNow };
+}
+
+/** Lookup over the small closes file (symbol → [isin, close]) and the store head. */
+export function closesLookup(dates: ISODate[], closes: Record<string, [string, number]>, indices: Record<string, (number | null)[]>): PriceLookup {
+  const byIsin = new Map(Object.values(closes).map(([isin, c]) => [isin, c]));
+  const nifty = indices["NIFTY 500"] ?? [];
+  let niftyNow: number | null = null;
+  for (let k = nifty.length - 1; k >= 0 && niftyNow === null; k--) niftyNow = nifty[k] ?? null;
+  return { dates, latestClose: (isin, symbol) => byIsin.get(isin) ?? closes[symbol]?.[1] ?? null, niftyNow };
+}
+
+/** Performance of every saved pick to the store's latest close (pure). */
+export function trackPerformance(entries: TrackEntry[], store: PriceStore | PriceLookup): { lists: ListPerformance[]; days: DayPerformance[] } {
+  const look = "latestClose" in store ? store : storeLookup(store);
+  const last = look.dates.length - 1;
+  const latestClose = look.latestClose;
+  const niftyNow = look.niftyNow;
   const days: DayPerformance[] = entries.map((e) => {
-    const idx = store.dates.indexOf(e.date);
+    const idx = look.dates.indexOf(e.date);
     const lists: DayPerformance["lists"] = {};
     for (const { key } of TRACK_LISTS) {
       const picks = e.lists[key] ?? [];

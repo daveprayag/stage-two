@@ -1,27 +1,23 @@
 import "server-only";
-import { PATHS, readCached } from "@/engine/blob";
-import { allRows } from "@/engine/screen";
-import type { Filing, PriceStore, RunRecord, ScreenFile, ScreenRow } from "@/engine/types";
-import type { TrackEntry } from "@/engine/track";
+import type { StockDetail } from "@/engine/detail";
+import type { DayPerformance, ListPerformance } from "@/engine/track";
+import type { Filing, MarketSnapshot, NewsBundle, RunRecord, ScreenFile, ScreenRow } from "@/engine/types";
+import { engine } from "./engine";
 
-export const getScreen = () => readCached<ScreenFile>(PATHS.screen, 5 * 60_000);
-export const getStore = () => readCached<PriceStore>(PATHS.prices, 30 * 60_000);
-export const getSectors = () => readCached<Record<string, string>>(PATHS.sectors, 30 * 60_000);
-export const getRuns = () => readCached<RunRecord[]>(PATHS.runs, 60_000);
-export const getTrack = () => readCached<TrackEntry[]>(PATHS.track, 5 * 60_000);
-export const getEodState = () => readCached<{ asOf: string | null; lastCheck: string | null }>(PATHS.eodState, 60_000);
-export const getFilingsState = () => readCached<{ lastCheck: string | null }>(PATHS.filingsState, 60_000);
+/** Everything is computed and stored by the Cloudflare engine (worker/); the site only reads it. */
+export const getScreen = () => engine<ScreenFile>("/api/screen", 300);
 
-export async function getFilings(symbol: string): Promise<Filing[]> {
-  const ann = await readCached<{ bySymbol: Record<string, Filing[]> }>(PATHS.announcements, 30 * 60_000);
-  return ann?.bySymbol[symbol] ?? [];
+export interface StockData {
+  asOf: string;
+  detail: StockDetail;
+  row: ScreenRow | null;
+  news: NewsBundle | null;
+  filings: Filing[];
+  market: MarketSnapshot | null;
 }
+export const getStock = (symbol: string) => engine<StockData>(`/api/stock/${encodeURIComponent(symbol)}`, 600);
 
-let rowsMemo: { asOf: string; rows: Map<string, ScreenRow> } | null = null;
-/** Every liquid stock's screen row (RS, stage, template), memoised per session. */
-export async function getAllRows(): Promise<Map<string, ScreenRow>> {
-  const [store, sectors] = await Promise.all([getStore(), getSectors()]);
-  if (!store) return new Map();
-  if (rowsMemo?.asOf !== store.asOf) rowsMemo = { asOf: store.asOf, rows: allRows(store, sectors ?? undefined) };
-  return rowsMemo.rows;
-}
+export const getTrack = () => engine<{ first: string | null; lists: ListPerformance[]; days: DayPerformance[] }>("/api/track", 300);
+
+export const getRuns = () =>
+  engine<{ runs: RunRecord[]; eod: { lastCheck: string | null } | null; filings: { lastCheck: string | null } | null; live: { lastRun: string | null } | null }>("/api/runs", 30);

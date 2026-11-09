@@ -20,7 +20,7 @@ import { detectAll, prepareInstrument } from "./core/setups/index";
 import { rsi } from "./core/systematic";
 import { technicalPass } from "./topsetup";
 import { basePivot, supportResistance } from "./levels";
-import { compact, countRallies, findBase, findResume, maxIn, median, minIn, phaseOf, retPct, smaArr, stageAt, toBars, type Compact } from "./series";
+import { compact, countRallies, findBase, findResume, maxIn, median, minIn, phaseOf, retPct, smaArr, stageAt, toBars } from "./series";
 import type { MarketSnapshot, PriceStore, ScreenFile, ScreenRow, ScreenTag, SectorRow, Stage, StockSeries } from "./types";
 
 export const BENCHMARK = "NIFTY 500";
@@ -41,20 +41,24 @@ const MOMENTUM_LIST_LEGS: MomentumLeg[] = [
   { barsAgo: 231, multiple: 1.9 },
 ];
 
-interface Work {
-  s: StockSeries;
-  cp: Compact;
-  f: Features;
-  i: number;
-  ma150: number[];
-  ma200: number[];
+/**
+ * What the screen keeps per stock after analysing it: scalars only, so stocks can be streamed one at a time (the
+ * Cloudflare Worker has 128 MB of memory) and the bar arrays dropped as soon as each stock is done.
+ */
+export interface Work {
   rsRaw: number;
   liquid: boolean;
   row: Omit<ScreenRow, "rs" | "tags" | "score" | "template"> & { templateBase: number };
   /** Today's high/low set a new 52-week high/low (prior 251 sessions). */
   newHigh: boolean;
   newLow: boolean;
+  /** Closed above its 50- / 200-day average (market breadth). */
+  above50: boolean;
+  above200: boolean;
 }
+
+/** The parts of the store the screen needs besides the stocks themselves. */
+export type StoreHead = Pick<PriceStore, "asOf" | "dates" | "indices">;
 
 /**
  * ETFs and index funds trade in NSE's EQ series too; names look like "ICICIPRAMC - EVIETF", "BFAM - NIFTYBETF",
@@ -89,7 +93,7 @@ function momentumListAt(f: Features, i: number): boolean {
   );
 }
 
-function analyseStock(store: PriceStore, s: StockSeries, bench: (number | null)[]): Work | null {
+export function analyseStock(store: StoreHead, s: StockSeries, bench: (number | null)[]): Work | null {
   if (s.series !== "EQ" || isFund(s.symbol, s.name)) return null;
   const cp = compact(store, s);
   const n = cp.close.length;
@@ -197,7 +201,7 @@ function analyseStock(store: PriceStore, s: StockSeries, bench: (number | null)[
   const newHigh = (cp.high[i] as number) > prior(cp.high, maxIn);
   const newLow = (cp.low[i] as number) < prior(cp.low, minIn);
   return {
-    s, cp, f, i, ma150, ma200, rsRaw, liquid, newHigh, newLow,
+    rsRaw, liquid, newHigh, newLow, above50: c > m50, above200: has200 && c > m200,
     row: {
       symbol: s.symbol, isin: s.isin, name: s.name, industry: s.industry, close: c, chgPct,
       rsLineHigh, ret1m: r(21), ret3m: r3, ret6m: r(126),
@@ -246,7 +250,7 @@ function scoreFor(r: ScreenRow): number {
   );
 }
 
-function marketSnapshot(store: PriceStore, liquid: Work[], name = BENCHMARK): MarketSnapshot | null {
+function marketSnapshot(store: StoreHead, liquid: Work[], name = BENCHMARK): MarketSnapshot | null {
   const raw = store.indices[name];
   if (!raw) return null;
   const close = raw.filter((x): x is number => x !== null);
@@ -256,7 +260,7 @@ function marketSnapshot(store: PriceStore, liquid: Work[], name = BENCHMARK): Ma
   const ma150 = smaArr(close, 150);
   const ma200 = smaArr(close, 200);
   const c = close[i] as number;
-  const above = (k: "50" | "200") => liquid.filter((w) => (w.cp.close[w.i] as number) > (k === "50" ? (w.row.sma50 as number) : (w.ma200[w.i] as number))).length;
+  const above = (k: "50" | "200") => liquid.filter((w) => (k === "50" ? w.above50 : w.above200)).length;
   return {
     index: name,
     close: c,
@@ -277,13 +281,21 @@ function marketSnapshot(store: PriceStore, liquid: Work[], name = BENCHMARK): Ma
 /** Symbol → NSE sector for every stock (blob meta/sectors.json); overrides the store's index-list labels. */
 export type Sectors = Record<string, string>;
 
+/** Apply the sector map (overrides the store's index-list labels). */
+export const withSector = (s: StockSeries, sectors?: Sectors): StockSeries => (sectors?.[s.symbol] ? { ...s, industry: sectors[s.symbol] as string } : s);
+
 function analyseAll(store: PriceStore, sectors?: Sectors): { all: ScreenRow[]; liquid: Work[] } {
   const bench = store.indices[BENCHMARK] ?? [];
   const work: Work[] = [];
   for (const s of Object.values(store.stocks)) {
-    const w = analyseStock(store, sectors?.[s.symbol] ? { ...s, industry: sectors[s.symbol] as string } : s, bench);
+    const w = analyseStock(store, withSector(s, sectors), bench);
     if (w) work.push(w);
   }
+  return rankWork(work);
+}
+
+/** Cross-sectional step: RS ratings, industry ranks, tags and scores for every liquid stock's row. */
+export function rankWork(work: Work[]): { all: ScreenRow[]; liquid: Work[] } {
   const liquid = work.filter((w) => w.liquid);
   // RS rating: percentile of the weighted return among liquid stocks.
   const sorted = [...liquid].sort((a, b) => a.rsRaw - b.rsRaw);
@@ -337,7 +349,11 @@ export function allRows(store: PriceStore, sectors?: Sectors): Map<string, Scree
 }
 
 export function computeScreen(store: PriceStore, sectorMap?: Sectors): Omit<ScreenFile, "news" | "newsAt"> {
-  const { all, liquid } = analyseAll(store, sectorMap);
+  return screenFromWork(store, analyseAll(store, sectorMap));
+}
+
+/** Build the screen file from ranked work (shared by the in-memory and the streaming paths). */
+export function screenFromWork(store: StoreHead, { all, liquid }: { all: ScreenRow[]; liquid: Work[] }): Omit<ScreenFile, "news" | "newsAt"> {
   const byIndustry = new Map<string, ScreenRow[]>();
   for (const r of all) if (r.industry) (byIndustry.get(r.industry) ?? byIndustry.set(r.industry, []).get(r.industry))!.push(r);
   const sectors: SectorRow[] = [...byIndustry.entries()]

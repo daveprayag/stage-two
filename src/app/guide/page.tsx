@@ -146,6 +146,12 @@ export default function GuidePage() {
           Data: NSE&apos;s daily bhavcopy, index closes, price bands, corporate actions and filings, adjusted for splits and bonuses. Headlines come from Google
           News; summaries are written by Gemini from those headlines and filings only.
         </p>
+        <p>
+          How fresh it is: the lists are built from each day&apos;s closing prices, checked every 15 minutes from 5:30 pm IST until NSE publishes them. While
+          the market is open, stock pages and charts show live NSE prices (refreshed every minute), and the shortlisted stocks in the lists show live prices
+          too, refreshed every 5 minutes. A live price doesn&apos;t change a stock&apos;s list or checks until that day&apos;s close is in. New NSE filings are
+          picked up every 30 minutes during the day.
+        </p>
       </Section>
     </Page>
   );

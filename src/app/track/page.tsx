@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Change } from "@/components/Badges";
 import { Card, Page, PageTitle } from "@/components/Page";
-import { TRACK_LISTS, trackPerformance } from "@/engine/track";
-import { getStore, getTrack } from "@/lib/data";
+import { TRACK_LISTS } from "@/engine/track";
+import { getTrack } from "@/lib/data";
 import { day } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Track record" };
@@ -11,9 +11,9 @@ export const revalidate = 900;
 const pct = (x: number | null) => (x === null ? "—" : `${Math.round(x * 100)}%`);
 
 export default async function TrackPage() {
-  const [entries, store] = await Promise.all([getTrack(), getStore()]);
-  const perf = entries && store ? trackPerformance(entries, store) : null;
-  const first = entries?.[0]?.date;
+  const data = await getTrack();
+  const perf = data?.first ? data : null;
+  const first = data?.first;
   return (
     <Page>
       <PageTitle title="Track record">

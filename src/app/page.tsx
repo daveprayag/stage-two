@@ -25,7 +25,7 @@ export default async function Home() {
         </p>
       </PageTitle>
       {screen.market && <MarketStrip m={screen.market} />}
-      <ScreenerTable rows={screen.rows} news={screen.news} />
+      <ScreenerTable rows={screen.rows} news={screen.news} asOf={screen.asOf} />
     </Page>
   );
 }

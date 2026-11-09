@@ -7,6 +7,8 @@ import { price, titleCase } from "@/lib/format";
 import { baseShort, Change, FirstLine, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
 import { isStar, starCount } from "@/engine/star";
 import { Select } from "./Select";
+import { quoteTime, useLiveList } from "./live";
+import type { LiveQuote } from "@/engine/nse";
 import { isTopSetup } from "@/engine/topsetup";
 
 type TabKey = Exclude<ScreenTag, "qualified"> | "all" | "top";
@@ -89,7 +91,7 @@ const phaseOk = (r: ScreenRow, p: PhaseFilter) => p === "all" || r.phase === "ea
 const href = (r: ScreenRow) => `/stock/${encodeURIComponent(r.symbol)}`;
 const fromHigh = (r: ScreenRow) => (r.pctFromHigh < 0.05 ? "At high" : `−${r.pctFromHigh.toFixed(1)}%`);
 
-function MobileItem({ r, n }: { r: ScreenRow; n: NewsBundle | undefined }) {
+function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: LiveQuote | undefined }) {
   return (
     <li>
       <Link href={href(r)} className="flex items-center gap-3 px-4 py-4 active:bg-surface-2">
@@ -99,11 +101,14 @@ function MobileItem({ r, n }: { r: ScreenRow; n: NewsBundle | undefined }) {
               <span className="truncate text-[15px] font-medium text-ink">{r.symbol}</span>
               {isStar(r, n) && <StarMark count={starCount(r, n)} />}
             </span>
-            <span className="num shrink-0 text-[15px] text-ink">{price(r.close)}</span>
+            <span className="num flex shrink-0 items-center gap-1.5 text-[15px] text-ink">
+              {q && <span className="h-1.5 w-1.5 rounded-full bg-up" title={`Live ${quoteTime(q.time)}`} aria-label="Live price" />}
+              {price(q ? q.last : r.close)}
+            </span>
           </div>
           <div className="mt-0.5 flex items-baseline justify-between gap-3 text-xs">
             <span className="truncate text-ink-3">{r.industry ?? titleCase(r.name)}</span>
-            <Change value={r.chgPct} className="shrink-0" />
+            <Change value={q ? q.pChange : r.chgPct} className="shrink-0" />
           </div>
           <dl className="mt-3 grid grid-cols-4 gap-2 text-xs">
             <div>
@@ -144,7 +149,7 @@ function MobileItem({ r, n }: { r: ScreenRow; n: NewsBundle | undefined }) {
 const th = "px-3 py-3 text-xs font-normal text-ink-3 first:pl-5 last:pr-5";
 const td = "px-3 py-3.5 first:pl-5 last:pr-5";
 
-function DesktopTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, NewsBundle> }) {
+function DesktopTable({ rows, news, live }: { rows: ScreenRow[]; news: Record<string, NewsBundle>; live: Record<string, LiveQuote> }) {
   return (
     <table className="w-full table-fixed text-sm">
       <colgroup>
@@ -184,8 +189,11 @@ function DesktopTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, 
                 </Link>
               </td>
               <td className={`${td} text-right`}>
-                <span className="num block text-ink">{price(r.close)}</span>
-                <Change value={r.chgPct} className="text-xs" />
+                <span className="num flex items-center justify-end gap-1.5 text-ink">
+                  {live[r.symbol] && <span className="h-1.5 w-1.5 rounded-full bg-up" title={`Live ${quoteTime(live[r.symbol]!.time)}`} aria-label="Live price" />}
+                  {price(live[r.symbol]?.last ?? r.close)}
+                </span>
+                <Change value={live[r.symbol]?.pChange ?? r.chgPct} className="text-xs" />
               </td>
               <td className={td}>
                 <RsMeter rs={r.rs} />
@@ -266,7 +274,10 @@ function Toggle({ on, set, label }: { on: boolean; set: (f: (x: boolean) => bool
 
 const control = "h-10 rounded-lg border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-line-strong md:h-9";
 
-export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, NewsBundle> }) {
+export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: Record<string, NewsBundle>; asOf: string }) {
+  const liveList = useLiveList();
+  // Only quotes from a later session than the screen (or the same day) count as live.
+  const live = useMemo(() => Object.fromEntries(Object.entries(liveList.quotes).filter(([, q]) => q.date && q.date >= asOf)), [liveList, asOf]);
   const [phase, setPhase] = useState<PhaseFilter>("all");
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: 0, top: 0 };
@@ -393,6 +404,12 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 text-xs text-ink-3 md:px-5">
           <span>
             <span className="num text-ink-2">{shown.length}</span> {shown.length === 1 ? "stock" : "stocks"}
+            {liveList.marketOpen && Object.keys(live).length > 0 && liveList.at && (
+              <span className="ml-2 inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-up" aria-hidden="true" />
+                live prices for {Object.keys(live).length} shortlisted stocks
+              </span>
+            )}
           </span>
           <div className="flex items-center gap-4">
             <Toggle on={starred} set={setStarred} label="Starred only" />
@@ -403,11 +420,11 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
           <>
             <ul className="divide-y divide-line md:hidden">
               {shown.map((r) => (
-                <MobileItem key={r.isin} r={r} n={news[r.symbol]} />
+                <MobileItem key={r.isin} r={r} n={news[r.symbol]} q={live[r.symbol]} />
               ))}
             </ul>
             <div className="hidden md:block">
-              <DesktopTable rows={shown} news={news} />
+              <DesktopTable rows={shown} news={news} live={live} />
             </div>
           </>
         ) : (

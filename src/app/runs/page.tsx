@@ -1,24 +1,28 @@
 import type { Metadata } from "next";
 import { ChevronDown } from "lucide-react";
 import { Card, Page, PageTitle } from "@/components/Page";
-import { getEodState, getFilingsState, getRuns } from "@/lib/data";
+import { getRuns } from "@/lib/data";
 import { istTime } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Runs" };
 export const dynamic = "force-dynamic";
 
 export default async function RunsPage() {
-  const [runs, eod, filings] = await Promise.all([getRuns().then((r) => r ?? []), getEodState(), getFilingsState()]);
-  const JOB = { eod: "Prices", news: "News", filings: "Filings" } as const;
-  const SOURCE: Record<string, string> = { cloudflare: "scheduler", vercel: "daily backup", manual: "manual" };
+  const data = await getRuns();
+  const runs = data?.runs ?? [];
+  const eod = data?.eod ?? null;
+  const filings = data?.filings ?? null;
+  const live = data?.live ?? null;
+  const JOB = { eod: "Prices", news: "News", filings: "Filings", live: "Live prices" } as const;
+  const SOURCE: Record<string, string> = { cloudflare: "scheduled", vercel: "old Vercel cron", manual: "manual" };
   return (
     <Page narrow>
       <PageTitle title="Runs">
-        From 5:30 pm IST the scheduler checks every 15 minutes for the day&apos;s NSE file; as soon as it is out, the screen is rebuilt and the news job adds
-        filings, headlines and summaries. During market hours it checks NSE filings every 30 minutes and re-summarises shortlisted stocks that got a new
-        one. Checks that find nothing new are not listed.
+        Everything runs on a Cloudflare Worker. From 5:30 pm IST it checks every 15 minutes for the day&apos;s NSE file; as soon as it is out it updates the
+        prices, rebuilds the screen and adds the news. During market hours it refreshes live prices for the shortlisted stocks every 5 minutes and checks NSE
+        filings every 30. Checks that find nothing new are not listed.
       </PageTitle>
-      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line text-sm">
+      <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-line bg-line text-sm sm:grid-cols-3">
         <div className="bg-surface px-4 py-3 sm:px-5">
           <dt className="text-xs text-ink-3">Last check for NSE prices</dt>
           <dd className="mt-1 text-ink">{eod?.lastCheck ? istTime(eod.lastCheck) : "—"}</dd>
@@ -26,6 +30,10 @@ export default async function RunsPage() {
         <div className="bg-surface px-4 py-3 sm:px-5">
           <dt className="text-xs text-ink-3">Last check for NSE filings</dt>
           <dd className="mt-1 text-ink">{filings?.lastCheck ? istTime(filings.lastCheck) : "—"}</dd>
+        </div>
+        <div className="bg-surface px-4 py-3 sm:px-5">
+          <dt className="text-xs text-ink-3">Last live-price refresh</dt>
+          <dd className="mt-1 text-ink">{live?.lastRun ? istTime(live.lastRun) : "—"}</dd>
         </div>
       </dl>
       <Card>

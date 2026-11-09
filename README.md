@@ -33,37 +33,51 @@ two rising lows / falling highs that no close has broken. These are shortlists, 
 
 ## How it runs
 
-- `src/engine/` — pure screening code: NSE parsers (`nse.ts`), split/bonus adjustment (`adjust.ts`, `update.ts`),
-  screens (`screen.ts`), levels (`levels.ts`), news (`news.ts`), jobs (`pipeline.ts`), Blob storage (`blob.ts`).
+All data work runs on a Cloudflare Worker (`worker/`, paid Workers plan, up to 5 min CPU per run); the Vercel app
+only renders pages and does the one step Cloudflare can't (Google News blocks Cloudflare IPs; the Gemini key lives on
+Vercel).
+
+- `src/engine/` — pure screening code: NSE parsers and live quotes (`nse.ts`), split/bonus adjustment (`adjust.ts`,
+  `update.ts`), screens (`screen.ts`), phases and bases (`series.ts`), levels (`levels.ts`), news (`news.ts`), jobs
+  (`jobs.ts`), storage interface (`storage.ts`) and the streamed price-store format (`storefile.ts`).
 - `src/engine/core/` — vendored copy of livermore's rule engine (Ankur Patel's setups and scanners). Do not edit here.
-- Scheduling: a Cloudflare Worker (`worker/`, free plan) calls the job routes; the work runs on Vercel.
-  - `/api/cron/eod` every 15 min from 17:30 to 23:15 IST: one HEAD request checks for a new NSE bhavcopy; only when
-    one exists does it add the session (index closes, price bands, corporate actions) and rebuild the screen.
-  - `/api/cron/news` right after: NSE filings, Google News headlines and Gemini summaries for the top 60.
-  - `/api/cron/filings` every 30 min, 08:30–16:30 IST on weekdays: new NSE filings; re-summarises shortlisted stocks
-    that got one.
-  - All jobs are idempotent and throttled; a daily Vercel Cron (`vercel.json`) is the backup. History: `/runs`.
-  - Deploy the Worker: `cd worker && npx wrangler deploy`.
-- Storage: private Vercel Blob store `stage-two-data` (`prices/latest.json.gz` rolling 300 sessions,
-  `screens/<date>.json` per session, `news/announcements.json`, `runs/log.json`, `track/picks.json` = each session's
-  picks per list with that day's close, for the forward track record at /track).
+- Worker crons (UTC in `worker/wrangler.jsonc`):
+  - every 15 min, 17:30–00:29 IST, plus 06:45 IST catch-up: one HEAD request checks for a new NSE bhavcopy; when one
+    exists it adds the session (index closes, price bands, corporate actions), rebuilds the screen and track record,
+    labels up to 30 unlabelled stocks with their NSE sector, then fetches news for the shortlist.
+  - every 5 min, 08:30–16:29 IST on weekdays: live NSE quotes for the watch list (starred, top setups, momentum,
+    resuming, breakouts; max 60) while the market is open; every 30 min, new NSE filings.
+  - The price store is streamed one stock at a time (Worker memory is 128 MB). All jobs are idempotent and throttled.
+- Worker API (CORS *, read by the site): `/api/screen`, `/api/stock/:symbol`, `/api/live`, `/api/live/:symbol`
+  (one stock's live quote, cached 60 s), `/api/track`, `/api/runs`, `/api/run/:job` (eod | news | filings | live,
+  manual; throttled), `/api/run/eod?rebuild=1` (rebuild the screen from stored prices, e.g. after new sector labels).
+- Vercel: `/api/enrich` (POST from the Worker) returns Google News headlines and Gemini summaries for the shortlist,
+  cached per session in Vercel Blob. Pages revalidate every 5 minutes; the stock page and chart poll live quotes
+  every 60 s while the market is open.
+- Storage: R2 bucket `stage-two-data` — `prices/head.json` + `prices/stocks.ndjson.gz` (rolling 300 sessions),
+  `screens/latest.json`, `screens/<date>.json`, `screens/rows.json`, `news/announcements.json`, `live/latest.json`,
+  `runs/log.json`, `track/picks.json`, `meta/*.json` (job state, sector labels).
 
 ## Environment
 
+Vercel:
+
 | Variable | |
 | --- | --- |
-| `BLOB_READ_WRITE_TOKEN` | Blob store (added when the store was connected) |
+| `BLOB_READ_WRITE_TOKEN` | Blob store for the enrich cache |
 | `GEMINI_API_KEY` | News summaries |
 | `GEMINI_MODEL` | Optional, comma-separated fallbacks (default `gemini-flash-lite-latest,gemini-3.5-flash-lite,gemini-3.1-flash-lite`) |
-| `CRON_SECRET` | Optional. When set, cron routes require it (Vercel Cron sends it) and `?force=1` re-runs are allowed |
+| `NEXT_PUBLIC_ENGINE_URL` | Optional, Worker URL (default `https://stage-two-engine.prayagdave.workers.dev`) |
+
+Worker: `APP_URL` (in `wrangler.jsonc`) and the R2 binding `DATA`. No secrets.
 
 ## Development
 
 ```bash
 pnpm install
 vercel env pull .env.local
-pnpm dev                       # http://localhost:3000
-pnpm test                      # engine unit tests
-pnpm job eod | news | filings [--force]  # run a job locally against Blob
-pnpm bootstrap <prices.json.gz> # one-time: seed Blob from a livermore export
+pnpm dev                        # http://localhost:3000 (reads the deployed Worker)
+pnpm test                       # engine unit tests
+pnpm worker:deploy              # deploy the Worker
+pnpm tsx scripts/upload-sectors.mts sectors.json   # merge NSE sector labels into R2, then /api/run/eod?rebuild=1
 ```
