@@ -20,10 +20,11 @@ type SortKey = "score" | "rs" | "high" | "tight" | "move";
  * is what found big gainers; tight ranges, breakouts and the all-checks list found them less often than a random stock in
  * 2025–26. The engine still tags and tracks the removed lists (track.ts), it just doesn't show them.
  */
-export const SCREENS: { key: TabKey; label: string; short: string; blurb: string }[] = [
+export const SCREENS: { key: TabKey; label: string; mobile: string; short: string; blurb: string }[] = [
   {
     key: "leader",
     label: "Strongest",
+    mobile: "Strongest",
     short: "Top 10% performers, uptrend intact",
     blurb:
       "RS 90+ (beat 90% of NSE stocks over the past year) with the uptrend intact. In our tests the list most likely to hold the big gainers: 35% of such stocks rose 50%+ within 6 months in 2021–24 (vs 23% of all stocks) and 17% in 2025–26 (vs 13%). About 1 in 5 also fell 20%+, so use a stop and own several.",
@@ -31,6 +32,7 @@ export const SCREENS: { key: TabKey; label: string; short: string; blurb: string
   {
     key: "momentum",
     label: "Momentum leaders",
+    mobile: "Momentum",
     short: "Strong, volatile, in a strong sector",
     blurb:
       "RS 80+, bigger daily swings than most stocks (top 40%), industry in the top 40% by 3-month return, in stage 2. Similar odds to Strongest (35% rose 50%+ in 2021–24, 17% in 2025–26) with more sector support; the stars come from this list. A shortlist to research, not a buy list.",
@@ -38,6 +40,7 @@ export const SCREENS: { key: TabKey; label: string; short: string; blurb: string
   {
     key: "resuming",
     label: "Resuming after a pause",
+    mobile: "Resuming",
     short: "Rallied, paused, now moving again",
     blurb:
       "Rallied 20%+, paused for 5+ sessions without falling more than 25%, and closed back above the top of the pause in the last 5 sessions (now no more than 8% above it). The when, not the what: on average no better than any uptrend day, but the low of the pause is a natural, close stop. Best used on stocks that are also Strongest or Momentum leaders.",
@@ -323,7 +326,7 @@ export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: R
         </div>
         <p className="text-xs leading-relaxed text-ink-3">{PHASES.find((p) => p.key === phase)?.hint}</p>
       </div>
-      <div role="radiogroup" aria-label="Screens" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div role="radiogroup" aria-label="Screens" className="grid grid-cols-3 gap-2">
         {SCREENS.map((t) => {
           const on = tab === t.key;
           return (
@@ -332,13 +335,16 @@ export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: R
               role="radio"
               aria-checked={on}
               onClick={() => choose(t.key)}
-              className={`flex flex-col rounded-xl border p-3 text-left transition-colors ${on ? "border-ink bg-surface" : "border-line hover:border-line-strong"}`}
+              className={`flex flex-col rounded-xl border p-2.5 text-left transition-colors sm:p-3 ${on ? "border-ink bg-surface" : "border-line hover:border-line-strong"}`}
             >
               <span className="flex items-baseline justify-between gap-2">
-                <span className={`text-sm font-medium ${on ? "text-ink" : "text-ink-2"}`}>{t.label}</span>
+                <span className={`text-sm font-medium ${on ? "text-ink" : "text-ink-2"}`}>
+                  <span className="sm:hidden">{t.mobile}</span>
+                  <span className="hidden sm:inline">{t.label}</span>
+                </span>
                 <span className="num text-xs text-ink-3">{counts[t.key] ?? 0}</span>
               </span>
-              <span className="mt-1 text-xs leading-snug text-ink-3">{t.short}</span>
+              <span className="mt-1 hidden text-xs leading-snug text-ink-3 sm:block">{t.short}</span>
             </button>
           );
         })}
