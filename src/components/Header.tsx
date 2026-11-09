@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeaderDate } from "./HeaderDate";
 import { Wordmark } from "./Logo";
 import { NavLinks } from "./NavLinks";
 import { ThemeToggle } from "./ThemeToggle";
@@ -12,12 +13,7 @@ export function Header({ asOf }: { asOf: string | null }) {
         </Link>
         <NavLinks />
         <div className="ml-auto flex items-center gap-3">
-          {asOf && (
-            <span className="text-xs text-ink-3">
-              <span className="hidden sm:inline">NSE close </span>
-              <span className="num text-ink-2">{asOf}</span>
-            </span>
-          )}
+          {asOf && <HeaderDate asOf={asOf} />}
           <ThemeToggle />
         </div>
       </div>
