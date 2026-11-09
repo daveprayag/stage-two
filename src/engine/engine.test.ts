@@ -5,8 +5,8 @@ import { basePivot, cluster, supportResistance, swingHighs, trendline } from "./
 import { companyQuery, parseGoogleNews } from "./news";
 import { parseAnnouncements, parseBhavcopyZip, parseCsv, parseIndexClose, parseNseDate, parsePriceBands } from "./nse";
 import { newsShortlist } from "./pipeline";
-import { computeScreen } from "./screen";
-import { smaArr, stageAt } from "./series";
+import { computeScreen, isFund } from "./screen";
+import { advanceStart, countRallies, phaseOf, smaArr, stageAt } from "./series";
 import type { PriceStore, ScreenRow, StockSeries } from "./types";
 import { appendSession } from "./update";
 
@@ -171,6 +171,7 @@ describe("top setups", () => {
     stageAge: 40, template: 8, tight10: 7, dryUp: 0.7, rvol: 80, adr: 3, turnoverCr: 25, band: 20, resistance: 113,
     pctToResistance: 2.7, breakout: false, scans: [], setup: null, tags: ["setup" as const], score: 100,
     rsi14: 62, ema20: 106, ema50: 101, ma50Rising: true, ma200Rising: true, upDownVol: 1.6, runUp2m: 18,
+    rallies: 1, riseFromBase: 35, largestRallyPct: 35, phase: "early" as const,
   } satisfies ScreenRow;
   const good = { filings: [], headlines: [], ai: { summary: "Order win", sentiment: "positive" as const, catalysts: ["₹500 Cr order"], redFlags: [] } };
 
@@ -187,11 +188,53 @@ describe("top setups", () => {
     expect(failing({ band: 5 })).toEqual(["liquidity"]);
     expect(failing({ tags: ["leader"] })).toEqual(["pattern"]);
     expect(failing({ upDownVol: 0.9 })).toEqual(["volume"]);
+    expect(failing({ phase: "late", rallies: 3 })).toEqual(["phase"]);
+    expect(failing({ phase: "mid", rallies: 2 })).toEqual([]);
   });
   it("needs positive news without red flags", () => {
     const q = { ...base, tags: ["setup" as const, "qualified" as const] };
     expect(isTopSetup(q, undefined)).toBe(false);
     expect(isTopSetup(q, { ...good, ai: { ...good.ai, sentiment: "neutral" } })).toBe(false);
     expect(isTopSetup(q, { ...good, ai: { ...good.ai, redFlags: ["promoter pledge"] } })).toBe(false);
+  });
+});
+
+describe("funds", () => {
+  it("leaves ETFs and index funds out of the stock screener", () => {
+    expect(isFund("EVIETF", "ICICIPRAMC - EVIETF")).toBe(true);
+    expect(isFund("NIFTYBETF", "BFAM - NIFTYBETF")).toBe(true);
+    expect(isFund("QNIFTY", "QUANTUM NIFTY 50 ETF")).toBe(true);
+    expect(isFund("NPBET", "TATAAML - NPBET")).toBe(true);
+    expect(isFund("GOLDBEES", "NIPPON INDIA ETF GOLD BEES")).toBe(true);
+    expect(isFund("HDFCAMC", "HDFC AMC LIMITED")).toBe(false);
+    expect(isFund("MAHSCOOTER", "MAHSCOOTER - DEP SETT")).toBe(false);
+    expect(isFund("FIRSTCRY", "BRAINBEES SOLUTIONS LTD")).toBe(false);
+  });
+});
+
+describe("rallies and phase", () => {
+  // 100 → 130 (rally 1), pull back 12% to 114, → 150 (rally 2), pull back 11% to 133, → 180 (rally 3).
+  const path = [100, 110, 120, 130, 122, 114, 125, 140, 150, 143, 133, 150, 165, 180];
+  it("counts rallies of 15%+ separated by 8%+ pullbacks", () => {
+    expect(countRallies(path, 0, 3).count).toBe(1);
+    expect(countRallies(path, 0, 8).count).toBe(2);
+    expect(countRallies(path, 0, path.length - 1)).toMatchObject({ count: 3 });
+    expect(countRallies([100, 105, 110, 115], 0, 3).count).toBe(0);
+    // A 7% dip inside a run is a pause, not a new rally.
+    expect(countRallies([100, 125, 116, 140], 0, 3).count).toBe(1);
+  });
+  it("finds where the current advance began: the low before the last real dip below the 150-day average", () => {
+    const close = [...Array.from({ length: 160 }, () => 100), 95, 94, 93, 92, 90, 91, 96, 102, 110, 120];
+    const ma = close.map(() => 100);
+    expect(advanceStart(close, ma, close.length - 1)).toBe(164);
+    expect(advanceStart(close.map(() => 120), ma, close.length - 1)).toBeNull();
+  });
+  it("labels the phase of a stage 2 advance", () => {
+    expect(phaseOf(2, { count: 1, largestPct: 35, lastPct: 35 })).toBe("early");
+    expect(phaseOf(2, { count: 0, largestPct: 0, lastPct: 0 })).toBe("early");
+    expect(phaseOf(2, { count: 2, largestPct: 40, lastPct: 20 })).toBe("mid");
+    expect(phaseOf(2, { count: 3, largestPct: 30, lastPct: 20 })).toBe("late");
+    expect(phaseOf(2, { count: 1, largestPct: 95, lastPct: 95 })).toBe("late");
+    expect(phaseOf(3, { count: 1, largestPct: 20, lastPct: 20 })).toBeNull();
   });
 });

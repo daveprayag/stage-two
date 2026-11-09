@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Check, ChevronDown, ChevronLeft, X } from "lucide-react";
-import { Change, RsMeter, StageLabel, TAG_LABEL } from "@/components/Badges";
+import { Change, PhaseLabel, phaseDetail, RsMeter, StageLabel, TAG_LABEL } from "@/components/Badges";
 import { AiSummary, Sources } from "@/components/NewsPanel";
 import { Card, CardHeader, Page } from "@/components/Page";
 import { PriceChart } from "@/components/PriceChart";
@@ -81,6 +81,14 @@ export default async function StockPage({ params }: Props) {
         {row && (
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-2">
             <StageLabel stage={row.stage} age={row.stageAge} />
+            {row.phase && (
+              <>
+                <span className="text-ink-3">·</span>
+                <span>
+                  <PhaseLabel phase={row.phase} stage={row.stage} /> in the uptrend ({phaseDetail(row.rallies, row.riseFromBase).toLowerCase()})
+                </span>
+              </>
+            )}
             {screens.length > 0 && (
               <>
                 <span className="text-ink-3">·</span>

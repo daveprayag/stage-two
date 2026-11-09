@@ -101,3 +101,86 @@ export function median(xs: number[]): number {
   const mid = s.length >> 1;
   return s.length % 2 ? (s[mid] as number) : ((s[mid - 1] as number) + (s[mid] as number)) / 2;
 }
+
+/** A rally ("leg"): a rise of at least 20% (closes) not interrupted by a pullback of 10% or more. */
+export const RALLY_MIN_RISE_PCT = 20;
+export const RALLY_PULLBACK_PCT = 10;
+/** Ankur: "no buys after leg 2", "3–4 legs (2 if parabolic) = extended" (livermore RULEBOOK "Momentum cycle"). The
+ * entry-timing study found rallies of 80%+ followed by weaker 20-day returns. */
+export const LATE_RALLIES = 3;
+export const PARABOLIC_RALLY_PCT = 80;
+
+export interface RallyCount {
+  /** Rallies since `from` (the current one included if it has reached the minimum rise). */
+  count: number;
+  /** Size of the largest rally (%), low close → high close. */
+  largestPct: number;
+  /** Size of the latest rally (%), or 0 if none yet. */
+  lastPct: number;
+}
+
+/** Count rallies in close[from..to]: up-swings of ≥ minRise% that end when price pulls back ≥ minPull% from the swing high. */
+export function countRallies(close: readonly number[], from: number, to: number, minRise = RALLY_MIN_RISE_PCT, minPull = RALLY_PULLBACK_PCT): RallyCount {
+  let count = 0;
+  let largest = 0;
+  let last = 0;
+  let low = close[from] as number;
+  let high = low;
+  let inRally = false;
+  for (let j = from + 1; j <= to; j++) {
+    const c = close[j] as number;
+    if (!inRally) {
+      if (c < low) low = c;
+      if (c >= low * (1 + minRise / 100)) {
+        count++;
+        inRally = true;
+        high = c;
+      }
+    } else {
+      if (c > high) high = c;
+      if (c <= high * (1 - minPull / 100)) {
+        inRally = false;
+        low = c;
+      }
+    }
+    if (inRally) {
+      last = (high / low - 1) * 100;
+      largest = Math.max(largest, last);
+    }
+  }
+  return { count, largestPct: largest, lastPct: count ? last : 0 };
+}
+
+export type Phase = "early" | "mid" | "late";
+
+/** Where a stage 2 stock is in its advance: early = base breakout or first rally; mid = second; late = third or more, or any 80%+ rally. */
+export function phaseOf(stage: Stage, r: RallyCount): Phase | null {
+  if (stage !== 2) return null;
+  if (r.count >= LATE_RALLIES || r.largestPct >= PARABOLIC_RALLY_PCT) return "late";
+  return r.count <= 1 ? "early" : "mid";
+}
+
+/** Closes below the 150-day average for this many sessions in a row = a real dip (end of a base or a stage 2 break). */
+export const STAGE2_RESET_BARS = 5;
+
+/**
+ * Start of the current advance: the base low before price last left a real dip below the 150-day average (5+ closes
+ * below it). Returns the index of that low, or null if price has been above the average for all the history we hold.
+ */
+export function advanceStart(close: readonly number[], ma150: readonly number[], i: number): number | null {
+  let below = 0;
+  for (let j = i; j >= 0; j--) {
+    const m = ma150[j] as number;
+    if (!Number.isFinite(m)) return null;
+    if ((close[j] as number) < m) {
+      below++;
+      if (below >= STAGE2_RESET_BARS) {
+        const end = j + below - 1; // most recent close of that dip
+        let low = end;
+        for (let k = Math.max(0, end - 40); k <= Math.min(i, end + 10); k++) if ((close[k] as number) < (close[low] as number)) low = k;
+        return low;
+      }
+    } else below = 0;
+  }
+  return null;
+}

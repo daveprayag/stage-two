@@ -22,6 +22,29 @@ export function StageLabel({ stage, age, className = "" }: { stage: Stage; age?:
   );
 }
 
+const PHASE: Record<"early" | "mid" | "late", { label: string; cls: string; title: string }> = {
+  early: { label: "Early", cls: "text-up", title: "Base breakout or first rally of the uptrend" },
+  mid: { label: "Mid", cls: "text-ink", title: "Second rally of the uptrend" },
+  late: { label: "Late", cls: "text-amber", title: "Third rally or later, or an 80%+ rally: extended" },
+};
+
+/** "Early" / "Mid" / "Late" for stage 2 stocks; the stage otherwise. */
+export function PhaseLabel({ phase, stage }: { phase: "early" | "mid" | "late" | null | undefined; stage: Stage }) {
+  if (!phase) return <span className="text-ink-3">Stage {stage}</span>;
+  const p = PHASE[phase];
+  return (
+    <span title={p.title} className={p.cls}>
+      {p.label}
+    </span>
+  );
+}
+
+/** "Rally 1 · +37% from the base" */
+export function phaseDetail(rallies: number | undefined, riseFromBase: number | undefined): string {
+  if (rallies === undefined || riseFromBase === undefined) return "";
+  return `Rally ${Math.max(1, rallies)} · +${riseFromBase.toFixed(0)}% from base`;
+}
+
 export const TAG_LABEL: Record<ScreenTag, string> = {
   breakout: "Breaking out",
   setup: "Tight near highs",

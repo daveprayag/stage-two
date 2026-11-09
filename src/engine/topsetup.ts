@@ -29,6 +29,12 @@ export function technicalChecks(r: ScreenRow): Check[] {
       pass: r.stage === 2 && !!r.ma200Rising && !!r.ma50Rising,
       value: `Stage ${r.stage}; 50-day ${r.ma50Rising ? "rising" : "not rising"}, 200-day ${r.ma200Rising ? "rising" : "not rising"}`,
     },
+    {
+      key: "phase",
+      label: "Early or mid in its uptrend, not late",
+      pass: r.phase === "early" || r.phase === "mid",
+      value: r.phase ? `${r.phase[0]!.toUpperCase()}${r.phase.slice(1)}: rally ${Math.max(1, r.rallies)}, +${(r.riseFromBase ?? 0).toFixed(0)}% from the base low` : r.phase === undefined ? "n/a" : "Not in stage 2",
+    },
     { key: "template", label: "All moving averages stacked (trend template 8/8)", pass: r.template >= 8, value: `${r.template} of 8` },
     {
       key: "ema",

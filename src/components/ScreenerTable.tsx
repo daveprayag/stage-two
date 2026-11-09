@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import type { NewsBundle, ScreenRow, ScreenTag } from "@/engine/types";
 import { price, titleCase } from "@/lib/format";
-import { Change, FirstLine, RsMeter, SentimentDot, stageAge, StageLabel } from "./Badges";
+import { Change, FirstLine, PhaseLabel, phaseDetail, RsMeter, SentimentDot, StageLabel } from "./Badges";
 import { Select } from "./Select";
 import { isTopSetup } from "@/engine/topsetup";
 
@@ -63,6 +63,14 @@ const SORTS: { key: SortKey; label: string; fn: (a: ScreenRow, b: ScreenRow) => 
   { key: "move", label: "Today's move", fn: (a, b) => b.chgPct - a.chgPct },
 ];
 
+type PhaseFilter = "all" | "early" | "earlyMid";
+const PHASES: { key: PhaseFilter; label: string; hint: string }[] = [
+  { key: "all", label: "All phases", hint: "Every stock, however far into its uptrend. Use Early to hide stocks that have already run." },
+  { key: "early", label: "Early only", hint: "Only stocks in the first rally out of their base, the phase Ankur calls the best buy." },
+  { key: "earlyMid", label: "Early + mid", hint: "Hides late stocks: third rally or later, or after an 80%+ run." },
+];
+const phaseOk = (r: ScreenRow, p: PhaseFilter) => p === "all" || r.phase === "early" || (p === "earlyMid" && r.phase === "mid");
+
 const href = (r: ScreenRow) => `/stock/${encodeURIComponent(r.symbol)}`;
 const fromHigh = (r: ScreenRow) => (r.pctFromHigh < 0.05 ? "At high" : `−${r.pctFromHigh.toFixed(1)}%`);
 
@@ -85,19 +93,19 @@ function MobileItem({ r, n }: { r: ScreenRow; n: NewsBundle | undefined }) {
               <dd className="num mt-0.5 text-ink">{r.rs}</dd>
             </div>
             <div>
-              <dt className="text-ink-3">Stage</dt>
-              <dd className={`num mt-0.5 ${r.stage === 2 ? "text-up" : "text-ink"}`}>
-                {r.stage}
-                {r.stage === 2 && r.stageAge !== null && <span className="text-ink-3"> · {stageAge(r.stageAge)}</span>}
+              <dt className="text-ink-3">Phase</dt>
+              <dd className="mt-0.5">
+                <PhaseLabel phase={r.phase} stage={r.stage} />
+                {r.phase && <span className="num text-ink-3"> · {Math.max(1, r.rallies)}</span>}
               </dd>
+            </div>
+            <div>
+              <dt className="text-ink-3">From base</dt>
+              <dd className="num mt-0.5 text-ink">{r.riseFromBase === undefined ? "—" : `+${r.riseFromBase.toFixed(0)}%`}</dd>
             </div>
             <div>
               <dt className="text-ink-3">From high</dt>
               <dd className="num mt-0.5 text-ink">{fromHigh(r)}</dd>
-            </div>
-            <div>
-              <dt className="text-ink-3">10d range</dt>
-              <dd className="num mt-0.5 text-ink">{r.tight10.toFixed(1)}%</dd>
             </div>
           </dl>
           {n?.ai && n.ai.sentiment !== "none" && (
@@ -136,7 +144,7 @@ function DesktopTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, 
           <th className={th}>Stock</th>
           <th className={`${th} text-right`}>Close</th>
           <th className={th} title="Relative strength rating, 1–99">RS</th>
-          <th className={th}>Stage</th>
+          <th className={th} title="Stage, and for stage 2 how far into the uptrend: early (first rally), mid (second), late (third+ or an 80%+ rally)">Stage · phase</th>
           <th className={`${th} text-right`} title="Distance below the 52-week high">From high</th>
           <th className={`${th} text-right`} title="10-day high–low range as % of price">10d range</th>
           <th className={`${th} text-right`} title="5-day vs 50-day average volume; below 1 means drying up">Vol 5/50</th>
@@ -162,7 +170,13 @@ function DesktopTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, 
                 <RsMeter rs={r.rs} />
               </td>
               <td className={`${td} text-xs`}>
-                <StageLabel stage={r.stage} age={r.stageAge} />
+                <StageLabel stage={r.stage} />
+                {r.phase && (
+                  <span className="mt-1 block whitespace-nowrap">
+                    <PhaseLabel phase={r.phase} stage={r.stage} />
+                    <span className="text-ink-3"> · {phaseDetail(r.rallies, r.riseFromBase).replace(" from base", "")}</span>
+                  </span>
+                )}
               </td>
               <td className={`${td} num text-right text-ink`}>{fromHigh(r)}</td>
               <td className={`${td} num text-right ${r.tight10 <= 8 ? "text-up" : "text-ink"}`}>{r.tight10.toFixed(1)}%</td>
@@ -190,7 +204,8 @@ function DesktopTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, 
 const TERMS: [string, string][] = [
   ["RS", "Relative Strength rating, 1–99. Ranks how much the stock rose over 3, 6, 9 and 12 months against all ~1,350 liquid NSE stocks (last 3 months count double). 90 = beat 90% of the market. Not the same as RSI."],
   ["RSI", "Relative Strength Index (14 days), 0–100: momentum of recent price moves. Top setups need 50–75: rising, but not overbought (above ~75 a pullback is more likely)."],
-  ["Stage", "Where the stock is in its cycle, from its 150-day average: 1 sideways base, 2 uptrend, 3 topping, 4 downtrend. \u201c2 · 14d\u201d = in an uptrend for 14 sessions."],
+  ["Stage", "Where the stock is in its cycle, from its 150-day average: 1 sideways base, 2 uptrend, 3 topping, 4 downtrend."],
+  ["Phase", "How far into its uptrend a stage 2 stock is. A rally is a rise of 20%+ without a 10% pullback, counted from the base the uptrend started from. Early = first rally (Ankur's best buy: the first pause after the base); mid = second; late = third or later, or any 80%+ rally. \u201cEarly · 1 \u00b7 +37%\u201d = first rally, 37% above the base low."],
   ["From high", "How far below its 52-week high it closed."],
   ["10d range", "Gap between the highest and lowest price of the last 10 sessions, as % of price. Small = quiet, tight."],
   ["Vol 5/50", "Average volume of the last 5 days ÷ last 50 days. Below 1 = volume drying up; well above 1 = heavy buying or selling."],
@@ -219,14 +234,17 @@ function Glossary() {
 const control = "h-10 rounded-lg border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-line-strong md:h-9";
 
 export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, NewsBundle> }) {
+  const [phase, setPhase] = useState<PhaseFilter>("all");
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: rows.length, top: 0 };
+    const c: Record<string, number> = { all: 0, top: 0 };
     for (const r of rows) {
+      if (!phaseOk(r, phase)) continue;
+      c.all = (c.all ?? 0) + 1;
       for (const t of r.tags) c[t] = (c[t] ?? 0) + 1;
       if (isTopSetup(r, news[r.symbol])) c.top = (c.top ?? 0) + 1;
     }
     return c;
-  }, [rows, news]);
+  }, [rows, news, phase]);
   const [tab, setTab] = useState<TabKey>(() => (counts.top ? "top" : counts.breakout ? "breakout" : "setup"));
   const [q, setQ] = useState("");
   const [sector, setSector] = useState("");
@@ -246,7 +264,16 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
     if (t && SCREENS.some((x) => x.key === t)) setTab(t as TabKey);
+    const p = new URLSearchParams(window.location.search).get("phase");
+    if (p && PHASES.some((x) => x.key === p)) setPhase(p as PhaseFilter);
   }, []);
+  const choosePhase = (p: PhaseFilter) => {
+    setPhase(p);
+    const url = new URL(window.location.href);
+    if (p === "all") url.searchParams.delete("phase");
+    else url.searchParams.set("phase", p);
+    window.history.replaceState(null, "", url);
+  };
   const choose = (t: TabKey) => {
     setTab(t);
     const url = new URL(window.location.href);
@@ -262,16 +289,33 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
       .filter(
         (r) =>
           (tab === "all" || (tab === "top" ? isTopSetup(r, news[r.symbol]) : r.tags.includes(tab))) &&
+          phaseOk(r, phase) &&
           (!sector || r.industry === sector) &&
           (tab !== "ankur" || !scan || (scan === "setup" ? !!r.setup : r.scans.includes(scan))) &&
           (!positive || news[r.symbol]?.ai?.sentiment === "positive") &&
           (!needle || r.symbol.includes(needle) || r.name.toUpperCase().includes(needle)),
       )
       .sort(fn);
-  }, [rows, tab, q, sector, sort, positive, news, scan]);
+  }, [rows, tab, q, sector, sort, positive, news, scan, phase]);
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+        <div role="radiogroup" aria-label="Uptrend phase" className="flex self-start rounded-lg bg-surface-2 p-0.5">
+          {PHASES.map((p) => (
+            <button
+              key={p.key}
+              role="radio"
+              aria-checked={phase === p.key}
+              onClick={() => choosePhase(p.key)}
+              className={`rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors ${phase === p.key ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink"}`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs leading-relaxed text-ink-3">{PHASES.find((p) => p.key === phase)?.hint}</p>
+      </div>
       <div role="radiogroup" aria-label="Screens" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-7">
         {SCREENS.map((t) => {
           const on = tab === t.key;

@@ -104,6 +104,13 @@ export interface ScreenRow {
   upDownVol: number;
   /** % above the lowest low of the last ~2 months (42 sessions). */
   runUp2m: number;
+  /** Rallies (≥ 20% without a 10% pullback) since the current advance began, and the largest one (%). */
+  rallies: number;
+  /** % above the base low the current advance started from. */
+  riseFromBase: number;
+  largestRallyPct: number;
+  /** Stage 2 only: early (base breakout / first rally), mid (second), late (third+, or an 80%+ rally). */
+  phase: "early" | "mid" | "late" | null;
   /** Ankur Patel's Chartink scans that fired today. */
   scans: string[];
   /** Ankur setup (livermore rule engine) that fired today, if any. */

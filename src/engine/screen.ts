@@ -17,7 +17,7 @@ import { detectAll, prepareInstrument } from "./core/setups/index";
 import { rsi } from "./core/systematic";
 import { technicalPass } from "./topsetup";
 import { basePivot, supportResistance } from "./levels";
-import { compact, maxIn, median, minIn, retPct, smaArr, stageAt, toBars, type Compact } from "./series";
+import { advanceStart, compact, countRallies, maxIn, median, minIn, phaseOf, retPct, smaArr, stageAt, toBars, type Compact } from "./series";
 import type { MarketSnapshot, PriceStore, ScreenFile, ScreenRow, ScreenTag, SectorRow, Stage, StockSeries } from "./types";
 
 export const BENCHMARK = "NIFTY 500";
@@ -53,6 +53,13 @@ interface Work {
   newLow: boolean;
 }
 
+/**
+ * ETFs and index funds trade in NSE's EQ series too; names look like "ICICIPRAMC - EVIETF", "BFAM - NIFTYBETF",
+ * "QUANTUM NIFTY 50 ETF". The screener is for stocks, so they are left out.
+ */
+const FUND_NAME = /(AMC|AML|MF|BFAM|BNP|SHRIRAM|ETF)\s+-\s|\bETF\b/i;
+export const isFund = (symbol: string, name: string) => FUND_NAME.test(name) || /(ETF|BEES)$/.test(symbol);
+
 function flagScanAt(f: Features, i: number): boolean {
   // RULEBOOK scanner 5 (flag scan): quiet days, above EMA50, not extended, liquid, plus a pole.
   if (i < 90) return false;
@@ -80,7 +87,7 @@ function momentumListAt(f: Features, i: number): boolean {
 }
 
 function analyseStock(store: PriceStore, s: StockSeries, bench: (number | null)[]): Work | null {
-  if (s.series !== "EQ") return null;
+  if (s.series !== "EQ" || isFund(s.symbol, s.name)) return null;
   const cp = compact(store, s);
   const n = cp.close.length;
   const i = n - 1;
@@ -157,6 +164,15 @@ function analyseStock(store: PriceStore, s: StockSeries, bench: (number | null)[
   const upDownVol = downV > 0 ? upV / downV : upV > 0 ? 9.99 : 1;
   const rsi14v = rsi(close, 14)[i] as number;
   const ma50ago = ma50[i - 10];
+  // Rallies since the current advance began (the base low before the last real dip below the 150-day average);
+  // if it has stayed above for all our history, from the lowest close of the past year.
+  let lowIdx = advanceStart(close, ma150, i);
+  if (lowIdx === null) {
+    lowIdx = i - yr + 1;
+    for (let j = i - yr + 1; j <= i; j++) if ((close[j] as number) < (close[lowIdx] as number)) lowIdx = j;
+  }
+  const rallyCount = countRallies(close, lowIdx, i);
+  const riseFromBase = (c / (close[lowIdx] as number) - 1) * 100;
 
   const ohlc = { dates: cp.dates, high: cp.high, low: cp.low, close };
   const { resistance } = supportResistance(ohlc, i);
@@ -200,6 +216,10 @@ function analyseStock(store: PriceStore, s: StockSeries, bench: (number | null)[
       ma200Rising: has200 && m200ago !== undefined && Number.isFinite(m200ago) && m200 > m200ago,
       upDownVol,
       runUp2m: (c / minIn(cp.low, i - 41, i) - 1) * 100,
+      rallies: rallyCount.count,
+      riseFromBase,
+      largestRallyPct: rallyCount.largestPct,
+      phase: phaseOf(stage, rallyCount),
     },
   };
 }
