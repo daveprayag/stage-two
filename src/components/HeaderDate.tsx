@@ -35,7 +35,7 @@ export function HeaderDate({ asOf }: { asOf: string }) {
   return (
     <Link href="/runs" title={title} className="flex flex-col items-end text-right leading-tight">
       <span className="text-xs text-ink-3">
-        <span className="num text-ink-2">{short(asOf)}</span> close
+        <span className="font-medium tabular-nums text-ink-2">{short(asOf)}</span> close
       </span>
       {note && <span className="hidden text-[11px] text-ink-3 sm:block">{note}</span>}
     </Link>
