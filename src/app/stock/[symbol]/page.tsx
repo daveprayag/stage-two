@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Check, ChevronDown, ChevronLeft, X } from "lucide-react";
-import { Change, PhaseLabel, phaseDetail, RsMeter, StageLabel, TAG_LABEL } from "@/components/Badges";
+import { Check, ChevronLeft, X } from "lucide-react";
+import { Change, PhaseLabel, phaseDetail, RsMeter, StageLabel, StarMark, TAG_LABEL } from "@/components/Badges";
 import { AiSummary, Sources } from "@/components/NewsPanel";
 import { Card, CardHeader, Page } from "@/components/Page";
 import { PriceChart } from "@/components/PriceChart";
 import { stockDetail } from "@/engine/detail";
 import { isTopSetup, topSetupChecks } from "@/engine/topsetup";
+import { isStar, marketNote, starChecks } from "@/engine/star";
+import { Checklists } from "@/components/Checklists";
 import { fetchHeadlines } from "@/engine/news";
 import { crore, day, price, titleCase } from "@/lib/format";
 import { getAllRows, getFilings, getScreen, getStore } from "@/lib/data";
@@ -52,8 +54,9 @@ export default async function StockPage({ params }: Props) {
   const passed = d.checklist.filter((c) => c.pass).length;
   const top = row ? isTopSetup(row, shortlisted) : false;
   const topChecks = row ? topSetupChecks(row, shortlisted) : [];
-  const topPassed = topChecks.filter((c) => c.pass).length;
-  const screens = [...(top ? ["Top setup"] : []), ...(row?.tags ?? []).filter((t) => t !== "ankur" && t !== "qualified").map((t) => TAG_LABEL[t])];
+  const star = row ? starChecks(row, shortlisted) : [];
+  const starred = row ? isStar(row, shortlisted) : false;
+  const screens = [...(starred ? ["Starred"] : []), ...(top ? ["Top setup"] : []), ...(row?.tags ?? []).filter((t) => t !== "ankur" && t !== "qualified").map((t) => TAG_LABEL[t])];
   const fromHigh = (1 - last.close / d.hi52) * 100;
 
   return (
@@ -64,7 +67,10 @@ export default async function StockPage({ params }: Props) {
         </Link>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
-            <h1 className="font-display text-[2.75rem] leading-none tracking-tight sm:text-6xl">{d.symbol}</h1>
+            <h1 className="flex items-center gap-3 font-display text-[2.75rem] leading-none tracking-tight sm:text-6xl">
+              {d.symbol}
+              {starred && <StarMark count={star.filter((c) => c.pass).length} className="h-7 w-7 sm:h-8 sm:w-8" />}
+            </h1>
             <p className="mt-2 text-sm text-ink-2">{titleCase(d.name)}</p>
             <p className="mt-0.5 text-xs text-ink-3">
               {d.industry ?? "Industry not classified"}
@@ -128,50 +134,17 @@ export default async function StockPage({ params }: Props) {
           </Card>
         </div>
 
-        <Card className={top ? "border-up" : ""}>
-          <CardHeader
-            title={row ? "Top setup checks" : "Trend template"}
-            aside={
-              row ? (
-                <span className={`num text-sm ${top ? "text-up" : "text-ink-2"}`}>
-                  {topPassed} of {topChecks.length}
-                </span>
-              ) : (
-                <span className="num text-sm text-ink-2">{passed} of 8</span>
-              )
-            }
-          />
-          <p className="px-4 pt-1 text-xs leading-relaxed text-ink-3 sm:px-5">
-            {!row ? "This stock is outside the liquid universe the screener ranks." : top ? "Passes every check. Not a guarantee: decide your stop before you buy." : "A top setup must pass all of these."}
-          </p>
-          <ul className="mt-2 divide-y divide-line">
-            {(row ? topChecks : []).map((c) => (
-              <li key={c.key} className="px-4 py-2.5 sm:px-5">
-                <div className="flex gap-3">
-                  <CheckIcon pass={c.pass} />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm text-ink">{c.label}</div>
-                    <div className="num mt-0.5 text-xs text-ink-3">{c.value}</div>
-                  </div>
-                </div>
-                {c.key === "template" && (
-                  <details className="group mt-2 ml-7">
-                    <summary className="flex cursor-pointer list-none items-center gap-1 text-xs text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
-                      Show the 8 points
-                      <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" aria-hidden="true" />
-                    </summary>
-                    <TemplateList items={d.checklist} />
-                  </details>
-                )}
-              </li>
-            ))}
-          </ul>
-          {!row && (
+        {row ? (
+          <Checklists star={star} starred={starred} market={marketNote(screen?.market)} top={topChecks} topSetup={top} template={d.checklist} />
+        ) : (
+          <Card>
+            <CardHeader title="Trend template" aside={<span className="num text-sm text-ink-2">{passed} of 8</span>} />
+            <p className="px-4 pt-1 text-xs leading-relaxed text-ink-3 sm:px-5">This stock is outside the liquid universe the screener ranks.</p>
             <div className="px-4 pb-4 sm:px-5">
               <TemplateList items={d.checklist} />
             </div>
-          )}
-        </Card>
+          </Card>
+        )}
       </div>
 
       {shortlisted?.ai ? (

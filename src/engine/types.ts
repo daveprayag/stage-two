@@ -43,7 +43,7 @@ export type Stage = 1 | 2 | 3 | 4;
  * "momentum" = momentum leader: the winner profile from livermore's research (RS ≥ 80, volatility in the top 40% of
  * liquid stocks, industry in the top 40% by 3-month return, stage 2).
  */
-export type ScreenTag = "breakout" | "setup" | "fresh2" | "leader" | "ankur" | "qualified" | "momentum";
+export type ScreenTag = "breakout" | "setup" | "fresh2" | "leader" | "ankur" | "qualified" | "momentum" | "resuming";
 
 export interface Level {
   price: number;
@@ -117,6 +117,10 @@ export interface ScreenRow {
   /** Last session of the base (the stock left it the next session). */
   baseDate: string | null;
   largestRallyPct: number;
+  /** Rallied, paused, and closed back above the pause's top in the last 5 sessions (null if not). */
+  resume: { pivot: number; pauseLow: number; stopPct: number; daysAgo: number; rallyPct: number; pauseBars: number } | null;
+  /** Liquid stage 2 stocks with RS ≥ 80 in the same industry (this one included); 0 if unclassified. */
+  sectorLeaders: number;
   /** Industry's percentile (0–1) among industries by median 3-month return of their liquid stocks; null = unclassified. */
   sectorRank: number | null;
   /** Stage 2 only: early (in/just out of the base, or first rally), mid (second), late (third+, an 80%+ rally, or no base). */

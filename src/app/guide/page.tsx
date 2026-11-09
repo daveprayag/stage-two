@@ -124,10 +124,15 @@ export default function GuidePage() {
           <li><strong className="text-ink">Prefer the strongest of them:</strong> RS 90+, and sectors with several leaders at once (check the Sectors page): a group moving together is sturdier than one stock alone.</li>
           <li><strong className="text-ink">Check the news:</strong> a real catalyst (results, orders, guidance) and no red flags. Skip anything with a governance or pledge problem, however good the chart.</li>
           <li><strong className="text-ink">Own several, not one.</strong> About half of these picks reach +50%; the rest go nowhere or fall, and you cannot tell which in advance. Five to ten positions across different sectors is what turns those odds into a result.</li>
-          <li><strong className="text-ink">Size by the stop.</strong> These stocks move 4–6% a day, and winners typically dipped 6% (a quarter of them 11%+) before running, so very tight stops shake you out. Decide the stop first, then buy only as many shares as that loss allows.</li>
+          <li><strong className="text-ink">Size by the stop.</strong> These stocks move 4–6% a day, and winners typically dipped 6% (a quarter of them 11%+) before running, so very tight stops shake you out. Decide the stop first, then buy only as many shares as that loss allows. The &quot;Resuming after a pause&quot; list helps: a stock that rallied, paused and is moving again has a natural stop at the pause low, and the stock page shows how far away it is.</li>
           <li><strong className="text-ink">Give winners time.</strong> The edge was measured over six months, not days. Exits for this list have not been tested yet; check the Track record page as it builds.</li>
           <li><strong className="text-ink">Respect the market.</strong> In 2021–22 the same profile still lost money, just less than other stocks. When the NIFTY 500 is below its 200-day average, buy less.</li>
         </ol>
+        <p>
+          The <span className="text-amber">★</span> star marks momentum leaders that pass at least 5 of these checks at once: early or mid phase, RS 90+, a sector
+          moving as a group, positive news without red flags, and resuming after a pause with a stop within 12%. Each stock page lists the checks it passes. The
+          star is a summary of the steps above, not a separately tested signal; the Track record page follows how starred stocks do.
+        </p>
       </Section>
 
       <Section title="What the lists are, and are not">

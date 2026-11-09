@@ -6,7 +6,7 @@ import { companyQuery, parseGoogleNews } from "./news";
 import { parseAnnouncements, parseBhavcopyZip, parseCsv, parseIndexClose, parseNseDate, parsePriceBands } from "./nse";
 import { newsShortlist } from "./pipeline";
 import { allRows, computeScreen, isFund } from "./screen";
-import { countRallies, findBase, phaseOf, smaArr, stageAt } from "./series";
+import { countRallies, findBase, findResume, phaseOf, smaArr, stageAt } from "./series";
 import type { PriceStore, ScreenFile, ScreenRow, StockSeries } from "./types";
 import { appendSession } from "./update";
 
@@ -171,7 +171,7 @@ describe("top setups", () => {
     stageAge: 40, template: 8, tight10: 7, dryUp: 0.7, rvol: 80, adr: 3, turnoverCr: 25, band: 20, resistance: 113,
     pctToResistance: 2.7, breakout: false, scans: [], setup: null, tags: ["setup" as const], score: 100,
     rsi14: 62, ema20: 106, ema50: 101, ma50Rising: true, ma200Rising: true, upDownVol: 1.6, runUp2m: 18,
-    sectorRank: 0.8, rallies: 1, riseFromBase: 35, inBase: false, baseDate: "2026-08-01", largestRallyPct: 35, phase: "early" as const,
+    sectorRank: 0.8, resume: null, sectorLeaders: 4, rallies: 1, riseFromBase: 35, inBase: false, baseDate: "2026-08-01", largestRallyPct: 35, phase: "early" as const,
   } satisfies ScreenRow;
   const good = { filings: [], headlines: [], ai: { summary: "Order win", sentiment: "positive" as const, catalysts: ["₹500 Cr order"], redFlags: [] } };
 
@@ -306,5 +306,46 @@ describe("track record", () => {
     expect(m.upShare).toBe(0.5);
     expect(perf.days[0]?.sessionsSince).toBe(2);
     expect(upsertEntry(upsertEntry([], e), { ...e, nifty: 999 })).toHaveLength(1);
+  });
+});
+
+import { isStar, starChecks } from "./star";
+
+describe("resuming after a pause", () => {
+  const n = 130;
+  // Flat at 100, rally to 130 over 20 sessions, pause 125–129 for 10 sessions, then a close at 132 today.
+  const close: number[] = [];
+  for (let k = 0; k < n - 31; k++) close.push(100);
+  for (let k = 1; k <= 20; k++) close.push(100 + k * 1.5);
+  for (let k = 0; k < 10; k++) close.push(125 + (k % 5));
+  close.push(132);
+  const high = close.map((c) => c + 0.5);
+  const low = close.map((c) => c - 0.5);
+  it("finds the rally, the pause and today's close back above it, with the pause low as the stop", () => {
+    const r = findResume(close, high, low, close.length - 1);
+    expect(r).not.toBeNull();
+    expect(r!.daysAgo).toBe(0);
+    expect(r!.pivot).toBeCloseTo(130.5, 5);
+    expect(r!.pauseLow).toBeCloseTo(124.5, 5);
+    expect(r!.rallyPct).toBeGreaterThan(20);
+    expect(r!.stopPct).toBeCloseTo((1 - 124.5 / 132) * 100, 5);
+  });
+  it("ignores a stock that is still pausing or has already run far past the pause", () => {
+    expect(findResume(close.slice(0, -1), high.slice(0, -1), low.slice(0, -1), close.length - 2)).toBeNull();
+    const far = [...close.slice(0, -1), 132, 140, 150];
+    expect(findResume(far, far.map((c) => c + 0.5), far.map((c) => c - 0.5), far.length - 1)).toBeNull();
+  });
+});
+
+describe("star", () => {
+  const r = (over: Partial<ScreenRow>) => ({ rs: 93, adr: 5, industry: "Tech", sectorRank: 0.9, stage: 2, phase: "early", sectorLeaders: 4, tags: ["momentum"], resume: { pivot: 100, pauseLow: 92, stopPct: 9, daysAgo: 1, rallyPct: 30, pauseBars: 8 }, ...over }) as ScreenRow;
+  const good = { filings: [], headlines: [], ai: { summary: "", sentiment: "positive" as const, catalysts: [], redFlags: [] } };
+  it("stars a momentum leader that passes 5 or 6 of the 6 checks", () => {
+    expect(starChecks(r({}), good).every((c) => c.pass)).toBe(true);
+    expect(isStar(r({}), good)).toBe(true);
+    expect(isStar(r({ rs: 85 }), good)).toBe(true); // 5 of 6
+    expect(isStar(r({ rs: 85, sectorLeaders: 1 }), good)).toBe(false); // 4 of 6
+    expect(isStar(r({ tags: [] }), good)).toBe(false); // not a momentum leader
+    expect(isStar(r({ resume: { pivot: 100, pauseLow: 80, stopPct: 18, daysAgo: 0, rallyPct: 30, pauseBars: 8 }, rs: 85 }), good)).toBe(false);
   });
 });

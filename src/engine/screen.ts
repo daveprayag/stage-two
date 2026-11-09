@@ -20,7 +20,7 @@ import { detectAll, prepareInstrument } from "./core/setups/index";
 import { rsi } from "./core/systematic";
 import { technicalPass } from "./topsetup";
 import { basePivot, supportResistance } from "./levels";
-import { compact, countRallies, findBase, maxIn, median, minIn, phaseOf, retPct, smaArr, stageAt, toBars, type Compact } from "./series";
+import { compact, countRallies, findBase, findResume, maxIn, median, minIn, phaseOf, retPct, smaArr, stageAt, toBars, type Compact } from "./series";
 import type { MarketSnapshot, PriceStore, ScreenFile, ScreenRow, ScreenTag, SectorRow, Stage, StockSeries } from "./types";
 
 export const BENCHMARK = "NIFTY 500";
@@ -215,6 +215,8 @@ function analyseStock(store: PriceStore, s: StockSeries, bench: (number | null)[
       upDownVol,
       runUp2m: (c / minIn(cp.low, i - 41, i) - 1) * 100,
       sectorRank: null,
+      resume: findResume(close, cp.high, cp.low, i),
+      sectorLeaders: 0,
       rallies: rallyCount.count,
       riseFromBase,
       inBase: base?.inBase ?? false,
@@ -232,6 +234,7 @@ function tagsFor(r: ScreenRow): ScreenTag[] {
   if (r.stage === 2 && r.stageAge !== null && r.stageAge <= 30 && r.rs >= 70 && r.template >= 6 && r.pctFromHigh <= 25) t.push("fresh2");
   if (r.rs >= 90 && r.template >= 7) t.push("leader");
   if (r.setup || r.scans.some((x) => x !== "Momentum list")) t.push("ankur");
+  if (r.resume && r.stage === 2) t.push("resuming");
   return t;
 }
 
@@ -291,8 +294,11 @@ function analyseAll(store: PriceStore): { all: ScreenRow[]; liquid: Work[] } {
   // Industry momentum: median 3-month return of each industry's liquid stocks, as a percentile among industries.
   const sectorRanks = industryRanks(all);
   const adrCut = quantile(all.map((r) => r.adr), MOMENTUM.adrQuantile);
+  const strongByIndustry = new Map<string, number>();
+  for (const r of all) if (r.industry && r.stage === 2 && r.rs >= 80) strongByIndustry.set(r.industry, (strongByIndustry.get(r.industry) ?? 0) + 1);
   for (const row of all) {
     row.sectorRank = row.industry ? (sectorRanks.get(row.industry)?.rank ?? null) : null;
+    row.sectorLeaders = row.industry ? (strongByIndustry.get(row.industry) ?? 0) : 0;
     row.tags = tagsFor(row);
     if (row.rs >= MOMENTUM.minRs && row.adr >= adrCut && (row.sectorRank ?? 0) >= MOMENTUM.minSectorRank && row.stage === 2) row.tags.push("momentum");
     // Checked after the other tags: the entry-pattern check reads them.

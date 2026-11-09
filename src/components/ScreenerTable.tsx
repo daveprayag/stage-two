@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import type { NewsBundle, ScreenRow, ScreenTag } from "@/engine/types";
 import { price, titleCase } from "@/lib/format";
-import { baseShort, Change, FirstLine, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel } from "./Badges";
+import { baseShort, Change, FirstLine, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
+import { isStar, starCount } from "@/engine/star";
 import { Select } from "./Select";
 import { isTopSetup } from "@/engine/topsetup";
 
@@ -25,6 +26,13 @@ export const SCREENS: { key: TabKey; label: string; short: string; blurb: string
     short: "Strong, volatile, in a strong sector",
     blurb:
       "RS 80+, bigger daily swings than most stocks (top 40%), industry in the top 40% by 3-month return, in stage 2. The profile that came before 50%+ moves in our 2021–24 research: these hit +50% within 6 months 47% of the time vs 29% for the average stock, and beat it in 30 of 33 months. Big failures happen too; add the Early filter to cut the worst ones.",
+  },
+  {
+    key: "resuming",
+    label: "Resuming after a pause",
+    short: "Rallied, paused, now moving again",
+    blurb:
+      "Rallied 20%+, paused for 5+ sessions without falling more than 25%, and closed back above the top of the pause in the last 5 sessions (now no more than 8% above it). The low of the pause is a natural stop; the stock page shows how far away it is. In our tests this entry was no better on average than any stage 2 day; its value is a clear, close stop.",
   },
   {
     key: "breakout",
@@ -87,7 +95,10 @@ function MobileItem({ r, n }: { r: ScreenRow; n: NewsBundle | undefined }) {
       <Link href={href(r)} className="flex items-center gap-3 px-4 py-4 active:bg-surface-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="truncate text-[15px] font-medium text-ink">{r.symbol}</span>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-[15px] font-medium text-ink">{r.symbol}</span>
+              {isStar(r, n) && <StarMark count={starCount(r, n)} />}
+            </span>
             <span className="num shrink-0 text-[15px] text-ink">{price(r.close)}</span>
           </div>
           <div className="mt-0.5 flex items-baseline justify-between gap-3 text-xs">
@@ -165,7 +176,10 @@ function DesktopTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, 
             <tr key={r.isin} className="relative transition-colors hover:bg-surface-2/70">
               <td className={td}>
                 <Link href={href(r)} className="block after:absolute after:inset-0">
-                  <span className="font-medium text-ink">{r.symbol}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="font-medium text-ink">{r.symbol}</span>
+                    {isStar(r, n) && <StarMark count={starCount(r, n)} />}
+                  </span>
                   <span className="mt-0.5 block truncate text-xs text-ink-3">{r.industry ?? titleCase(r.name)}</span>
                 </Link>
               </td>
@@ -216,6 +230,7 @@ const TERMS: [string, string][] = [
   ["From high", "How far below its 52-week high it closed."],
   ["10d range", "Gap between the highest and lowest price of the last 10 sessions, as % of price. Small = quiet, tight."],
   ["Vol 5/50", "Average volume of the last 5 days ÷ last 50 days. Below 1 = volume drying up; well above 1 = heavy buying or selling."],
+  ["\u2605 Star", "A momentum leader that passes at least 5 of the 6 checks from the Guide: momentum profile, early or mid phase, RS 90+, sector moving as a group (3+ strong stocks), positive news without red flags, and resuming after a pause with a stop within 12%. The stock page lists each check."],
   ["News dot", "Green positive, red negative, grey neutral, from a Gemini summary of NSE filings and headlines."],
 ];
 
@@ -238,6 +253,17 @@ function Glossary() {
   );
 }
 
+function Toggle({ on, set, label }: { on: boolean; set: (f: (x: boolean) => boolean) => void; label: string }) {
+  return (
+    <button role="switch" aria-checked={on} onClick={() => set((x) => !x)} className="flex items-center gap-2 py-1 text-ink-2">
+      {label}
+      <span className={`relative h-5 w-9 rounded-full transition-colors ${on ? "bg-up" : "bg-line-strong"}`}>
+        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${on ? "left-[18px]" : "left-0.5"}`} />
+      </span>
+    </button>
+  );
+}
+
 const control = "h-10 rounded-lg border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-line-strong md:h-9";
 
 export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<string, NewsBundle> }) {
@@ -257,6 +283,7 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
   const [sector, setSector] = useState("");
   const [sort, setSort] = useState<SortKey>("score");
   const [positive, setPositive] = useState(false);
+  const [starred, setStarred] = useState(false);
   // Inside "Ankur's scans": view one of his lists at a time, as he runs them on Chartink.
   const [scan, setScan] = useState("");
   const scanOptions = useMemo(() => {
@@ -300,10 +327,11 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
           (!sector || r.industry === sector) &&
           (tab !== "ankur" || !scan || (scan === "setup" ? !!r.setup : r.scans.includes(scan))) &&
           (!positive || news[r.symbol]?.ai?.sentiment === "positive") &&
+          (!starred || isStar(r, news[r.symbol])) &&
           (!needle || r.symbol.includes(needle) || r.name.toUpperCase().includes(needle)),
       )
       .sort(fn);
-  }, [rows, tab, q, sector, sort, positive, news, scan, phase]);
+  }, [rows, tab, q, sector, sort, positive, starred, news, scan, phase]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -366,12 +394,10 @@ export function ScreenerTable({ rows, news }: { rows: ScreenRow[]; news: Record<
           <span>
             <span className="num text-ink-2">{shown.length}</span> {shown.length === 1 ? "stock" : "stocks"}
           </span>
-          <button role="switch" aria-checked={positive} onClick={() => setPositive((p) => !p)} className="flex items-center gap-2 py-1 text-ink-2">
-            Positive news only
-            <span className={`relative h-5 w-9 rounded-full transition-colors ${positive ? "bg-up" : "bg-line-strong"}`}>
-              <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${positive ? "left-[18px]" : "left-0.5"}`} />
-            </span>
-          </button>
+          <div className="flex items-center gap-4">
+            <Toggle on={starred} set={setStarred} label="Starred only" />
+            <Toggle on={positive} set={setPositive} label="Positive news" />
+          </div>
         </div>
         {shown.length ? (
           <>

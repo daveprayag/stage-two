@@ -222,3 +222,47 @@ export function findBase(close: readonly number[], ma50: readonly number[], i: n
   }
   return null;
 }
+
+/**
+ * "Resuming after a pause": a rally of ≥ minRallyPct into a high (the pivot), then ≥ minPauseBars sessions below it
+ * without falling more than maxDepthPct, then a close back above the pivot within the last `recentBars` sessions, with
+ * the price now no more than maxExtensionPct above it. The pause low is the natural stop.
+ */
+export interface Resume {
+  /** The pause's top (the high price broke back above). */
+  pivot: number;
+  /** The pause's lowest low: where a stop would go. */
+  pauseLow: number;
+  /** Distance from today's close down to pauseLow, %. */
+  stopPct: number;
+  /** Sessions since the close above the pivot (0 = today). */
+  daysAgo: number;
+  /** Size of the rally into the pivot, %. */
+  rallyPct: number;
+  /** Length of the pause, sessions. */
+  pauseBars: number;
+}
+
+export const RESUME = { minRallyPct: 20, rallyLookback: 60, minPauseBars: 5, maxPauseBars: 40, maxDepthPct: 25, recentBars: 5, maxExtensionPct: 8 } as const;
+
+export function findResume(close: readonly number[], high: readonly number[], low: readonly number[], i: number, o = RESUME): Resume | null {
+  for (let d = i; d > i - o.recentBars && d > o.maxPauseBars + o.rallyLookback; d--) {
+    let pIdx = d - 1;
+    for (let j = d - 1 - o.maxPauseBars; j < d; j++) if ((high[j] as number) > (high[pIdx] as number)) pIdx = j;
+    const pivot = high[pIdx] as number;
+    const pauseBars = d - 1 - pIdx;
+    if (pauseBars < o.minPauseBars) continue;
+    if (!((close[d] as number) > pivot && (close[d - 1] as number) <= pivot)) continue;
+    let pauseLow = Infinity;
+    for (let j = pIdx + 1; j < d; j++) pauseLow = Math.min(pauseLow, low[j] as number);
+    if ((1 - pauseLow / pivot) * 100 > o.maxDepthPct) continue;
+    let rallyLow = Infinity;
+    for (let j = pIdx - o.rallyLookback; j <= pIdx; j++) rallyLow = Math.min(rallyLow, low[j] as number);
+    const rallyPct = (pivot / rallyLow - 1) * 100;
+    if (rallyPct < o.minRallyPct) continue;
+    const c = close[i] as number;
+    if (c < pivot * 0.97 || c > pivot * (1 + o.maxExtensionPct / 100)) return null;
+    return { pivot, pauseLow, stopPct: (1 - pauseLow / c) * 100, daysAgo: i - d, rallyPct, pauseBars };
+  }
+  return null;
+}

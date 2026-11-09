@@ -3,13 +3,16 @@
  * compared with the NIFTY 500 over the same days. Starts at launch (8 Nov 2026); nothing is back-filled, so it is an
  * honest out-of-sample record. Pure helpers; the jobs write PATHS.track.
  */
+import { isStar } from "./star";
 import { isTopSetup } from "./topsetup";
 import type { ISODate, PriceStore, ScreenFile, ScreenRow } from "./types";
 
 export const TRACK_LISTS = [
+  { key: "star", label: "Starred" },
   { key: "top", label: "Top setups" },
   { key: "momentum", label: "Momentum leaders" },
   { key: "momentumEarly", label: "Momentum leaders, early phase" },
+  { key: "resuming", label: "Resuming after a pause" },
   { key: "breakout", label: "Breaking out" },
   { key: "setup", label: "Tight near highs" },
   { key: "fresh2", label: "New uptrends" },
@@ -34,6 +37,8 @@ const inList = (key: TrackListKey, r: ScreenRow, s: ScreenFile): boolean => {
   switch (key) {
     case "top":
       return isTopSetup(r, s.news[r.symbol]);
+    case "star":
+      return isStar(r, s.news[r.symbol]);
     case "momentumEarly":
       return r.tags.includes("momentum") && r.phase === "early";
     default:
