@@ -14,23 +14,25 @@ function istNow(): { date: string; mins: number; weekday: boolean } {
 }
 
 /** What the next update is, on a weekday whose close isn't in yet. Holidays look like normal days here. */
-function nextNote(asOf: string): string | null {
+function nextNote(asOf: string, liveDate: string | null): string | null {
   const n = istNow();
   if (!n.weekday || asOf >= n.date) return null;
   if (n.mins < 9 * 60 + 15) return null;
+  // NSE's live data still on an earlier day well after the open: no session today (a trading holiday).
+  if (n.mins >= 9 * 60 + 25 && liveDate && liveDate < n.date) return "no trading today";
   if (n.mins < 15 * 60 + 30) return "market open · prices live";
   return "today's close usually arrives 5–7 pm";
 }
 
 /** Header badge: which session's closing prices the lists use, and when the next ones are due. */
-export function HeaderDate({ asOf }: { asOf: string }) {
+export function HeaderDate({ asOf, liveDate }: { asOf: string; liveDate: string | null }) {
   const [note, setNote] = useState<string | null>(null);
   useEffect(() => {
-    const tick = () => setNote(nextNote(asOf));
+    const tick = () => setNote(nextNote(asOf, liveDate));
     tick();
     const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
-  }, [asOf]);
+  }, [asOf, liveDate]);
   const title = `Lists use NSE closing prices from ${short(asOf)}.${note ? ` ${note[0]!.toUpperCase()}${note.slice(1)}.` : ""} Checked every 15 min from 5:30 pm IST.`;
   return (
     <Link href="/runs" title={title} className="flex flex-col items-end text-right leading-tight">

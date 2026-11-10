@@ -90,7 +90,18 @@ export function StockGlance({ row }: { row: ScreenRow | null | undefined }) {
   const left = row.baseDate && !row.inBase ? ` Left its base after ${day(row.baseDate)}.` : "";
   return (
     <dl className={grid}>
-      <Glance label="Trend" value={<StageLabel stage={row.stage} age={row.stageAge} />} note={STAGE_NOTE[row.stage]} />
+      <Glance
+        label="Trend"
+        value={
+          <span className="inline-flex items-baseline gap-1.5">
+            <StageLabel stage={row.stage} />
+            {row.stage === 2 && row.stageAge !== null && row.stageAge !== undefined && (
+              <span className="text-ink-2">· {row.stageAge >= 120 ? "120+ days" : `${row.stageAge} ${row.stageAge === 1 ? "day" : "days"}`}</span>
+            )}
+          </span>
+        }
+        note={STAGE_NOTE[row.stage]}
+      />
       <Glance
         label="Phase"
         value={
@@ -120,7 +131,7 @@ export function StockGlance({ row }: { row: ScreenRow | null | undefined }) {
             <span className="text-ink-3">None today</span>
           )
         }
-        note="Strongest · Momentum leaders · Resuming after a pause"
+        note={lists.length ? "The screener lists it's on after the last close" : "Not on Strongest, Momentum leaders or Resuming"}
       />
     </dl>
   );

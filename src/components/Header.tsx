@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { getScreen } from "@/lib/data";
+import { getLive, getScreen } from "@/lib/data";
 import { HeaderDate } from "./HeaderDate";
 import { Wordmark } from "./Logo";
 import { NavLinks } from "./NavLinks";
@@ -8,8 +8,8 @@ import { ThemeToggle } from "./ThemeToggle";
 
 /** The session date, loaded on its own so the page skeleton shows at once; nothing if the engine can't be reached. */
 async function SessionDate() {
-  const screen = await getScreen().catch(() => null);
-  return screen?.asOf ? <HeaderDate asOf={screen.asOf} /> : null;
+  const [screen, live] = await Promise.all([getScreen().catch(() => null), getLive()]);
+  return screen?.asOf ? <HeaderDate asOf={screen.asOf} liveDate={live?.date ?? null} /> : null;
 }
 
 export function Header() {

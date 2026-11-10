@@ -324,7 +324,10 @@ export function ScreenerTable({
   const loading = rows === null;
   const list = rows ?? NO_ROWS;
   // Latest NSE prices for every stock. In market hours, if they are not fresh, no prices are shown (never old ones).
-  const { file: liveFile, unavailable } = useLivePrices(asOf, initialLive);
+  const prices = useLivePrices(asOf, initialLive);
+  const liveFile = prices.file;
+  // While the page itself is loading there is nothing to price yet.
+  const unavailable = !loading && prices.unavailable;
   const live = useMemo<Record<string, Px> | null>(
     () => (unavailable ? null : liveFile ? Object.fromEntries(Object.entries(liveFile.q).map(([k, [last, pChange]]) => [k, { last, pChange }])) : {}),
     [liveFile, unavailable],
