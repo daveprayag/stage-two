@@ -1,19 +1,20 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import type { NewsBundle, ScreenRow } from "@/engine/types";
 import { price, titleCase } from "@/lib/format";
 import { baseShort, Change, FirstLine, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
 import { isStar, starCount } from "@/engine/star";
 import { Select } from "./Select";
-import { freshFor, liveLabel, useLiveFile } from "./live";
+import type { LiveFile } from "@/engine/jobs";
+import { liveLabel, useLivePrices } from "./live";
 
 /** A stock's latest NSE price during or after today's session. */
 type Px = { last: number; pChange: number };
 
 type TabKey = "leader" | "momentum" | "resuming";
-type SortKey = "score" | "rs" | "high" | "tight" | "move";
+type SortKey = "score" | "sector" | "rs" | "high" | "tight" | "move";
 
 /**
  * The three lists that earned their place in livermore's research (2021–26, liquid NSE stocks, 6-month outcomes): strength
@@ -49,6 +50,8 @@ export const SCREENS: { key: TabKey; label: string; mobile: string; short: strin
 
 const SORTS: { key: SortKey; label: string; fn: (a: ScreenRow, b: ScreenRow) => number }[] = [
   { key: "score", label: "Best match", fn: (a, b) => b.score - a.score },
+  // Placeholder order; the real one needs the sector ranking (see `shown`).
+  { key: "sector", label: "Strongest sector first", fn: (a, b) => b.score - a.score },
   { key: "rs", label: "Relative strength", fn: (a, b) => b.rs - a.rs },
   { key: "high", label: "Closest to 52-week high", fn: (a, b) => a.pctFromHigh - b.pctFromHigh },
   { key: "tight", label: "Tightest range", fn: (a, b) => a.tight10 - b.tight10 },
@@ -66,7 +69,8 @@ const phaseOk = (r: ScreenRow, p: PhaseFilter) => p === "all" || r.phase === "ea
 const href = (r: ScreenRow) => `/stock/${encodeURIComponent(r.symbol)}`;
 const fromHigh = (r: ScreenRow) => (r.pctFromHigh < 0.05 ? "At high" : `−${r.pctFromHigh.toFixed(1)}%`);
 
-function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: Px | undefined }) {
+/** q: the live price; undefined = use the session close; null = live prices unavailable (show nothing rather than old prices). */
+function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: Px | undefined | null }) {
   return (
     <li>
       <Link href={href(r)} className="flex items-center gap-3 px-4 py-4 active:bg-surface-2">
@@ -77,12 +81,12 @@ function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: P
               {isStar(r, n) && <StarMark count={starCount(r, n)} />}
             </span>
             <span className="num flex shrink-0 items-center gap-1.5 text-[15px] text-ink">
-              {price(q ? q.last : r.close)}
+              {q === null ? "—" : price(q ? q.last : r.close)}
             </span>
           </div>
           <div className="mt-0.5 flex items-baseline justify-between gap-3 text-xs">
             <span className="truncate text-ink-3">{r.industry ?? titleCase(r.name)}</span>
-            <Change value={q ? q.pChange : r.chgPct} className="shrink-0" />
+            <Change value={q === null ? null : q ? q.pChange : r.chgPct} className="shrink-0" />
           </div>
           <dl className="mt-3 grid grid-cols-4 gap-2 text-xs">
             <div>
@@ -123,7 +127,10 @@ function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: P
 const th = "px-3 py-3 text-xs font-normal text-ink-3 first:pl-5 last:pr-5";
 const td = "px-3 py-3.5 first:pl-5 last:pr-5";
 
-function DesktopTable({ rows, news, live }: { rows: ScreenRow[]; news: Record<string, NewsBundle>; live: Record<string, Px> }) {
+/** Sector heading shown above the first stock of each sector when sorting by sector. */
+type Heads = Map<string, string>;
+
+function DesktopTable({ rows, news, live, heads }: { rows: ScreenRow[]; news: Record<string, NewsBundle>; live: Record<string, Px> | null; heads: Heads | null }) {
   return (
     <table className="w-full table-fixed text-sm">
       <colgroup>
@@ -151,8 +158,15 @@ function DesktopTable({ rows, news, live }: { rows: ScreenRow[]; news: Record<st
       <tbody className="divide-y divide-line">
         {rows.map((r) => {
           const n = news[r.symbol];
+          const head = heads?.get(r.isin);
           return (
-            <tr key={r.isin} className="relative transition-colors hover:bg-surface-2/70">
+            <Fragment key={r.isin}>
+            {head && (
+              <tr className="bg-surface-2/60">
+                <th colSpan={8} scope="colgroup" className="px-5 py-2 text-left text-xs font-medium text-ink-2">{head}</th>
+              </tr>
+            )}
+            <tr className="relative transition-colors hover:bg-surface-2/70">
               <td className={td}>
                 <Link href={href(r)} className="block after:absolute after:inset-0">
                   <span className="flex items-center gap-1.5">
@@ -164,9 +178,9 @@ function DesktopTable({ rows, news, live }: { rows: ScreenRow[]; news: Record<st
               </td>
               <td className={`${td} text-right`}>
                 <span className="num flex items-center justify-end gap-1.5 text-ink">
-                  {price(live[r.symbol]?.last ?? r.close)}
+                  {live ? price(live[r.symbol]?.last ?? r.close) : "—"}
                 </span>
-                <Change value={live[r.symbol]?.pChange ?? r.chgPct} className="text-xs" />
+                <Change value={live ? (live[r.symbol]?.pChange ?? r.chgPct) : null} className="text-xs" />
               </td>
               <td className={td}>
                 <RsMeter rs={r.rs} />
@@ -196,6 +210,7 @@ function DesktopTable({ rows, news, live }: { rows: ScreenRow[]; news: Record<st
                 )}
               </td>
             </tr>
+            </Fragment>
           );
         })}
       </tbody>
@@ -247,12 +262,25 @@ function Toggle({ on, set, label }: { on: boolean; set: (f: (x: boolean) => bool
 
 const control = "h-10 rounded-lg border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-line-strong md:h-9";
 
-export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: Record<string, NewsBundle>; asOf: string }) {
-  // Latest NSE prices for every stock, once they are from the screen's session or later.
-  const liveFile = freshFor(useLiveFile(), asOf);
-  const live = useMemo<Record<string, Px>>(
-    () => (liveFile ? Object.fromEntries(Object.entries(liveFile.q).map(([k, [last, pChange]]) => [k, { last, pChange }])) : {}),
-    [liveFile],
+export function ScreenerTable({
+  rows,
+  news,
+  asOf,
+  initialLive,
+  sectorOrder,
+}: {
+  rows: ScreenRow[];
+  news: Record<string, NewsBundle>;
+  asOf: string;
+  initialLive: LiveFile | null;
+  /** Sectors strongest first, as on the Sectors page (median RS). */
+  sectorOrder: { industry: string; rs: number }[];
+}) {
+  // Latest NSE prices for every stock. In market hours, if they are not fresh, no prices are shown (never old ones).
+  const { file: liveFile, unavailable } = useLivePrices(asOf, initialLive);
+  const live = useMemo<Record<string, Px> | null>(
+    () => (unavailable ? null : liveFile ? Object.fromEntries(Object.entries(liveFile.q).map(([k, [last, pChange]]) => [k, { last, pChange }])) : {}),
+    [liveFile, unavailable],
   );
   const [phase, setPhase] = useState<PhaseFilter>("all");
   const counts = useMemo(() => {
@@ -291,9 +319,14 @@ export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: R
   };
   const sectors = useMemo(() => [...new Set(rows.map((r) => r.industry).filter((x): x is string => !!x))].sort(), [rows]);
 
+  // Sector position on the Sectors page (0 = strongest); unclassified stocks go last.
+  const sectorPos = useMemo(() => new Map(sectorOrder.map((x, i) => [x.industry, i])), [sectorOrder]);
+  const pos = (r: ScreenRow) => (r.industry ? (sectorPos.get(r.industry) ?? 999) : 1000);
+
   const shown = useMemo(() => {
     const needle = q.trim().toUpperCase();
-    const fn = SORTS.find((s) => s.key === sort)?.fn ?? SORTS[0]!.fn;
+    const base = SORTS.find((s) => s.key === sort)?.fn ?? SORTS[0]!.fn;
+    const fn = sort === "sector" ? (a: ScreenRow, b: ScreenRow) => pos(a) - pos(b) || b.score - a.score : base;
     return rows
       .filter(
         (r) =>
@@ -306,7 +339,23 @@ export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: R
           (!needle || r.symbol.includes(needle) || r.name.toUpperCase().includes(needle)),
       )
       .sort(fn);
-  }, [rows, tab, q, sector, sort, positive, starred, news, phase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pos depends only on sectorPos
+  }, [rows, tab, q, sector, sort, positive, starred, news, phase, sectorPos]);
+
+  // Sorting by sector: a heading above the first stock of each sector, with its rank on the Sectors page.
+  const heads = useMemo<Heads | null>(() => {
+    if (sort !== "sector") return null;
+    const m: Heads = new Map();
+    let prev: string | null | undefined;
+    for (const r of shown) {
+      if (r.industry === prev) continue;
+      prev = r.industry;
+      const k = r.industry ? sectorPos.get(r.industry) : undefined;
+      const sec = k !== undefined ? sectorOrder[k] : undefined;
+      m.set(r.isin, sec ? `${k! + 1}. ${sec.industry} · median RS ${sec.rs}` : "Sector not classified");
+    }
+    return m;
+  }, [shown, sort, sectorPos, sectorOrder]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -376,6 +425,12 @@ export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: R
                 {liveFile.marketOpen ? `prices ${liveLabel(liveFile).toLowerCase()}` : `prices as of ${liveLabel(liveFile).replace("NSE ", "")}`}
               </span>
             )}
+            {unavailable && (
+              <span role="alert" className="ml-2 inline-flex items-center gap-1.5 text-down">
+                <span className="h-1.5 w-1.5 rounded-full bg-down" aria-hidden="true" />
+                live prices unavailable, retrying
+              </span>
+            )}
           </span>
           <div className="flex items-center gap-4">
             <Toggle on={starred} set={setStarred} label="Starred only" />
@@ -386,11 +441,14 @@ export function ScreenerTable({ rows, news, asOf }: { rows: ScreenRow[]; news: R
           <>
             <ul className="divide-y divide-line md:hidden">
               {shown.map((r) => (
-                <MobileItem key={r.isin} r={r} n={news[r.symbol]} q={live[r.symbol]} />
+                <Fragment key={r.isin}>
+                  {heads?.get(r.isin) && <li className="bg-surface-2/60 px-4 py-2 text-xs font-medium text-ink-2">{heads.get(r.isin)}</li>}
+                  <MobileItem r={r} n={news[r.symbol]} q={live ? live[r.symbol] : null} />
+                </Fragment>
               ))}
             </ul>
             <div className="hidden md:block">
-              <DesktopTable rows={shown} news={news} live={live} />
+              <DesktopTable rows={shown} news={news} live={live} heads={heads} />
             </div>
           </>
         ) : (

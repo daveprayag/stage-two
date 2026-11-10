@@ -6,7 +6,7 @@ import { getTrack } from "@/lib/data";
 import { day } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Track record" };
-export const revalidate = 900;
+export const dynamic = "force-dynamic";
 
 const pct = (x: number | null) => (x === null ? "—" : `${Math.round(x * 100)}%`);
 

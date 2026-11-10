@@ -24,6 +24,8 @@ export const P = {
   eodState: "meta/eod.json",
   filingsState: "meta/filings.json",
   liveState: "meta/live.json",
+  /** The user's watchlist (written only with the WATCHLIST_KEY passcode). */
+  watchlist: "user/watchlist.json",
   sectors: "meta/sectors.json",
   track: "track/picks.json",
   live: "live/latest.json",

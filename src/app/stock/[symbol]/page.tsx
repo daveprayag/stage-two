@@ -7,17 +7,13 @@ import { AiSummary, Sources } from "@/components/NewsPanel";
 import { Card, CardHeader, Page } from "@/components/Page";
 import { PriceChart } from "@/components/PriceChart";
 import { LivePrice } from "@/components/LivePrice";
+import { WatchButton } from "@/components/WatchButton";
 import { isStar, marketNote, starChecks } from "@/engine/star";
 import { Checklists } from "@/components/Checklists";
 import { crore, day, price, titleCase } from "@/lib/format";
-import { getStock } from "@/lib/data";
+import { getQuote, getStock } from "@/lib/data";
 
-export const revalidate = 3600;
-
-/** Rendered on first visit, then cached for an hour (and refreshed after each nightly run). */
-export async function generateStaticParams() {
-  return [];
-}
+export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ symbol: string }> };
 
@@ -38,7 +34,7 @@ function Fact({ label, children, hint, note }: { label: string; children: React.
 
 export default async function StockPage({ params }: Props) {
   const symbol = decodeURIComponent((await params).symbol).toUpperCase();
-  const data = await getStock(symbol);
+  const [data, quote] = await Promise.all([getStock(symbol), getQuote(symbol)]);
   if (!data) notFound();
   const { detail: d, row: rowOrNull, market } = data;
   const row = rowOrNull ?? undefined;
@@ -71,8 +67,11 @@ export default async function StockPage({ params }: Props) {
               {d.industry ?? "Industry not classified"}
               {d.band !== null ? ` · ${d.band}% price band` : ""}
             </p>
+            <div className="mt-3">
+              <WatchButton symbol={d.symbol} />
+            </div>
           </div>
-          <LivePrice symbol={d.symbol} close={last.close} chg={chg} date={last.time} />
+          <LivePrice symbol={d.symbol} close={last.close} chg={chg} date={last.time} initial={quote} />
         </div>
         {row && (
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-2">
@@ -105,7 +104,7 @@ export default async function StockPage({ params }: Props) {
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <div className="flex min-w-0 flex-col gap-6">
           <Card className="p-4 sm:p-5">
-            <PriceChart d={d} />
+            <PriceChart d={d} initialQuote={quote} />
             <p className="mt-4 text-xs leading-relaxed text-ink-3">
               Red line: resistance, the nearest price above where the stock turned down before (a close above it is a breakout). Green line: support, the nearest price below where it bounced before. &quot;2 touches&quot; = it turned there twice; more touches, stronger level. Trendlines: sloped lines through rising lows or falling highs, off by default.
             </p>

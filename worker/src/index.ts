@@ -9,18 +9,22 @@
  *   /api/screen  /api/stock/:symbol  /api/live  /api/live/:symbol  /api/track  /api/runs
  *   /api/run/:job  (eod | news | filings | live) — manual trigger; the jobs throttle themselves
  *   /api/run/eod?rebuild=1 — rebuild the screen from stored prices (new sector labels), then refresh news
+ *   /api/watchlist  GET (public) · POST {symbol} · DELETE /api/watchlist/:symbol · GET /api/watchlist/check
+ *                   writes need the x-watch-key header to equal the WATCHLIST_KEY secret
  * Data lives in the R2 bucket bound as DATA (see src/engine/storage.ts P for the keys).
  */
 import { stockDetail } from "../../src/engine/detail";
 import { enrich, type EnrichCacheFile } from "../../src/engine/enrich";
 import { fetchHeadlines } from "../../src/engine/news";
-import { fetchQuote, marketOpen, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile } from "../../src/engine/jobs";
-import { isStar, marketNote, starChecks } from "../../src/engine/star";
+import { fetchQuote, istNow, marketOpen, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile } from "../../src/engine/jobs";
+import { liveIsFresh } from "../../src/engine/clock";
+import { isStar, marketNote, starChecks, starCount } from "../../src/engine/star";
 import { P, type Storage } from "../../src/engine/storage";
 import { readStocks, type StoreHeadFile } from "../../src/engine/storefile";
 import { isTopSetup, topSetupChecks } from "../../src/engine/topsetup";
 import { closesLookup, trackPerformance, type TrackEntry } from "../../src/engine/track";
 import type { Filing, RunRecord, ScreenFile, ScreenRow } from "../../src/engine/types";
+import { addItem, historyFor, removeItem, watchRow, watchSummary, type WatchFile, type WatchHistory, type WatchItem } from "../../src/engine/watchlist";
 
 interface R2ObjectBody {
   body: ReadableStream<Uint8Array>;
@@ -38,6 +42,8 @@ interface Env {
   GEMINI_API_KEY?: string;
   /** Optional comma-separated model fallbacks. */
   GEMINI_MODEL?: string;
+  /** Secret: the passcode for changing the watchlist. Without it the watchlist is read-only. */
+  WATCHLIST_KEY?: string;
 }
 interface Ctx {
   waitUntil(p: Promise<unknown>): void;
@@ -115,12 +121,16 @@ async function daytime(env: Env, scheduledTime: number, source: string): Promise
 /** Must match the weekday cron in wrangler.jsonc. */
 const DAYTIME_CRON = "* 3-10 * * 1-5";
 
-const CORS = { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, OPTIONS" };
+const CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+  "access-control-allow-headers": "content-type, x-watch-key",
+};
 
 function json(value: unknown, maxAge = 60, status = 200): Response {
   return new Response(JSON.stringify(value), {
     status,
-    headers: { "content-type": "application/json", "cache-control": `public, max-age=${maxAge}`, ...CORS },
+    headers: { "content-type": "application/json", "cache-control": maxAge > 0 ? `public, max-age=${maxAge}` : "no-store", ...CORS },
   });
 }
 
@@ -170,6 +180,125 @@ async function stockApi(env: Env, symbol: string): Promise<Response> {
   );
 }
 
+// ---------- Watchlist ----------
+
+const EMPTY_WATCH: WatchFile = { version: 1, items: [] };
+
+/** Constant-time comparison of the passcode header with the secret. */
+function authed(req: Request, env: Env): boolean {
+  const want = env.WATCHLIST_KEY ?? "";
+  const got = req.headers.get("x-watch-key") ?? "";
+  if (!want || got.length !== want.length) return false;
+  let d = 0;
+  for (let i = 0; i < want.length; i++) d |= want.charCodeAt(i) ^ got.charCodeAt(i);
+  return d === 0;
+}
+
+async function denied(env: Env): Promise<Response> {
+  if (!env.WATCHLIST_KEY) return json({ error: "The watchlist passcode is not set up yet (WATCHLIST_KEY secret)." }, 0, 503);
+  await new Promise((r) => setTimeout(r, 400)); // slow down guessing
+  return json({ error: "Wrong passcode." }, 0, 401);
+}
+
+/** Daily highs/lows since each item was added: one pass over the price store, edge-cached per session and list. */
+async function watchHistories(st: R2Storage, ctx: Ctx, head: StoreHeadFile, items: WatchItem[]): Promise<Record<string, WatchHistory>> {
+  const sig = items.map((i) => `${i.isin}@${i.session}`).sort().join(",");
+  const cache = (caches as unknown as { default: Cache }).default;
+  const key = new Request(`https://cache.internal/watch-history?v=${encodeURIComponent(`${head.asOf}|${sig}`)}`);
+  const hit = await cache.match(key);
+  if (hit) return (await hit.json()) as Record<string, WatchHistory>;
+  const want = new Map(items.map((i) => [i.isin, i]));
+  const out: Record<string, WatchHistory> = {};
+  const body = await st.get(P.stocks);
+  if (!body) throw new Error("no price store");
+  for await (const s of readStocks(body)) {
+    const it = want.get(s.isin);
+    if (!it) continue;
+    out[s.isin] = historyFor(it.session, head.dates, s);
+    if (Object.keys(out).length === want.size) break;
+  }
+  ctx.waitUntil(cache.put(key, new Response(JSON.stringify(out), { headers: { "cache-control": "public, max-age=86400" } })));
+  return out;
+}
+
+async function watchlistGet(env: Env, ctx: Ctx): Promise<Response> {
+  const st = new R2Storage(env.DATA);
+  const [file, head, screen, rows, live] = await Promise.all([
+    st.getJson<WatchFile>(P.watchlist), st.getJson<StoreHeadFile>(P.head), st.getJson<ScreenFile>(P.screen),
+    st.getJson<ScreenRow[]>(P.rows), st.getJson<LiveFile>(P.live),
+  ]);
+  if (!head || !screen) return json({ error: "no data" }, 0, 503);
+  const items = (file ?? EMPTY_WATCH).items;
+  const fresh = liveIsFresh(live, head.asOf);
+  const hist = items.length ? await watchHistories(st, ctx, head, items) : {};
+  const niftyClose = [...(head.indices["NIFTY 500"] ?? [])].reverse().find((x) => x !== null) ?? null;
+  const niftyNow = fresh ? (live?.indices["NIFTY 500"]?.last ?? niftyClose) : niftyClose;
+  const bySymbol = new Map((rows ?? []).map((r) => [r.symbol, r]));
+  const out = items.map((it) => {
+    const row = bySymbol.get(it.symbol);
+    const news = screen.news[it.symbol];
+    const q = fresh ? live?.q[it.symbol] : undefined;
+    return watchRow(
+      it,
+      hist[it.isin] ?? { sessions: 0, high: null, low: null, close: null },
+      { price: q ? q[0] : null, live: !!q },
+      niftyNow,
+      { starred: row ? isStar(row, news) : false, count: row?.tags.includes("momentum") ? starCount(row, news) : null },
+    );
+  });
+  return json({ asOf: head.asOf, liveAt: fresh ? live?.at ?? null : null, liveFresh: fresh, marketLive: fresh && !!live?.marketOpen, items: out, summary: watchSummary(out), canEdit: !!env.WATCHLIST_KEY }, 0);
+}
+
+async function watchlistAdd(req: Request, env: Env): Promise<Response> {
+  if (!authed(req, env)) return denied(env);
+  const body = (await req.json().catch(() => null)) as { symbol?: string } | null;
+  const symbol = (body?.symbol ?? "").trim().toUpperCase();
+  if (!/^[A-Z0-9&_-]{1,20}$/.test(symbol)) return json({ error: "Give an NSE symbol, e.g. RELIANCE." }, 0, 400);
+  const st = new R2Storage(env.DATA);
+  const [file, head, screen, rows, live, closes] = await Promise.all([
+    st.getJson<WatchFile>(P.watchlist), st.getJson<StoreHeadFile>(P.head), st.getJson<ScreenFile>(P.screen),
+    st.getJson<ScreenRow[]>(P.rows), st.getJson<LiveFile>(P.live), st.getJson<Record<string, [string, number]>>(P.closes),
+  ]);
+  if (!head || !screen || !closes) return json({ error: "no data" }, 0, 503);
+  const known = closes[symbol];
+  if (!known) return json({ error: `${symbol} is not an NSE equity we have prices for.` }, 0, 404);
+  const [isin, close] = known;
+  const row = (rows ?? []).find((r) => r.symbol === symbol) ?? null;
+  let name = row?.name ?? null;
+  if (!name) {
+    const stocks = await st.get(P.stocks);
+    if (stocks) for await (const s of readStocks(stocks)) if (s.isin === isin) { name = s.name; break; }
+  }
+  const fresh = liveIsFresh(live, head.asOf);
+  const q = fresh ? live?.q[symbol] : undefined;
+  const niftyClose = [...(head.indices["NIFTY 500"] ?? [])].reverse().find((x) => x !== null) ?? null;
+  const news = screen.news[symbol];
+  const item: WatchItem = {
+    symbol, isin, name: name ?? symbol,
+    addedAt: new Date().toISOString(),
+    session: head.asOf,
+    price: q ? q[0] : close,
+    nifty: fresh ? (live?.indices["NIFTY 500"]?.last ?? niftyClose) : niftyClose,
+    starred: row ? isStar(row, news) : false,
+    starCount: row?.tags.includes("momentum") ? starCount(row, news) : null,
+    momentum: !!row?.tags.includes("momentum"),
+    rs: row?.rs ?? null,
+    stage: row?.stage ?? null,
+    phase: row?.phase ?? null,
+  };
+  const next = addItem(file ?? EMPTY_WATCH, item);
+  await st.putJson(P.watchlist, next);
+  return json({ ok: true, item: next.items.find((x) => x.symbol === symbol) }, 0);
+}
+
+async function watchlistRemove(req: Request, env: Env, symbol: string): Promise<Response> {
+  if (!authed(req, env)) return denied(env);
+  const st = new R2Storage(env.DATA);
+  const file = (await st.getJson<WatchFile>(P.watchlist)) ?? EMPTY_WATCH;
+  await st.putJson(P.watchlist, removeItem(file, symbol.toUpperCase()));
+  return json({ ok: true }, 0);
+}
+
 async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
   const url = new URL(req.url);
   const parts = url.pathname.split("/").filter(Boolean); // ["api", ...]
@@ -177,6 +306,18 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
   const route = parts[1] ?? "";
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   switch (route) {
+    case "watchlist": {
+      const sub = parts[2] ? decodeURIComponent(parts[2]) : "";
+      if (req.method === "GET" && sub === "check") return authed(req, env) ? json({ ok: true }, 0) : denied(env);
+      if (req.method === "GET" && sub === "symbols") {
+        const f = await st.getJson<WatchFile>(P.watchlist);
+        return json({ symbols: (f ?? EMPTY_WATCH).items.map((i) => i.symbol), canEdit: !!env.WATCHLIST_KEY }, 0);
+      }
+      if (req.method === "GET" && !sub) return watchlistGet(env, ctx);
+      if (req.method === "POST" && !sub) return watchlistAdd(req, env);
+      if (req.method === "DELETE" && sub) return watchlistRemove(req, env, sub);
+      return json({ error: "not found" }, 0, 404);
+    }
     case "health":
       return json({ ok: true, marketOpen: marketOpen(), news: env.GEMINI_API_KEY ? "worker" : "vercel fallback" }, 0);
     case "screen":
@@ -195,7 +336,8 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
       const bucket = Math.floor(Date.now() / (open ? 30_000 : 600_000));
       return cached(req, ctx, String(bucket), async () => {
         const q = await fetchQuote(symbol).catch(() => null);
-        return json({ marketOpen: open, quote: q }, open ? 30 : 600);
+        // Trading now only if NSE's quote is from today (holidays look open by the clock).
+        return json({ marketOpen: open && q?.date === istNow().date, quote: q }, open ? 30 : 600);
       });
     }
     case "track": {

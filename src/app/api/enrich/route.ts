@@ -16,7 +16,7 @@ export const maxDuration = 300;
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as { asOf?: string; items?: EnrichItem[] } | null;
   if (!body?.asOf || !Array.isArray(body.items)) return NextResponse.json({ error: "asOf and items required" }, { status: 400 });
-  const screen = await engine<ScreenFile>("/api/screen", 0);
+  const screen = await engine<ScreenFile>("/api/screen");
   if (!screen || screen.asOf !== body.asOf) return NextResponse.json({ error: "asOf is not the current session" }, { status: 409 });
   const allowed = new Set([...newsShortlist(screen.rows).map((r) => r.symbol), ...Object.keys(screen.news ?? {})]);
   const items = body.items.filter((i) => allowed.has(i.symbol)).slice(0, 60);

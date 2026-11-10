@@ -6,7 +6,7 @@ import {
 } from "lightweight-charts";
 import { ArrowUpRight } from "lucide-react";
 import type { StockDetail } from "@/engine/detail";
-import { useLiveQuote } from "./live";
+import { useLiveQuote, type LiveState } from "./live";
 
 /** TradingView chart for an NSE symbol (TradingView writes "&" and "-" as "_": M&M → NSE:M_M, BAJAJ-AUTO → NSE:BAJAJ_AUTO). */
 export function tradingViewUrl(symbol: string): string {
@@ -31,12 +31,12 @@ function alpha(hex: string, a: number): string {
   return m ? `rgba(${parseInt(m[1] as string, 16)},${parseInt(m[2] as string, 16)},${parseInt(m[3] as string, 16)},${a})` : hex;
 }
 
-export function PriceChart({ d }: { d: StockDetail }) {
+export function PriceChart({ d, initialQuote }: { d: StockDetail; initialQuote: LiveState | null }) {
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const { quote } = useLiveQuote(d.symbol);
+  const { quote } = useLiveQuote(d.symbol, initialQuote);
   const [on, setOn] = useState<Record<Overlay, boolean>>({ ma50: true, ma150: false, ma200: true, levels: true, trend: false });
   const [range, setRange] = useState(126);
   const [theme, setTheme] = useState(0);

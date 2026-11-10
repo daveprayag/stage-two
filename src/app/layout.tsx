@@ -4,7 +4,6 @@ import "./globals.css";
 import { Header } from "@/components/Header";
 import { BottomNav } from "@/components/NavLinks";
 import { themeScript } from "@/components/ThemeToggle";
-import { getScreen } from "@/lib/data";
 
 const geist = Geist({ variable: "--font-geist", subsets: ["latin"], display: "swap" });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"], display: "swap" });
@@ -23,15 +22,14 @@ export const viewport: Viewport = {
   ],
 };
 
-export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const screen = await getScreen().catch(() => null);
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning className={`${geist.variable} ${geistMono.variable} ${instrument.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="flex min-h-dvh flex-col pb-[calc(4.25rem+env(safe-area-inset-bottom))] font-sans antialiased md:pb-0">
-        <Header asOf={screen?.asOf ?? null} />
+        <Header />
         <main className="flex-1">{children}</main>
         <footer className="border-t border-line">
           <div className="mx-auto flex max-w-7xl flex-col gap-1.5 px-4 py-6 text-xs leading-relaxed text-ink-3 sm:px-6 md:flex-row md:justify-between lg:px-8">

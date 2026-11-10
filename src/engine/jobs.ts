@@ -21,32 +21,15 @@ import { readStocks, StocksWriter, type StoreHeadFile } from "./storefile";
 import { picksFor, upsertEntry, type TrackEntry } from "./track";
 import type { Filing, Headline, ISODate, NewsBundle, NewsVerdict, RunRecord, ScreenFile, ScreenRow } from "./types";
 import { SessionsUpdater, WINDOW, type SessionInput } from "./update";
+import { istNow, liveWindow, marketOpen } from "./clock";
+
+export { istNow, liveWindow, marketOpen };
 
 
-const IST_OFFSET_MS = 5.5 * 3600_000;
 const MIN_EOD_GAP_MS = 5 * 60_000;
 const MIN_FILINGS_GAP_MS = 20 * 60_000;
 const MIN_LIVE_GAP_MS = 45_000;
 const LABELS_PER_RUN = 30;
-
-export function istNow(now = Date.now()): { date: ISODate; hour: number; minute: number; weekday: number } {
-  const d = new Date(now + IST_OFFSET_MS);
-  return { date: d.toISOString().slice(0, 10), hour: d.getUTCHours(), minute: d.getUTCMinutes(), weekday: d.getUTCDay() };
-}
-
-/** NSE cash market hours, Monday–Friday 09:15–15:30 IST (holidays are not modelled: quotes simply do not change). */
-export function marketOpen(now = Date.now()): boolean {
-  const t = istNow(now);
-  const m = t.hour * 60 + t.minute;
-  return t.weekday >= 1 && t.weekday <= 5 && m >= 9 * 60 + 15 && m <= 15 * 60 + 30;
-}
-
-/** When the live job runs: market hours plus 15 minutes after the close, to catch the final prices. */
-export function liveWindow(now = Date.now()): boolean {
-  const t = istNow(now);
-  const m = t.hour * 60 + t.minute;
-  return t.weekday >= 1 && t.weekday <= 5 && m >= 9 * 60 + 15 && m <= 15 * 60 + 45;
-}
 
 export function addDays(d: ISODate, n: number): ISODate {
   const t = new Date(`${d}T00:00:00Z`);
@@ -431,7 +414,9 @@ export async function runLive(st: Storage, opts: JobOptions = {}): Promise<RunRe
     const q: LiveFile["q"] = {};
     for (const r of traded.rows) if (known[r.symbol] && (r.series === "EQ" || r.series === "BE")) q[r.symbol] = [r.last, r.pChange, r.volume];
     const time = traded.time || idx.time;
-    await st.putJson(P.live, { at: startedAt, marketOpen: marketOpen(), time, date: parseNseDate(time), indices: idx.indices, q } satisfies LiveFile);
+    const date = parseNseDate(time);
+    // "Open" only if NSE's data is from today: on a trading holiday the clock says open but prices are the last close.
+    await st.putJson(P.live, { at: startedAt, marketOpen: marketOpen() && date === istNow().date, time, date, indices: idx.indices, q } satisfies LiveFile);
     // skipped: true keeps these every-minute runs out of the run history; the Runs page shows meta/live.json.
     return finish(st, { ...base, ok: true, skipped: true, detail: `${Object.keys(q).length} stocks, ${Object.keys(idx.indices).length} indices at ${time}`, log });
   } catch (e) {

@@ -1,15 +1,19 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, History, LayoutGrid, ListFilter, TrendingUp } from "lucide-react";
+import { BookOpen, Eye, History, LayoutGrid, ListFilter, TrendingUp } from "lucide-react";
 
 const LINKS = [
   { href: "/", label: "Screener", icon: ListFilter },
   { href: "/sectors", label: "Sectors", icon: LayoutGrid },
+  { href: "/watchlist", label: "Watchlist", icon: Eye },
   { href: "/track", label: "Track", icon: TrendingUp },
   { href: "/guide", label: "Guide", icon: BookOpen },
   { href: "/runs", label: "Runs", icon: History },
 ];
+
+/** Phones fit five tabs; Runs stays reachable from the session date in the header. */
+const PHONE_LINKS = LINKS.filter((l) => l.href !== "/runs");
 
 function useActive() {
   const path = usePathname();
@@ -41,7 +45,7 @@ export function BottomNav() {
   return (
     <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
       <div className="mx-auto grid max-w-lg grid-cols-5">
-        {LINKS.map(({ href, label, icon: Icon }) => {
+        {PHONE_LINKS.map(({ href, label, icon: Icon }) => {
           const on = active(href);
           return (
             <Link key={href} href={href} aria-current={on ? "page" : undefined} className={`flex flex-col items-center gap-1 py-2.5 text-[11px] ${on ? "text-ink" : "text-ink-3"}`}>

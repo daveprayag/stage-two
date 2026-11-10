@@ -6,7 +6,7 @@ import { getScreen } from "@/lib/data";
 import type { SectorRow } from "@/engine/types";
 
 export const metadata: Metadata = { title: "Sectors" };
-export const revalidate = 900;
+export const dynamic = "force-dynamic";
 
 function Leaders({ s }: { s: SectorRow }) {
   return (

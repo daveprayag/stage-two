@@ -2,19 +2,12 @@ import { MarketStrip } from "@/components/MarketStrip";
 import { Page, PageTitle } from "@/components/Page";
 import { ScreenerTable } from "@/components/ScreenerTable";
 import { day, istTime } from "@/lib/format";
-import { getScreen } from "@/lib/data";
+import { getLive, getScreen } from "@/lib/data";
 
-export const revalidate = 900;
+export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const screen = await getScreen();
-  if (!screen) {
-    return (
-      <Page>
-        <p className="py-20 text-center text-ink-2">No screen yet. The first nightly run will create it.</p>
-      </Page>
-    );
-  }
+  const [screen, live] = await Promise.all([getScreen(), getLive()]);
   return (
     <Page>
       <PageTitle title="Momentum screener">
@@ -24,8 +17,8 @@ export default async function Home() {
           {screen.newsAt ? ` · News ${istTime(screen.newsAt)}` : " · News pending"}
         </p>
       </PageTitle>
-      {screen.market && <MarketStrip m={screen.market} asOf={screen.asOf} />}
-      <ScreenerTable rows={screen.rows} news={screen.news} asOf={screen.asOf} />
+      {screen.market && <MarketStrip m={screen.market} asOf={screen.asOf} initialLive={live} />}
+      <ScreenerTable rows={screen.rows} news={screen.news} asOf={screen.asOf} initialLive={live} sectorOrder={screen.sectors.map((x) => ({ industry: x.industry, rs: x.rs }))} />
     </Page>
   );
 }
