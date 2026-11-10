@@ -3,8 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Check, X } from "lucide-react";
 import { Change, RsMeter } from "@/components/Badges";
-import { Bone } from "@/components/Skeleton";
-import { StockBodySkeleton, StockGlance, StockHeader } from "@/components/StockParts";
+import { StockGlance, StockHeader, StockLoading } from "@/components/StockParts";
 import { AiSummary, Sources } from "@/components/NewsPanel";
 import { Card, CardHeader, Page } from "@/components/Page";
 import { PriceChart } from "@/components/PriceChart";
@@ -124,28 +123,7 @@ export default async function StockPage({ params }: Props) {
   const symbol = decodeURIComponent((await params).symbol).toUpperCase();
   return (
     <Page>
-      <Suspense
-        fallback={
-          <>
-            <div className="flex flex-col gap-4">
-              <StockHeader
-                symbol={symbol}
-                stars={null}
-                name={<Bone className="mt-1 h-4 w-48" />}
-                industry={<Bone className="mt-1.5 h-3 w-32" />}
-                price={
-                  <div className="flex flex-col gap-2 sm:items-end">
-                    <Bone className="h-8 w-36" />
-                    <Bone className="h-4 w-28" />
-                  </div>
-                }
-              />
-              <StockGlance row={undefined} />
-            </div>
-            <StockBodySkeleton />
-          </>
-        }
-      >
+      <Suspense fallback={<StockLoading symbol={symbol} />}>
         <StockBody symbol={symbol} />
       </Suspense>
     </Page>

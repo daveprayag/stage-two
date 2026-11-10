@@ -249,3 +249,27 @@ function ResultsGlance({ row }: { row: ScreenRow }) {
   }
   return <Glance label="Results" value={<span className="text-ink-3">None due in the next 30 days</span>} note="From NSE's board-meeting calendar." />;
 }
+
+/** Header, glance strip and body with placeholders: the stock page while its data loads. */
+export function StockLoading({ symbol }: { symbol: string }) {
+  return (
+    <>
+      <div className="flex flex-col gap-4">
+        <StockHeader
+          symbol={symbol}
+          stars={null}
+          name={<Bone className="mt-1 h-4 w-48" />}
+          industry={<Bone className="mt-1.5 h-3 w-32" />}
+          price={
+            <div className="flex flex-col gap-2 sm:items-end">
+              <Bone className="h-8 w-36" />
+              <Bone className="h-4 w-28" />
+            </div>
+          }
+        />
+        <StockGlance row={undefined} />
+      </div>
+      <StockBodySkeleton />
+    </>
+  );
+}

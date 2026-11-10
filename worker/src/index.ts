@@ -141,6 +141,13 @@ function json(value: unknown, maxAge = 60, status = 200): Response {
   });
 }
 
+/** A stored JSON file streamed straight from R2. */
+function rawJson(body: ReadableStream<Uint8Array>, maxAge: number): Response {
+  return new Response(body, {
+    headers: { "content-type": "application/json", "cache-control": maxAge > 0 ? `public, max-age=${maxAge}` : "no-store", ...CORS },
+  });
+}
+
 /** Cache an expensive GET in Cloudflare's edge cache, keyed by the URL plus a version (the session date). */
 async function cached(req: Request, ctx: Ctx, version: string, make: () => Promise<Response>): Promise<Response> {
   const cache = (caches as unknown as { default: Cache }).default;
@@ -329,8 +336,11 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
     }
     case "health":
       return json({ ok: true, marketOpen: marketOpen(), news: env.GEMINI_API_KEY ? "worker" : "vercel fallback" }, 0);
-    case "screen":
-      return json((await st.getJson<ScreenFile>(P.screen)) ?? { error: "no screen" }, 60);
+    case "screen": {
+      // Stream the stored JSON as is: no parse and re-encode of ~0.5 MB on every request.
+      const body = await st.get(P.screen);
+      return body ? rawJson(body, 60) : json({ error: "no screen" }, 60);
+    }
     case "stock": {
       const symbol = decodeURIComponent(parts[2] ?? "").toUpperCase();
       if (!symbol) return json({ error: "symbol?" }, 60, 400);
@@ -339,7 +349,10 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
       return cached(req, ctx, `v3|${head?.asOf ?? ""}|${screen?.newsAt ?? ""}|${screen?.aiPicks?.at ?? ""}`, () => stockApi(env, symbol));
     }
     case "live": {
-      if (!parts[2]) return json((await st.getJson<LiveFile>(P.live)) ?? { at: "", marketOpen: marketOpen(), time: "", date: null, indices: {}, q: {} }, 20);
+      if (!parts[2]) {
+        const body = await st.get(P.live);
+        return body ? rawJson(body, 20) : json({ at: "", marketOpen: marketOpen(), time: "", date: null, indices: {}, q: {} }, 20);
+      }
       const symbol = decodeURIComponent(parts[2]).toUpperCase();
       const open = marketOpen();
       if (!liveWindow() || (await noTradingToday(st))) {
