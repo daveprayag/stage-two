@@ -16,7 +16,7 @@
 import { stockDetail } from "../../src/engine/detail";
 import { enrich, type EnrichCacheFile } from "../../src/engine/enrich";
 import { fetchHeadlines } from "../../src/engine/news";
-import { fetchQuote, istNow, liveWindow, marketOpen, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile } from "../../src/engine/jobs";
+import { fetchQuote, istNow, liveWindow, marketOpen, noTradingToday, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile } from "../../src/engine/jobs";
 import { liveIsFresh } from "../../src/engine/clock";
 import { isStar, marketNote, starChecks, starCount } from "../../src/engine/star";
 import { P, type Storage } from "../../src/engine/storage";
@@ -334,7 +334,7 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
       if (!parts[2]) return json((await st.getJson<LiveFile>(P.live)) ?? { at: "", marketOpen: marketOpen(), time: "", date: null, indices: {}, q: {} }, 20);
       const symbol = decodeURIComponent(parts[2]).toUpperCase();
       const open = marketOpen();
-      if (!liveWindow()) {
+      if (!liveWindow() || (await noTradingToday(st))) {
         // Market closed: one NSE request per stock per session, then the same quote from the edge cache until the next
         // session's live prices start (the key changes when the live file moves to a new date).
         const live = await st.getJson<LiveFile>(P.live);

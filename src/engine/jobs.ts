@@ -414,6 +414,17 @@ export async function fetchQuote(symbol: string): Promise<LiveQuote | null> {
   return raw ? parseQuote(symbol, JSON.parse(new TextDecoder().decode(raw))) : null;
 }
 
+/** On a trading holiday the clock says "open": after this, check NSE only every 15 minutes. */
+const HOLIDAY_GAP_MS = 15 * 60_000;
+
+/** After 09:30 IST, the last live prices are still from an earlier day: NSE is not trading today (a holiday). */
+export async function noTradingToday(st: Storage, now = Date.now()): Promise<boolean> {
+  const t = istNow(now);
+  if (t.hour * 60 + t.minute < 9 * 60 + 30) return false;
+  const live = await st.getJson<LiveFile>(P.live);
+  return !!live?.date && live.date < t.date;
+}
+
 export async function runLive(st: Storage, opts: JobOptions = {}): Promise<RunRecord> {
   const startedAt = new Date().toISOString();
   const base = { job: "live" as const, startedAt, ...(opts.source ? { source: opts.source } : {}) };
@@ -422,6 +433,9 @@ export async function runLive(st: Storage, opts: JobOptions = {}): Promise<RunRe
     const state = (await st.getJson<{ lastRun: string | null }>(P.liveState)) ?? { lastRun: null };
     if (!opts.force && ago(state.lastRun) < MIN_LIVE_GAP_MS) return finish(st, { ...base, ok: true, skipped: true, detail: "ran less than a minute ago", log });
     if (!opts.force && !opts.anyTime && !liveWindow()) return finish(st, { ...base, ok: true, skipped: true, detail: "market closed", log });
+    if (!opts.force && !opts.anyTime && ago(state.lastRun) < HOLIDAY_GAP_MS && (await noTradingToday(st))) {
+      return finish(st, { ...base, ok: true, skipped: true, detail: "no trading today (NSE's prices are still from an earlier day)", log });
+    }
     await st.putJson(P.liveState, { lastRun: startedAt });
     // Two requests cover every stock and index.
     const [tradedRaw, indicesRaw, closes] = await Promise.all([

@@ -184,7 +184,7 @@ function DesktopTable({ rows, news, live, heads, loading = false }: { rows: Scre
         <tr className="text-left">
           {COLUMNS.map((c) => (
             <th key={c.label} className={`${th} ${c.right ? "text-right" : ""}`}>
-              <span className={`inline-flex items-center gap-1 ${c.right ? "flex-row-reverse" : ""}`}>
+              <span className={`inline-flex items-center gap-1 whitespace-nowrap ${c.right ? "flex-row-reverse" : ""}`}>
                 {c.label}
                 <InfoTip label={c.label} align={c.right || c.label === "News" ? "right" : "left"}>
                   {c.info}
