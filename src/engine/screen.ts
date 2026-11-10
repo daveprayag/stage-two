@@ -20,8 +20,9 @@ import { detectAll, prepareInstrument } from "./core/setups/index";
 import { rsi } from "./core/systematic";
 import { technicalPass } from "./topsetup";
 import { basePivot, supportResistance } from "./levels";
+import { nextResults, resultsReaction } from "./results";
 import { compact, countRallies, findBase, findResume, maxIn, median, minIn, phaseOf, retPct, smaArr, stageAt, toBars } from "./series";
-import type { MarketSnapshot, PriceStore, ScreenFile, ScreenRow, ScreenTag, SectorRow, Stage, StockSeries } from "./types";
+import type { ISODate, MarketSnapshot, PriceStore, ScreenFile, ScreenRow, ScreenTag, SectorRow, Stage, StockSeries } from "./types";
 
 export const BENCHMARK = "NIFTY 500";
 
@@ -93,7 +94,8 @@ function momentumListAt(f: Features, i: number): boolean {
   );
 }
 
-export function analyseStock(store: StoreHead, s: StockSeries, bench: (number | null)[]): Work | null {
+/** results: this stock's quarterly results meeting dates, if known (see results.ts). */
+export function analyseStock(store: StoreHead, s: StockSeries, bench: (number | null)[], results?: ISODate[]): Work | null {
   if (s.series !== "EQ" || isFund(s.symbol, s.name)) return null;
   const cp = compact(store, s);
   const n = cp.close.length;
@@ -227,6 +229,8 @@ export function analyseStock(store: StoreHead, s: StockSeries, bench: (number | 
       baseDate: base ? (cp.dates[base.end] as string) : null,
       largestRallyPct: rallyCount.largestPct,
       phase: phaseOf(stage, rallyCount, base !== null),
+      resultsOn: nextResults(results, store.asOf),
+      resultsReaction: resultsReaction(results, cp),
     },
   };
 }

@@ -380,3 +380,30 @@ describe("star", () => {
     expect(isStar(r({ resume: { pivot: 100, pauseLow: 80, stopPct: 18, daysAgo: 0, rallyPct: 30, pauseBars: 8 }, rs: 85 }), good)).toBe(false);
   });
 });
+
+describe("results", async () => {
+  const { parseBoardMeetings, nextResults, resultsReaction, mergeResults } = await import("./results");
+  it("parses NSE board meetings, keeping results only", () => {
+    const m = parseBoardMeetings([
+      { bm_symbol: "aaa", bm_date: "07-Nov-2026", bm_purpose: "Financial Results", bm_desc: "" },
+      { bm_symbol: "AAA", bm_date: "12-Feb-2027", bm_purpose: "Board Meeting Intimation", bm_desc: "to approve the unaudited financial results" },
+      { bm_symbol: "BBB", bm_date: "08-Nov-2026", bm_purpose: "Fund Raising", bm_desc: "issue of NCDs" },
+    ]);
+    expect(m).toEqual({ AAA: ["2026-11-07", "2027-02-12"] });
+    expect(nextResults(m.AAA, "2026-11-06")).toBe("2026-11-07");
+    expect(nextResults(m.AAA, "2026-11-07")).toBeNull(); // Feb is more than 30 days out
+    expect(mergeResults({ AAA: ["2026-08-01", "2026-11-07"] }, { AAA: ["2026-11-07"], CCC: ["2026-11-20"] }, "2026-10-01")).toEqual({ AAA: ["2026-11-07"], CCC: ["2026-11-20"] });
+  });
+  it("finds the reaction on the higher-volume of the meeting day and the next session", () => {
+    const n = 60;
+    const dates = Array.from({ length: n }, (_, k) => new Date(Date.UTC(2026, 7, 1) + k * 86_400_000).toISOString().slice(0, 10));
+    const close = Array(n).fill(100), high = Array(n).fill(101), low = Array(n).fill(99), volume = Array(n).fill(1000);
+    // meeting on dates[55] after hours; the market answers on dates[56]: +8% on 4× volume, closing at the high
+    close[56] = 108; high[56] = 108; low[56] = 101; volume[56] = 4000;
+    close.fill(108, 57); high.fill(109, 57); low.fill(107, 57);
+    const r = resultsReaction([dates[55]!], { dates, high, low, close, volume });
+    expect(r).toMatchObject({ date: dates[56], kind: "breakout", sessionsAgo: 3 });
+    expect(r!.chg).toBeCloseTo(8);
+    expect(resultsReaction([dates[55]!], { dates, high, low, close, volume }, 2)).toBeNull(); // too long ago
+  });
+});

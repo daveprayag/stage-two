@@ -1,3 +1,4 @@
+import type { ResultsReaction } from "./results";
 /**
  * Data contracts for Stage Two. Everything is end-of-day NSE cash-equity data.
  *
@@ -125,6 +126,10 @@ export interface ScreenRow {
   sectorRank: number | null;
   /** Stage 2 only: early (in/just out of the base, or first rally), mid (second), late (third+, an 80%+ rally, or no base). */
   phase: "early" | "mid" | "late" | null;
+  /** Next quarterly results meeting within 30 days after the latest session (missing on rows built before 2026-11-10). */
+  resultsOn?: ISODate | null;
+  /** How it reacted to its latest results, if that was within the last 10 sessions. */
+  resultsReaction?: ResultsReaction | null;
   /** Ankur Patel's Chartink scans that fired today. */
   scans: string[];
   /** Ankur setup (livermore rule engine) that fired today, if any. */

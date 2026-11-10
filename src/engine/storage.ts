@@ -26,6 +26,8 @@ export const P = {
   liveState: "meta/live.json",
   /** The user's watchlist (written only with the WATCHLIST_KEY passcode). */
   watchlist: "user/watchlist.json",
+  /** Quarterly results meeting dates by symbol (NSE board meetings), last 30 days to 35 days ahead. */
+  results: "news/results.json",
   sectors: "meta/sectors.json",
   track: "track/picks.json",
   live: "live/latest.json",

@@ -11,7 +11,7 @@
  * All are idempotent and throttled; runs that did nothing are not written to the history.
  */
 import {
-  announcementsUrl, bhavcopyUrl, corpActionsUrl, indexCloseUrl, parseAnnouncements, parseBhavcopyZip, parseCorpActions,
+  announcementsUrl, bhavcopyUrl, corpActionsUrl, ddmmyyyy, indexCloseUrl, parseAnnouncements, parseBhavcopyZip, parseCorpActions,
   parseIndexClose, parseNseDate, parsePriceBands, parseQuote, parseSector, politeGet, politeHead, priceBandUrl, sectorUrl,
   ALL_INDICES_URL, parseAllIndices, parseStocksTraded, STOCKS_TRADED_URL, type CorpAction, type LiveIndex, type LiveQuote,
 } from "./nse";
@@ -22,6 +22,7 @@ import { picksFor, upsertEntry, type TrackEntry } from "./track";
 import type { Filing, Headline, ISODate, NewsBundle, NewsVerdict, RunRecord, ScreenFile, ScreenRow } from "./types";
 import { SessionsUpdater, WINDOW, type SessionInput } from "./update";
 import { istNow, liveWindow, marketOpen } from "./clock";
+import { BOARD_MEETINGS_URL, mergeResults, parseBoardMeetings, RESULTS_AHEAD_DAYS, RESULTS_BACK_DAYS, type ResultsFile } from "./results";
 
 export { istNow, liveWindow, marketOpen };
 
@@ -97,6 +98,27 @@ async function recordPicks(st: Storage, screen: ScreenFile, log: string[]): Prom
   const e = picksFor(screen);
   await st.putJson(P.track, upsertEntry(entries, e));
   log.push(`track record: ${Object.entries(e.lists).map(([k, v]) => `${k} ${v?.length ?? 0}`).join(", ")}`);
+}
+
+/**
+ * Results meeting dates from NSE's board-meetings list (one request: the last 30 days to 35 days ahead), merged into
+ * the stored file. On failure the stored dates are used; results are context, never a reason to stop the run.
+ */
+async function refreshResults(st: Storage, log: string[]): Promise<ResultsFile> {
+  const prev = await st.getJson<ResultsFile>(P.results);
+  const today = istNow().date;
+  const from = addDays(today, -RESULTS_BACK_DAYS);
+  try {
+    const raw = await politeGet(`${BOARD_MEETINGS_URL}&from_date=${ddmmyyyy(from, "-")}&to_date=${ddmmyyyy(addDays(today, RESULTS_AHEAD_DAYS), "-")}`, "application/json");
+    const fresh = raw ? parseBoardMeetings(JSON.parse(new TextDecoder().decode(raw))) : {};
+    const file: ResultsFile = { at: new Date().toISOString(), bySymbol: mergeResults(prev?.bySymbol, fresh, from) };
+    await st.putJson(P.results, file);
+    log.push(`results dates: ${Object.keys(fresh).length} stocks with results meetings ${from} → ${addDays(today, RESULTS_AHEAD_DAYS)}`);
+    return file;
+  } catch (e) {
+    log.push(`results dates unavailable (${String(e)}); using the stored ones`);
+    return prev ?? { at: "", bySymbol: {} };
+  }
 }
 
 /** Download what is needed to add the given days; days without a bhavcopy are skipped (holidays). */
@@ -177,6 +199,7 @@ export async function runEod(st: Storage, opts: JobOptions = {}): Promise<RunRec
     if (!sessions.length && !opts.force && !opts.rebuild) return finish(st, { ...base, ok: true, skipped: true, detail: "no new session", log });
 
     const sectors = (await st.getJson<Sectors>(P.sectors)) ?? {};
+    const results = (await refreshResults(st, log)).bySymbol;
     const old = await st.getBytes(P.stocks);
     if (!old) throw new Error("no prices/stocks.ndjson.gz in R2");
     const u = new SessionsUpdater(head, sessions, WINDOW, head.isins);
@@ -197,7 +220,7 @@ export async function runEod(st: Storage, opts: JobOptions = {}): Promise<RunRec
         }
       }
       if (s.series === "EQ" && sectors[s.symbol] === undefined) unlabelled.push(s.symbol);
-      const w = analyseStock(head, withSector(s, sectors), bench);
+      const w = analyseStock(head, withSector(s, sectors), bench, results[s.symbol]);
       if (w) work.push(w);
     };
     for await (const s of readStocks(new Blob([old as Uint8Array<ArrayBuffer>]).stream())) {

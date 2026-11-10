@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { ChevronDown, Search, Star } from "lucide-react";
 import type { NewsBundle, ScreenRow } from "@/engine/types";
 import { price, titleCase } from "@/lib/format";
-import { baseShort, Change, FirstLine, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
+import { baseShort, Change, FirstLine, ResultsBadge, resultsSoon, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
 import { isStar, starCount } from "@/engine/star";
 import { Select } from "./Select";
 import { Bone } from "./Skeleton";
@@ -80,6 +80,7 @@ function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: P
             <div className="flex items-center gap-1.5">
               <span className="truncate text-[15px] font-medium text-ink">{r.symbol}</span>
               {isStar(r, n) && <StarMark count={starCount(r, n)} />}
+              <ResultsBadge r={r} />
             </div>
             <div className="mt-0.5 truncate text-xs text-ink-3">{r.industry ?? titleCase(r.name)}</div>
           </div>
@@ -206,8 +207,9 @@ function DesktopTable({ rows, news, live, heads, loading = false }: { rows: Scre
               <td className={td}>
                 <Link href={href(r)} className="block after:absolute after:inset-0">
                   <span className="flex items-center gap-1.5">
-                    <span className="font-medium text-ink">{r.symbol}</span>
+                    <span className="truncate font-medium text-ink">{r.symbol}</span>
                     {isStar(r, n) && <StarMark count={starCount(r, n)} />}
+                    <ResultsBadge r={r} />
                   </span>
                   <span className="mt-0.5 block truncate text-xs text-ink-3">{r.industry ?? titleCase(r.name)}</span>
                 </Link>
@@ -347,6 +349,7 @@ export function ScreenerTable({
   const [sort, setSort] = useState<SortKey>("score");
   const [positive, setPositive] = useState(false);
   const [starred, setStarred] = useState(false);
+  const [noResults, setNoResults] = useState(false);
   // The open tab lives in the URL (?tab=setup) so a view can be shared or bookmarked.
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
@@ -386,11 +389,12 @@ export function ScreenerTable({
           (!sector || r.industry === sector) &&
           (!positive || news[r.symbol]?.ai?.sentiment === "positive") &&
           (!starred || isStar(r, news[r.symbol])) &&
+          (!noResults || !resultsSoon(r)) &&
           (!needle || r.symbol.includes(needle) || r.name.toUpperCase().includes(needle)),
       )
       .sort(fn);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pos depends only on sectorPos
-  }, [list, tab, q, sector, sort, positive, starred, news, phase, sectorPos]);
+  }, [list, tab, q, sector, sort, positive, starred, noResults, news, phase, sectorPos]);
 
   // Sorting by sector: a heading above the first stock of each sector, with its rank on the Sectors page.
   const heads = useMemo<Heads | null>(() => {
@@ -483,12 +487,16 @@ export function ScreenerTable({
               </span>
             )}
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Chip on={starred} set={setStarred}>
               <Star className="h-3 w-3" fill="currentColor" aria-hidden="true" /> Starred only
             </Chip>
             <Chip on={positive} set={setPositive}>
               <span className="h-1.5 w-1.5 rounded-full bg-up" aria-hidden="true" /> Positive news
+            </Chip>
+            <Chip on={noResults} set={setNoResults}>
+              <span className="hidden sm:inline">Hide results this week</span>
+              <span className="sm:hidden">No results soon</span>
             </Chip>
           </div>
         </div>

@@ -26,8 +26,17 @@ export function starChecks(r: ScreenRow, n: NewsBundle | undefined): Check[] {
     {
       key: "news",
       label: "Positive news, no red flags",
-      pass: !!ai && ai.sentiment === "positive" && ai.redFlags.length === 0,
-      value: !ai ? "No news summary" : ai.redFlags.length ? `Red flag: ${ai.redFlags[0]}` : `News ${ai.sentiment}`,
+      // A results-day breakdown counts as a red flag: such stocks kept lagging the index (livermore EXPERIMENTS
+      // "Results-day moves": median −5.6 points over 60 sessions).
+      pass: !!ai && ai.sentiment === "positive" && ai.redFlags.length === 0 && r.resultsReaction?.kind !== "breakdown",
+      value:
+        r.resultsReaction?.kind === "breakdown"
+          ? `Red flag: fell ${Math.abs(r.resultsReaction.chg).toFixed(1)}% on ${r.resultsReaction.volX.toFixed(1)}× volume after results`
+          : !ai
+            ? "No news summary"
+            : ai.redFlags.length
+              ? `Red flag: ${ai.redFlags[0]}`
+              : `News ${ai.sentiment}`,
     },
     {
       key: "resume",

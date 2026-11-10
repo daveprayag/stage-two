@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import type { ScreenRow, Stage } from "@/engine/types";
 import { day } from "@/lib/format";
-import { PhaseLabel, phaseDetail, SHOWN_TAGS, StageLabel, StarMark, TAG_LABEL } from "./Badges";
+import { daysUntil, PhaseLabel, phaseDetail, shortDay, SHOWN_TAGS, StageLabel, StarMark, TAG_LABEL } from "./Badges";
 import { Card } from "./Page";
 import { Bone } from "./Skeleton";
 import { WatchButton } from "./WatchButton";
@@ -76,11 +76,11 @@ function Glance({ label, value, note }: { label: string; value: React.ReactNode;
 /** Trend, phase and lists, each with what it means. row undefined = loading. */
 export function StockGlance({ row }: { row: ScreenRow | null | undefined }) {
   if (row === null) return null;
-  const grid = "grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3";
+  const grid = "grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4";
   if (row === undefined) {
     return (
       <dl className={grid} aria-hidden="true">
-        {["Trend", "Phase", "On lists"].map((l) => (
+        {["Trend", "Phase", "Results", "On lists"].map((l) => (
           <Glance key={l} label={l} value={<Bone className="mt-1 h-4 w-28" />} note={<Bone className="mt-1 h-3 w-48" />} />
         ))}
       </dl>
@@ -120,6 +120,7 @@ export function StockGlance({ row }: { row: ScreenRow | null | undefined }) {
         }
         note={row.phase ? `${PHASE_NOTE[row.phase]}.${left}` : "Phases are only counted in stage 2."}
       />
+      <ResultsGlance row={row} />
       <Glance
         label="On lists"
         value={
@@ -192,4 +193,51 @@ export function StockBodySkeleton() {
       </div>
     </>
   );
+}
+
+/** Next results date, or how the stock took its latest results. */
+function ResultsGlance({ row }: { row: ScreenRow }) {
+  const x = row.resultsReaction;
+  if (x) {
+    const word = x.kind === "breakout" ? "Broke out" : x.kind === "breakdown" ? "Broke down" : "Reported";
+    const tone = x.kind === "breakout" ? "text-up" : x.kind === "breakdown" ? "text-down" : "text-ink";
+    return (
+      <Glance
+        label="Results"
+        value={
+          <span>
+            <span className={tone}>{word}</span>
+            <span className="text-ink-2">
+              {" "}
+              · {shortDay(x.date)}, {x.chg > 0 ? "+" : ""}
+              {x.chg.toFixed(1)}% on {x.volX.toFixed(1)}× volume
+            </span>
+          </span>
+        }
+        note={
+          x.kind === "breakout"
+            ? "Up 5%+ on 3× volume with a strong close. In our tests these drifted up on average, but only about half beat the index."
+            : x.kind === "breakdown"
+              ? "Down 5%+ on 3× volume. In our tests these kept lagging the index; treated as a red flag for the star."
+              : "No strong reaction either way."
+        }
+      />
+    );
+  }
+  if (row.resultsOn) {
+    const n = daysUntil(row.resultsOn);
+    return (
+      <Glance
+        label="Results"
+        value={
+          <span className={n <= 7 ? "text-amber" : "text-ink"}>
+            Due {shortDay(row.resultsOn)}
+            <span className="text-ink-2"> · {n <= 0 ? "today" : n === 1 ? "tomorrow" : `in ${n} days`}</span>
+          </span>
+        }
+        note="Buying just before results is a coin toss with a big gap either way; many wait for the reaction."
+      />
+    );
+  }
+  return <Glance label="Results" value={<span className="text-ink-3">None due in the next 30 days</span>} note="From NSE's board-meeting calendar." />;
 }

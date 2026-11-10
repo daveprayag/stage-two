@@ -135,3 +135,47 @@ export function StarMark({ count, className = "h-3.5 w-3.5" }: { count: number; 
     </span>
   );
 }
+
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "2026-11-12" → "12 Nov". */
+export const shortDay = (d: string) => `${Number(d.slice(8, 10))} ${MON[Number(d.slice(5, 7)) - 1]}`;
+
+/** Calendar days from today (IST) to an ISO date. */
+export function daysUntil(d: string, now = Date.now()): number {
+  const today = new Date(now + 330 * 60_000).toISOString().slice(0, 10);
+  return Math.round((Date.parse(`${d}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+}
+
+/** Results due within 7 days → true. */
+export const resultsSoon = (r: { resultsOn?: string | null }, now = Date.now()) => !!r.resultsOn && daysUntil(r.resultsOn, now) <= 7 && daysUntil(r.resultsOn, now) >= 0;
+
+/**
+ * Small pill after a symbol: results due within a week (amber), or a strong reaction to the latest results within the
+ * last 10 sessions (green breakout / red breakdown). Nothing otherwise.
+ */
+export function ResultsBadge({ r }: { r: { resultsOn?: string | null; resultsReaction?: { kind: string; chg: number; volX: number; date: string } | null } }) {
+  const x = r.resultsReaction;
+  if (x && x.kind !== "neutral") {
+    const up = x.kind === "breakout";
+    return (
+      <span
+        title={`${up ? "Broke out" : "Broke down"} on results (${shortDay(x.date)}): ${x.chg > 0 ? "+" : ""}${x.chg.toFixed(1)}% on ${x.volX.toFixed(1)}× volume`}
+        className={`num shrink-0 rounded-full border px-1.5 py-px text-[10px] leading-4 ${up ? "border-up/40 text-up" : "border-down/40 text-down"}`}
+      >
+        Results {up ? "▲" : "▼"}
+      </span>
+    );
+  }
+  if (r.resultsOn && resultsSoon(r)) {
+    const n = daysUntil(r.resultsOn);
+    return (
+      <span
+        title={`Quarterly results due ${shortDay(r.resultsOn)}${n === 0 ? " (today)" : n === 1 ? " (tomorrow)" : ` (in ${n} days)`}: expect a big move either way`}
+        className="shrink-0 rounded-full border border-amber/50 px-1.5 py-px text-[10px] leading-4 text-amber"
+      >
+        Results {n === 0 ? "today" : shortDay(r.resultsOn)}
+      </span>
+    );
+  }
+  return null;
+}
