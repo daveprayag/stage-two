@@ -160,7 +160,7 @@ export function ResultsBadge({ r }: { r: { resultsOn?: string | null; resultsRea
     return (
       <span
         title={`${up ? "Broke out" : "Broke down"} on results (${shortDay(x.date)}): ${x.chg > 0 ? "+" : ""}${x.chg.toFixed(1)}% on ${x.volX.toFixed(1)}× volume`}
-        className={`num shrink-0 rounded-full border px-1.5 py-px text-[10px] leading-4 ${up ? "border-up/40 text-up" : "border-down/40 text-down"}`}
+        className={`shrink-0 rounded-full border px-1.5 py-px text-[10px] leading-4 ${up ? "border-up/40 text-up" : "border-down/40 text-down"}`}
       >
         Results {up ? "▲" : "▼"}
       </span>
