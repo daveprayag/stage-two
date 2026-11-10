@@ -8,6 +8,7 @@ import { baseShort, Change, FirstLine, ResultsBadge, resultsSoon, PhaseLabel, ph
 import { isStar, starCount } from "@/engine/star";
 import { Select } from "./Select";
 import { Bone } from "./Skeleton";
+import { InfoTip } from "./InfoTip";
 import type { LiveFile } from "@/engine/jobs";
 import { liveLabel, useLivePrices } from "./live";
 
@@ -151,6 +152,18 @@ function MobileSkeleton() {
 const th = "px-3 py-3 text-xs font-normal text-ink-3 first:pl-5 last:pr-5";
 const td = "px-3 py-3.5 first:pl-5 last:pr-5";
 
+/** Table columns, each with what it means (shown from the ⓘ next to its name). */
+const COLUMNS: { label: string; right?: boolean; info: string }[] = [
+  { label: "Stock", info: "NSE symbol and sector. ★ = a momentum leader passing at least 5 of the 6 star checks. Tags: amber “Results” = quarterly results due within a week; green ▲ / red ▼ = broke out / broke down on its latest results." },
+  { label: "Close", right: true, info: "Latest price. Live from NSE during market hours (refreshed every minute); outside them, the last price of the day. Below it, today’s change." },
+  { label: "RS", info: "Relative strength, 1–99: how the stock’s 3- to 12-month return ranks against every liquid NSE stock (latest quarter counts double). 90 = it beat 90% of them." },
+  { label: "Stage · phase", info: "Stage from the 150-day average: 1 basing, 2 uptrend, 3 topping, 4 downtrend. For stage 2, the phase: early = in or just out of its base, or the first rally; mid = second rally; late = third or later, or after an 80%+ run." },
+  { label: "From high", right: true, info: "How far below its 52-week high the stock closed. Leaders usually trade within 15–25% of their high." },
+  { label: "10d range", right: true, info: "High-to-low range of the last 10 sessions as a % of price. Small = quiet and tight (green at 8% or less)." },
+  { label: "Vol 5/50", right: true, info: "Average volume of the last 5 sessions ÷ the last 50. Below 1 = trading is drying up (green at 0.8 or less); above 1 = busier than usual." },
+  { label: "News", info: "AI summary of the latest NSE filings and headlines for the 60 strongest candidates. Dot: green positive, red negative, grey neutral." },
+];
+
 /** Sector heading shown above the first stock of each sector when sorting by sector. */
 type Heads = Map<string, string>;
 
@@ -169,14 +182,16 @@ function DesktopTable({ rows, news, live, heads, loading = false }: { rows: Scre
       </colgroup>
       <thead className="border-b border-line">
         <tr className="text-left">
-          <th className={th}>Stock</th>
-          <th className={`${th} text-right`}>Close</th>
-          <th className={th} title="Relative strength rating, 1–99">RS</th>
-          <th className={th} title="Stage, and for stage 2 how far into the uptrend: early (first rally), mid (second), late (third+ or an 80%+ rally)">Stage · phase</th>
-          <th className={`${th} text-right`} title="Distance below the 52-week high">From high</th>
-          <th className={`${th} text-right`} title="10-day high–low range as % of price">10d range</th>
-          <th className={`${th} text-right`} title="5-day vs 50-day average volume; below 1 means drying up">Vol 5/50</th>
-          <th className={th}>News</th>
+          {COLUMNS.map((c) => (
+            <th key={c.label} className={`${th} ${c.right ? "text-right" : ""}`}>
+              <span className={`inline-flex items-center gap-1 ${c.right ? "flex-row-reverse" : ""}`}>
+                {c.label}
+                <InfoTip label={c.label} align={c.right || c.label === "News" ? "right" : "left"}>
+                  {c.info}
+                </InfoTip>
+              </span>
+            </th>
+          ))}
         </tr>
       </thead>
       <tbody className="divide-y divide-line">

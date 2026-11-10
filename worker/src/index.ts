@@ -16,7 +16,7 @@
 import { stockDetail } from "../../src/engine/detail";
 import { enrich, type EnrichCacheFile } from "../../src/engine/enrich";
 import { fetchHeadlines } from "../../src/engine/news";
-import { fetchQuote, istNow, marketOpen, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile } from "../../src/engine/jobs";
+import { fetchQuote, istNow, liveWindow, marketOpen, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile } from "../../src/engine/jobs";
 import { liveIsFresh } from "../../src/engine/clock";
 import { isStar, marketNote, starChecks, starCount } from "../../src/engine/star";
 import { P, type Storage } from "../../src/engine/storage";
@@ -142,7 +142,8 @@ async function cached(req: Request, ctx: Ctx, version: string, make: () => Promi
   const hit = await cache.match(key);
   if (hit) return hit;
   const res = await make();
-  if (res.ok) ctx.waitUntil(cache.put(key, res.clone()));
+  // Failures (no-store) are not cached, so the next request tries again.
+  if (res.ok && !/no-store/.test(res.headers.get("cache-control") ?? "")) ctx.waitUntil(cache.put(key, res.clone()));
   return res;
 }
 
@@ -333,11 +334,20 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
       if (!parts[2]) return json((await st.getJson<LiveFile>(P.live)) ?? { at: "", marketOpen: marketOpen(), time: "", date: null, indices: {}, q: {} }, 20);
       const symbol = decodeURIComponent(parts[2]).toUpperCase();
       const open = marketOpen();
-      const bucket = Math.floor(Date.now() / (open ? 30_000 : 600_000));
+      if (!liveWindow()) {
+        // Market closed: one NSE request per stock per session, then the same quote from the edge cache until the next
+        // session's live prices start (the key changes when the live file moves to a new date).
+        const live = await st.getJson<LiveFile>(P.live);
+        return cached(req, ctx, `closed|${live?.date ?? istNow().date}`, async () => {
+          const q = await fetchQuote(symbol).catch(() => null);
+          return json({ marketOpen: false, quote: q }, q ? 86_400 : 0);
+        });
+      }
+      const bucket = Math.floor(Date.now() / 30_000);
       return cached(req, ctx, String(bucket), async () => {
         const q = await fetchQuote(symbol).catch(() => null);
         // Trading now only if NSE's quote is from today (holidays look open by the clock).
-        return json({ marketOpen: open && q?.date === istNow().date, quote: q }, open ? 30 : 600);
+        return json({ marketOpen: open && q?.date === istNow().date, quote: q }, q ? 30 : 0);
       });
     }
     case "track": {

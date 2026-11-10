@@ -66,3 +66,15 @@ describe("liveIsFresh", () => {
     expect(liveIsFresh(null, "2026-11-10", closed)).toBe(false);
   });
 });
+
+describe("msUntilLiveWindow", async () => {
+  const { msUntilLiveWindow } = await import("./clock");
+  it("waits until 09:15 IST on the next weekday", () => {
+    // Tue 10 Nov 2026 20:00 IST → Wed 09:15 IST = 13h15m
+    expect(msUntilLiveWindow(Date.parse("2026-11-10T14:30:00Z"))).toBe((13 * 60 + 15) * 60_000);
+    // Fri 13 Nov 16:00 IST → Mon 16 Nov 09:15 IST
+    expect(msUntilLiveWindow(Date.parse("2026-11-13T10:30:00Z"))).toBe(((2 * 24 + 17) * 60 + 15) * 60_000);
+    // Inside the window (Tue 11:00 IST)
+    expect(msUntilLiveWindow(Date.parse("2026-11-10T05:30:00Z"))).toBe(0);
+  });
+});

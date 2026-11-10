@@ -36,3 +36,16 @@ export function liveIsFresh(f: { at: string; date: string | null } | null | unde
   if (!marketOpen(now)) return true;
   return now - Date.parse(f.at) <= LIVE_MAX_AGE_MS;
 }
+
+/**
+ * Milliseconds until the next live-price window opens (09:15 IST on a weekday); 0 if it is open now. Holidays are not
+ * modelled: on one, the first poll finds nothing new and the next is a minute later.
+ */
+export function msUntilLiveWindow(now = Date.now()): number {
+  if (liveWindow(now)) return 0;
+  const t = new Date(now + IST_OFFSET_MS);
+  let at = Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), 9, 15) - IST_OFFSET_MS;
+  if (now >= at) at += 86_400_000;
+  while ([0, 6].includes(new Date(at + IST_OFFSET_MS).getUTCDay())) at += 86_400_000;
+  return at - now;
+}

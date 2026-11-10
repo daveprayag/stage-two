@@ -2,7 +2,16 @@
 import { useEffect, useState } from "react";
 import type { LiveFile } from "@/engine/jobs";
 import type { LiveQuote } from "@/engine/nse";
-import { liveIsFresh, LIVE_MAX_AGE_MS, marketOpen } from "@/engine/clock";
+import { liveIsFresh, LIVE_MAX_AGE_MS, marketOpen, msUntilLiveWindow } from "@/engine/clock";
+
+/**
+ * When to ask again: every `every` ms while NSE's live window is open (09:15–15:45 IST); outside it, not until it
+ * reopens (re-checked at least every 2 hours, since timers stall while a laptop sleeps). The last prices stay shown.
+ */
+function nextPoll(every: number): number {
+  const wait = msUntilLiveWindow();
+  return wait === 0 ? every : Math.min(wait + 5_000, 2 * 3600_000);
+}
 import { ENGINE_URL } from "@/lib/engine";
 
 export interface LiveState {
@@ -31,7 +40,7 @@ export function useLiveQuote(symbol: string, initial: LiveState | null = null): 
               setState(j);
               if (j.quote) setOkAt(Date.now());
             }
-            timer = setTimeout(load, j.marketOpen ? 30_000 : 10 * 60_000);
+            timer = setTimeout(load, nextPoll(30_000));
             return;
           }
         } catch {
@@ -82,7 +91,7 @@ async function pollLive(): Promise<void> {
     }
     for (const l of listeners) l(liveFile);
   }
-  liveTimer = listeners.size ? setTimeout(pollLive, marketOpen() ? 60_000 : 5 * 60_000) : undefined;
+  liveTimer = listeners.size ? setTimeout(pollLive, nextPoll(60_000)) : undefined;
 }
 
 export interface LivePrices {
