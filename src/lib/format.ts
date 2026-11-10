@@ -34,9 +34,10 @@ export function titleCase(name: string): string {
     .map((w, k) =>
       k > 0 && SMALL_WORDS.has(w) && w !== "co"
         ? w
-        : KEEP_UPPER.has(w.toUpperCase()) || (/^[a-z]{1,2}$/.test(w) && !SMALL_WORDS.has(w)) || (/^[^aeiou\W\d]{3,4}$/.test(w) && !NOT_ACRONYMS.has(w))
-        ? w.toUpperCase() // initials such as "MM", "JK", "SG"
+        : KEEP_UPPER.has(w.toUpperCase()) || /^([a-z]\.)+[a-z]?$/.test(w) || (/^[a-z]{1,2}$/.test(w) && !SMALL_WORDS.has(w)) || (/^[^aeiou\W\d]{3,4}$/.test(w) && !NOT_ACRONYMS.has(w))
+        ? w.toUpperCase() // initials such as "MM", "JK", "SG", "K.P."
         : w.replace(/^[a-z]/, (c) => c.toUpperCase()),
     )
-    .join("");
+    .join("")
+    .replace(/&[a-z]/g, (m) => m.toUpperCase()); // "L&T", "M&M"
 }

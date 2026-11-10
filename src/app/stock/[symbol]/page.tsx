@@ -19,7 +19,8 @@ type Props = { params: Promise<{ symbol: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { symbol } = await params;
-  return { title: decodeURIComponent(symbol).toUpperCase() };
+  const s = decodeURIComponent(symbol).toUpperCase();
+  return { title: s, description: `${s} on Stage Two: trend stage, relative strength, base, results and the news behind the move.` };
 }
 
 function Fact({ label, children, hint, note }: { label: string; children: React.ReactNode; hint?: string; note?: string }) {

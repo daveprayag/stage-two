@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Card, Page, PageTitle } from "@/components/Page";
 
-export const metadata: Metadata = { title: "Guide" };
+export const metadata: Metadata = { title: "Guide", description: "Stages, phases, relative strength and the star checks, in plain words." };
 
 function StagesDiagram() {
   // Schematic price path through the four stages, with its 30-week average lagging behind.

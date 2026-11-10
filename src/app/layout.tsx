@@ -9,9 +9,14 @@ const geist = Geist({ variable: "--font-geist", subsets: ["latin"], display: "sw
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"], display: "swap" });
 const instrument = Instrument_Serif({ variable: "--font-instrument", weight: "400", subsets: ["latin"], display: "swap" });
 
+const DESCRIPTION = "End-of-day momentum screener for NSE stocks: stage analysis, relative strength, bases, breakouts and the news behind each move.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL("https://stage-two-pd.vercel.app"),
   title: { default: "Stage Two", template: "%s · Stage Two" },
-  description: "End-of-day momentum screener for NSE stocks: stage analysis, relative strength, bases, breakouts and the news behind each move.",
+  description: DESCRIPTION,
+  openGraph: { siteName: "Stage Two", type: "website", locale: "en_IN" },
+  twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = {

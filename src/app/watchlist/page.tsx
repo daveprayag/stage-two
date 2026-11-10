@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Page, PageTitle } from "@/components/Page";
 import { WatchlistView } from "@/components/WatchlistView";
 
-export const metadata: Metadata = { title: "Watchlist" };
+export const metadata: Metadata = { title: "Watchlist", description: "Stocks worth following, and how each has moved since it was saved." };
 
 export default function WatchlistPage() {
   return (
