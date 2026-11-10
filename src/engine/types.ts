@@ -1,3 +1,4 @@
+import type { AiPicks } from "./aipicks";
 import type { ResultsReaction } from "./results";
 /**
  * Data contracts for Stage Two. Everything is end-of-day NSE cash-equity data.
@@ -207,6 +208,8 @@ export interface ScreenFile {
   /** News for the shortlisted symbols (filled by the news job). */
   news: Record<string, NewsBundle>;
   newsAt: string | null;
+  /** AI picks experiment (aipicks.ts): set by the news job once per session. */
+  aiPicks?: AiPicks | null;
 }
 
 export interface RunRecord {

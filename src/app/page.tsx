@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { AiPicksCard, AiPicksSkeleton } from "@/components/AiPicksCard";
 import { MarketStrip, MarketStripSkeleton } from "@/components/MarketStrip";
 import { Page, PageTitle } from "@/components/Page";
 import { ScreenerTable } from "@/components/ScreenerTable";
@@ -18,6 +19,7 @@ async function Screen() {
         {screen.newsAt ? ` · news ${istTime(screen.newsAt)}` : " · news pending"}
       </p>
       {screen.market && <MarketStrip m={screen.market} asOf={screen.asOf} initialLive={live} />}
+      <AiPicksCard picks={screen.aiPicks} rows={screen.rows} asOf={screen.asOf} />
       <ScreenerTable
         rows={screen.rows}
         news={screen.news}
@@ -34,6 +36,7 @@ function ScreenLoading() {
     <>
       <Bone className="-mt-4 h-3 w-72 max-w-full" />
       <MarketStripSkeleton />
+      <AiPicksSkeleton />
       <ScreenerTable rows={null} />
     </>
   );

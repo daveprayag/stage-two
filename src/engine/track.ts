@@ -13,6 +13,7 @@ export const TRACK_LISTS = [
   { key: "momentum", label: "Momentum leaders", shown: true },
   { key: "momentumEarly", label: "Momentum leaders, early phase", shown: true },
   { key: "resuming", label: "Resuming after a pause", shown: true },
+  { key: "ai", label: "AI picks (experiment)", shown: true },
   // Removed from the screener (2026-11-10) but still recorded, so the forward record can show whether that was right.
   { key: "top", label: "Top setups", shown: false },
   { key: "breakout", label: "Breaking out", shown: false },
@@ -43,6 +44,8 @@ const inList = (key: TrackListKey, r: ScreenRow, s: ScreenFile): boolean => {
       return isTopSetup(r, s.news[r.symbol]);
     case "star":
       return isStar(r, s.news[r.symbol]);
+    case "ai":
+      return s.aiPicks?.asOf === s.asOf && s.aiPicks.picks.some((p) => p.symbol === r.symbol);
     case "momentumEarly":
       return r.tags.includes("momentum") && r.phase === "early";
     default:

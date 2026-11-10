@@ -95,8 +95,11 @@ export async function fetchHeadlines(name: string, symbol: string): Promise<Head
   return google ? parseGoogleNews(google) : [];
 }
 
-/** Lite models answer a batch in ~10 s; the full flash model was overloaded (503s, minutes per call) when tested. */
-export const DEFAULT_GEMINI_MODELS = "gemini-flash-lite-latest,gemini-3.5-flash-lite,gemini-3.1-flash-lite";
+/**
+ * News summaries: many small requests a day, so the light models (free tier, stable, fixed versions rather than
+ * "-latest" aliases, which Google re-points on each release). Checked against Google's model and pricing pages 2026-11-10.
+ */
+export const DEFAULT_GEMINI_MODELS = "gemini-3.5-flash-lite,gemini-3.1-flash-lite";
 
 export interface GeminiConfig {
   apiKey: string;
@@ -147,41 +150,54 @@ const VERDICT_SCHEMA = {
   },
 };
 
-/** One Gemini call (REST, works in Node and Workers) for a batch of stocks → verdict per symbol (missing on failure). */
-export async function verdicts(items: VerdictInput[], cfg: GeminiConfig | null): Promise<Record<string, NewsVerdict>> {
-  if (!cfg?.apiKey || !items.length) return {};
+/**
+ * One structured-JSON request to the AI model (REST, works in Node and Workers), trying `models` in order: a busy or
+ * over-quota model (503/429/500, timeout) gets a second try, then the next model; an unknown model (404) moves on at once.
+ * Returns the JSON text and which model answered.
+ */
+export async function askModel(
+  prompt: string,
+  schema: unknown,
+  cfg: GeminiConfig,
+  opts: { models?: string; timeoutMs?: number; temperature?: number; attempts?: number; waitMs?: number } = {},
+): Promise<{ text: string; model: string; skipped: string[] }> {
   const body = JSON.stringify({
-    contents: [{ role: "user", parts: [{ text: promptFor(items) }] }],
-    generationConfig: { responseMimeType: "application/json", responseSchema: VERDICT_SCHEMA },
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: "application/json", responseSchema: schema, ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}) },
   });
   const request = async (model: string): Promise<string> => {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": cfg.apiKey },
       body,
-      signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? GEMINI_TIMEOUT_MS),
     });
     const text = await res.text();
-    if (!res.ok) throw new Error(`Gemini ${model} HTTP ${res.status}: ${text.slice(0, 200)}`);
+    if (!res.ok) throw new Error(`model ${model} HTTP ${res.status}: ${text.slice(0, 200)}`);
     const json = JSON.parse(text) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-    return json.candidates?.[0]?.content?.parts?.map((x) => x.text ?? "").join("") ?? "[]";
+    return json.candidates?.[0]?.content?.parts?.map((x) => x.text ?? "").join("") ?? "";
   };
-  let answer: string | null = null;
   let lastError: unknown = null;
-  // Busy models return 503: try each model twice, a few seconds apart.
-  outer: for (const model of (cfg.models || DEFAULT_GEMINI_MODELS).split(",").map((m) => m.trim()).filter(Boolean)) {
-    for (let attempt = 0; attempt < 2; attempt++) {
+  const skipped: string[] = [];
+  for (const model of (opts.models || cfg.models || DEFAULT_GEMINI_MODELS).split(",").map((m) => m.trim()).filter(Boolean)) {
+    for (let attempt = 0; attempt < (opts.attempts ?? 2); attempt++) {
       try {
-        answer = await request(model);
-        break outer;
+        return { text: await request(model), model, skipped };
       } catch (e) {
         lastError = e;
+        skipped.push(String(e instanceof Error ? e.message : e).slice(0, 160));
         if (!/\b(503|429|500)\b|overloaded|high demand|timeout|abort/i.test(String(e))) break;
-        await new Promise((r) => setTimeout(r, 3000));
+        await new Promise((r) => setTimeout(r, (opts.waitMs ?? 3000) * (attempt + 1)));
       }
     }
   }
-  if (answer === null) throw lastError ?? new Error("Gemini: no model answered");
+  throw lastError ?? new Error("AI: no model answered");
+}
+
+/** One AI request for a batch of stocks → verdict per symbol (missing on failure). */
+export async function verdicts(items: VerdictInput[], cfg: GeminiConfig | null): Promise<Record<string, NewsVerdict>> {
+  if (!cfg?.apiKey || !items.length) return {};
+  const answer = (await askModel(promptFor(items), VERDICT_SCHEMA, cfg)).text || "[]";
   const parsed = JSON.parse(answer) as (NewsVerdict & { symbol: string })[];
   const out: Record<string, NewsVerdict> = {};
   for (const v of parsed) {

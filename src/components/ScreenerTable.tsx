@@ -280,7 +280,7 @@ const TERMS: [string, string][] = [
   ["10d range", "Gap between the highest and lowest price of the last 10 sessions, as % of price. Small = quiet, tight."],
   ["Vol 5/50", "Average volume of the last 5 days ÷ last 50 days. Below 1 = volume drying up; well above 1 = heavy buying or selling."],
   ["\u2605 Star", "A momentum leader that passes at least 5 of the 6 checks from the Guide: momentum profile, early or mid phase, RS 90+, sector moving as a group (3+ strong stocks), positive news without red flags, and resuming after a pause with a stop within 12%. The stock page lists each check."],
-  ["News dot", "Green positive, red negative, grey neutral, from a Gemini summary of NSE filings and headlines."],
+  ["News dot", "Green positive, red negative, grey neutral, from an AI summary of NSE filings and headlines."],
 ];
 
 function Glossary() {

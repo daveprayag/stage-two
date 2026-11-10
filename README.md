@@ -65,7 +65,8 @@ Vercel:
 | --- | --- |
 | `BLOB_READ_WRITE_TOKEN` | Blob store for the enrich cache |
 | `GEMINI_API_KEY` | News summaries |
-| `GEMINI_MODEL` | Optional, comma-separated fallbacks (default `gemini-flash-lite-latest,gemini-3.5-flash-lite,gemini-3.1-flash-lite`) |
+| `GEMINI_MODEL` | Optional, comma-separated fallbacks for news summaries (default `gemini-3.5-flash-lite,gemini-3.1-flash-lite`) |
+| `AI_PICKS_MODEL` | Optional model order for the daily AI picks (default `gemini-3.6-flash,gemini-3.8-flash`; no light-model fallback, later evening runs retry) |
 | `NEXT_PUBLIC_ENGINE_URL` | Optional, Worker URL (default `https://stage-two-engine.prayagdave.workers.dev`) |
 
 Worker: `APP_URL` (in `wrangler.jsonc`), the R2 binding `DATA`, secret `GEMINI_API_KEY`

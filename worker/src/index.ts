@@ -16,7 +16,8 @@
 import { stockDetail } from "../../src/engine/detail";
 import { enrich, type EnrichCacheFile } from "../../src/engine/enrich";
 import { fetchHeadlines } from "../../src/engine/news";
-import { fetchQuote, istNow, liveWindow, marketOpen, noTradingToday, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile } from "../../src/engine/jobs";
+import { fetchQuote, istNow, liveWindow, marketOpen, noTradingToday, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile, type Picker } from "../../src/engine/jobs";
+import { AI_PICKS_MODELS, makeAiPicks } from "../../src/engine/aipicks";
 import { liveIsFresh } from "../../src/engine/clock";
 import { isStar, marketNote, starChecks, starCount } from "../../src/engine/star";
 import { P, type Storage } from "../../src/engine/storage";
@@ -42,6 +43,8 @@ interface Env {
   GEMINI_API_KEY?: string;
   /** Optional comma-separated model fallbacks. */
   GEMINI_MODEL?: string;
+  /** Optional model order for the daily AI picks. */
+  AI_PICKS_MODEL?: string;
   /** Secret: the passcode for changing the watchlist. Without it the watchlist is read-only. */
   WATCHLIST_KEY?: string;
 }
@@ -85,6 +88,10 @@ const enricher = (env: Env): Enricher => {
     })).news;
 };
 
+/** AI picks experiment (src/engine/aipicks.ts), only with an AI key. AI_PICKS_MODEL overrides the model order. */
+const picker = (env: Env): Picker | undefined =>
+  env.GEMINI_API_KEY ? (screen) => makeAiPicks(screen, { apiKey: env.GEMINI_API_KEY! }, env.AI_PICKS_MODEL || AI_PICKS_MODELS) : undefined;
+
 /** Fallback while the Worker has no Gemini key: the Vercel app does the same work. */
 const vercelEnricher = (env: Env): Enricher => async (asOf, items) => {
   const res = await fetch(`${env.APP_URL}/api/enrich`, {
@@ -101,7 +108,7 @@ async function evening(env: Env, source: string): Promise<string[]> {
   const out: string[] = [];
   const eod = await runEod(st, { source });
   out.push(`eod: ${eod.skipped ? "skipped, " : ""}${eod.detail}`);
-  const news = await runNews(st, enricher(env), { source });
+  const news = await runNews(st, enricher(env), { source, picker: picker(env) });
   out.push(`news: ${news.skipped ? "skipped, " : ""}${news.detail}`);
   return out;
 }
@@ -174,6 +181,7 @@ async function stockApi(env: Env, symbol: string): Promise<Response> {
   return json(
     {
       asOf: head.asOf, detail, row, news, headlines, filings: ann?.bySymbol[symbol] ?? [], market: screen?.market ?? null,
+      aiPick: screen?.aiPicks?.asOf === head.asOf ? (screen.aiPicks.picks.find((p) => p.symbol === symbol) ?? null) : null,
       star: row ? { checks: starChecks(row, news ?? undefined), starred: isStar(row, news ?? undefined), market: marketNote(screen?.market) } : null,
       top: row ? { checks: topSetupChecks(row, news ?? undefined), pass: isTopSetup(row, news ?? undefined) } : null,
     },
@@ -328,7 +336,7 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
       if (!symbol) return json({ error: "symbol?" }, 60, 400);
       const [head, screen] = await Promise.all([st.getJson<StoreHeadFile>(P.head), st.getJson<ScreenFile>(P.screen)]);
       // "v2": bump when the response shape changes, so old edge-cached copies are not served.
-      return cached(req, ctx, `v2|${head?.asOf ?? ""}|${screen?.newsAt ?? ""}`, () => stockApi(env, symbol));
+      return cached(req, ctx, `v3|${head?.asOf ?? ""}|${screen?.newsAt ?? ""}|${screen?.aiPicks?.at ?? ""}`, () => stockApi(env, symbol));
     }
     case "live": {
       if (!parts[2]) return json((await st.getJson<LiveFile>(P.live)) ?? { at: "", marketOpen: marketOpen(), time: "", date: null, indices: {}, q: {} }, 20);
@@ -366,11 +374,11 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
       const source = "manual";
       if (job === "eod" && url.searchParams.get("rebuild") === "1") {
         const eod = await runEod(st, { source, rebuild: true });
-        const news = eod.ok && !eod.skipped ? await runNews(st, enricher(env), { source }) : null;
+        const news = eod.ok && !eod.skipped ? await runNews(st, enricher(env), { source, picker: picker(env) }) : null;
         return json({ eod, news }, 0);
       }
       const rec =
-        job === "eod" ? await runEod(st, { source }) : job === "news" ? await runNews(st, enricher(env), { source })
+        job === "eod" ? await runEod(st, { source }) : job === "news" ? await runNews(st, enricher(env), { source, picker: picker(env), repick: url.searchParams.get("repick") === "1" })
           : job === "filings" ? await runFilings(st, enricher(env), { source }) : job === "live" ? await runLive(st, { source, anyTime: true }) : null;
       return rec ? json(rec, 0) : json({ error: "job must be eod, news, filings or live" }, 0, 400);
     }

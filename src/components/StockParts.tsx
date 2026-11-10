@@ -4,6 +4,7 @@
  */
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
+import type { AiPick } from "@/engine/aipicks";
 import type { ScreenRow, Stage } from "@/engine/types";
 import { day } from "@/lib/format";
 import { daysUntil, PhaseLabel, phaseDetail, shortDay, SHOWN_TAGS, StageLabel, StarMark, TAG_LABEL } from "./Badges";
@@ -74,7 +75,7 @@ function Glance({ label, value, note }: { label: string; value: React.ReactNode;
 }
 
 /** Trend, phase and lists, each with what it means. row undefined = loading. */
-export function StockGlance({ row }: { row: ScreenRow | null | undefined }) {
+export function StockGlance({ row, aiPick }: { row: ScreenRow | null | undefined; aiPick?: AiPick | null }) {
   if (row === null) return null;
   const grid = "grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4";
   if (row === undefined) {
@@ -124,19 +125,26 @@ export function StockGlance({ row }: { row: ScreenRow | null | undefined }) {
       <Glance
         label="On lists"
         value={
-          lists.length ? (
+          lists.length || aiPick ? (
             <span className="flex flex-wrap gap-1.5">
               {lists.map((t) => (
                 <span key={t} className="rounded-full border border-line px-2 py-0.5 text-xs text-ink-2">
                   {TAG_LABEL[t]}
                 </span>
               ))}
+              {aiPick && <span className="rounded-full border border-ink/40 px-2 py-0.5 text-xs text-ink">AI pick</span>}
             </span>
           ) : (
             <span className="text-ink-3">None today</span>
           )
         }
-        note={lists.length ? "The screener lists it's on after the last close" : "Not on Strongest, Momentum leaders or Resuming"}
+        note={
+          aiPick
+            ? `AI pick (experiment): ${aiPick.reason}`
+            : lists.length
+              ? "The screener lists it's on after the last close"
+              : "Not on Strongest, Momentum leaders or Resuming"
+        }
       />
     </dl>
   );

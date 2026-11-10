@@ -4,6 +4,7 @@ import type { DayPerformance, ListPerformance } from "@/engine/track";
 import type { Filing, Headline, MarketSnapshot, NewsBundle, RunRecord, ScreenFile, ScreenRow } from "@/engine/types";
 import type { LiveFile } from "@/engine/jobs";
 import type { LiveQuote } from "@/engine/nse";
+import type { AiPick } from "@/engine/aipicks";
 import { engine } from "./engine";
 
 /** Everything is computed and stored by the Cloudflare engine (worker/); the site only reads it. */
@@ -22,6 +23,8 @@ export interface StockData {
   news: NewsBundle | null;
   filings: Filing[];
   market: MarketSnapshot | null;
+  /** Set when today's AI picks (experiment) include this stock. */
+  aiPick?: AiPick | null;
 }
 export const getStock = (symbol: string) => engine<StockData>(`/api/stock/${encodeURIComponent(symbol)}`);
 

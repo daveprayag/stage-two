@@ -60,7 +60,7 @@ async function StockBody({ symbol }: { symbol: string }) {
           price={<LivePrice symbol={d.symbol} close={last.close} chg={chg} date={last.time} initial={quote} />}
         />
         {row ? (
-          <StockGlance row={row} />
+          <StockGlance row={row} aiPick={data.aiPick ?? null} />
         ) : (
           <p className="text-sm text-ink-3">Outside the liquid universe the screener ranks (under ₹2 Cr a day, ₹30 or less, or in a 2% / 5% band).</p>
         )}

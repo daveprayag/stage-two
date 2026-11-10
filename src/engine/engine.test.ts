@@ -407,3 +407,18 @@ describe("results", async () => {
     expect(resultsReaction([dates[55]!], { dates, high, low, close, volume }, 2)).toBeNull(); // too long ago
   });
 });
+
+describe("AI picks", async () => {
+  const { cleanPicks } = await import("./aipicks");
+  it("keeps only listed candidates, once each, at most five, confidence clamped to 1-5", () => {
+    const allowed = new Set(["A", "B", "C", "D", "E", "F"]);
+    const got = cleanPicks(
+      { picks: [{ symbol: "a", reason: "x", confidence: 9 }, { symbol: "A", reason: "dup", confidence: 3 }, { symbol: "ZZZ", reason: "not listed", confidence: 5 }, { symbol: "B", reason: "y", confidence: 0 }, { symbol: "C", reason: "", confidence: 4 }, { symbol: "D", reason: "", confidence: 4 }, { symbol: "E", reason: "", confidence: 4 }, { symbol: "F", reason: "", confidence: 4 }] },
+      allowed,
+    );
+    expect(got.map((p) => p.symbol)).toEqual(["A", "B", "C", "D", "E"]);
+    expect(got[0]!.confidence).toBe(5);
+    expect(got[1]!.confidence).toBe(1);
+    expect(cleanPicks(null, allowed)).toEqual([]);
+  });
+});

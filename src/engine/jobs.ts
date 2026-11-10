@@ -22,6 +22,7 @@ import { picksFor, upsertEntry, type TrackEntry } from "./track";
 import type { Filing, Headline, ISODate, NewsBundle, NewsVerdict, RunRecord, ScreenFile, ScreenRow } from "./types";
 import { SessionsUpdater, WINDOW, type SessionInput } from "./update";
 import { istNow, liveWindow, marketOpen } from "./clock";
+import type { AiPicks } from "./aipicks";
 import { BOARD_MEETINGS_URL, mergeResults, parseBoardMeetings, RESULTS_AHEAD_DAYS, RESULTS_BACK_DAYS, type ResultsFile } from "./results";
 
 export { istNow, liveWindow, marketOpen };
@@ -249,7 +250,7 @@ export async function runEod(st: Storage, opts: JobOptions = {}): Promise<RunRec
     // Carry the last news over until the news job replaces it (newsAt null makes it run), so a new session does not
     // briefly show no stars between the two jobs.
     const prev = await st.getJson<ScreenFile>(P.screen);
-    const screen: ScreenFile = { ...screenFromWork(head, ranked), news: prev?.news ?? {}, newsAt: null };
+    const screen: ScreenFile = { ...screenFromWork(head, ranked), news: prev?.news ?? {}, newsAt: null, aiPicks: prev?.aiPicks ?? null };
     await st.putJson(P.screen, screen);
     await st.putJson(P.screenOn(screen.asOf), screen);
     await st.putJson(P.rows, ranked.all);
@@ -315,14 +316,42 @@ const itemFor = (r: ScreenRow, filings: Filing[]): EnrichItem => ({
   chgPct: r.chgPct, ret1m: r.ret1m, pctFromHigh: r.pctFromHigh, stage: r.stage, breakout: r.breakout,
 });
 
-export async function runNews(st: Storage, enrich: Enricher, opts: JobOptions & { max?: number } = {}): Promise<RunRecord> {
+/** Makes the AI picks for a screen (the Worker supplies it when it has an AI key). */
+export type Picker = (screen: ScreenFile) => Promise<AiPicks | null>;
+
+/** AI picks once per session; failures are logged and leave the screen without picks. */
+async function addAiPicks(screen: ScreenFile, picker: Picker | undefined, log: string[], redo = false): Promise<boolean> {
+  if (!picker || (!redo && screen.aiPicks?.asOf === screen.asOf)) return false;
+  try {
+    const p = await picker(screen);
+    screen.aiPicks = p;
+    log.push(p ? `AI picks (${p.model}): ${p.picks.map((x) => x.symbol).join(", ")}` : "AI picks: no candidates");
+    for (const s of p?.skipped ?? []) log.push(`  passed over: ${s}`);
+  } catch (e) {
+    // Keep an earlier session's picks out; the next evening run tries again (aiPicks.asOf stays behind).
+    if (screen.aiPicks?.asOf !== screen.asOf) screen.aiPicks = null;
+    log.push(`AI picks not made this run (next run retries): ${String(e instanceof Error ? e.message : e).slice(0, 200)}`);
+  }
+  return true;
+}
+
+export async function runNews(st: Storage, enrich: Enricher, opts: JobOptions & { max?: number; picker?: Picker; repick?: boolean } = {}): Promise<RunRecord> {
   const startedAt = new Date().toISOString();
   const base = { job: "news" as const, startedAt, ...(opts.source ? { source: opts.source } : {}) };
   const log: string[] = [];
   try {
     const screen = await st.getJson<ScreenFile>(P.screen);
     if (!screen) throw new Error("no screen yet");
-    if (screen.newsAt && !opts.force) return finish(st, { ...base, ok: true, skipped: true, detail: `news already added for ${screen.asOf}`, log });
+    if (screen.newsAt && !opts.force) {
+      // News is in, but this session has no AI picks yet (e.g. the picker was added later): make just those.
+      if (await addAiPicks(screen, opts.picker, log, opts.repick)) {
+        await st.putJson(P.screen, screen);
+        await st.putJson(P.screenOn(screen.asOf), screen);
+        await recordPicks(st, screen, log);
+        return finish(st, { ...base, ok: true, detail: `AI picks for ${screen.asOf}`, log });
+      }
+      return finish(st, { ...base, ok: true, skipped: true, detail: `news already added for ${screen.asOf}`, log });
+    }
     const existing = await st.getJson<AnnouncementStore>(P.announcements);
     const back = existing && Object.keys(existing.bySymbol).length ? 3 : 21;
     const { ann } = await refreshFilings(st, addDays(screen.asOf, -back), screen.asOf, log);
@@ -340,6 +369,7 @@ export async function runNews(st: Storage, enrich: Enricher, opts: JobOptions & 
     if (latest.asOf !== screen.asOf) throw new Error(`screen changed to ${latest.asOf} while fetching news for ${screen.asOf}`);
     latest.news = news;
     latest.newsAt = new Date().toISOString();
+    await addAiPicks(latest, opts.picker, log);
     await st.putJson(P.screen, latest);
     await st.putJson(P.screenOn(latest.asOf), latest);
     await st.putJson(P.filingsState, { lastCheck: latest.newsAt });

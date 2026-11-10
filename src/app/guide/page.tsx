@@ -107,6 +107,12 @@ export default function GuidePage() {
           <li><strong className="text-ink">Resuming after a pause:</strong> rallied, paused, and moving again. Not a reason to buy on its own, but it gives a close, clear stop.</li>
         </ul>
         <p>
+          <strong className="text-ink">AI picks (experiment):</strong> each evening an AI model reads the Strongest and Momentum leaders lists, with their
+          news and results, and picks the 5 it judges most likely to beat the NIFTY 500 over three months, with a reason for each. It changes no list, check
+          or star. Its picks are tracked on the Track record page next to the lists; it stays only if it beats them over 3–6 months. An AI&apos;s past
+          knowledge can&apos;t be backtested fairly, so only that forward record counts.
+        </p>
+        <p>
           Earlier versions had more lists (Top setups, Breaking out, Tight near highs, New uptrends, Ankur&apos;s scans). They were dropped because, in our
           2021–26 tests, quiet tight charts and breakouts found big gainers no more often than a random stock, and in 2025–26 less often, and Ankur&apos;s
           rules lost money after costs in our backtests. Strength was what mattered. All but Ankur&apos;s scans are still recorded behind the scenes, so
@@ -150,7 +156,7 @@ export default function GuidePage() {
         </p>
         <p>
           Data: NSE&apos;s daily bhavcopy, index closes, price bands, corporate actions and filings, adjusted for splits and bonuses. Headlines come from Google
-          News; summaries are written by Gemini from those headlines and filings only.
+          News; summaries are written by an AI model from those headlines and filings only.
         </p>
         <p>
           How fresh it is: the lists are built from each day&apos;s closing prices, checked every 15 minutes from 5:30 pm IST until NSE publishes them. While

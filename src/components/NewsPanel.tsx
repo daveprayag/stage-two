@@ -40,7 +40,7 @@ export function AiSummary({ ai }: { ai: NewsVerdict | null }) {
             <p className="text-[15px] leading-relaxed text-ink">{ai.summary}</p>
             <Points title="Catalysts" items={ai.catalysts} tone="up" />
             <Points title="Red flags" items={ai.redFlags} tone="down" />
-            <p className="text-xs text-ink-3">Summarised by Gemini from the filings and headlines below. Check the sources.</p>
+            <p className="text-xs text-ink-3">Summarised by AI from the filings and headlines below. Check the sources.</p>
           </>
         ) : (
           <p className="text-sm leading-relaxed text-ink-2">The nightly news job summarises the top 60 stocks on the screener. This one isn&apos;t among them today; its filings and headlines are below.</p>
