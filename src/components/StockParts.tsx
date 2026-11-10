@@ -93,12 +93,16 @@ export function StockGlance({ row }: { row: ScreenRow | null | undefined }) {
       <Glance
         label="Trend"
         value={
-          <span className="inline-flex items-baseline gap-1.5">
-            <StageLabel stage={row.stage} />
-            {row.stage === 2 && row.stageAge !== null && row.stageAge !== undefined && (
-              <span className="text-ink-2">· {row.stageAge >= 120 ? "120+ days" : `${row.stageAge} ${row.stageAge === 1 ? "day" : "days"}`}</span>
-            )}
-          </span>
+          <StageLabel
+            stage={row.stage}
+            detail={
+              row.stage === 2 && row.stageAge !== null && row.stageAge !== undefined
+                ? row.stageAge >= 120
+                  ? "120+ days"
+                  : `${row.stageAge} ${row.stageAge === 1 ? "day" : "days"}`
+                : undefined
+            }
+          />
         }
         note={STAGE_NOTE[row.stage]}
       />

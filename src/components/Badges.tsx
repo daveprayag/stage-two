@@ -12,14 +12,18 @@ const STAGE: Record<Stage, { dot: string; text: string; title: string }> = {
 
 export const stageAge = (age: number | null | undefined) => (age === null || age === undefined ? "" : age >= 120 ? "120d+" : `${age}d`);
 
-/** "● Stage 2 · 8d" */
-export function StageLabel({ stage, age, className = "" }: { stage: Stage; age?: number | null; className?: string }) {
+/** "● Stage 2 · 8d", or with `detail` "● Stage 2 · 120+ days". */
+export function StageLabel({ stage, age, detail, className = "" }: { stage: Stage; age?: number | null; detail?: string; className?: string }) {
   const s = STAGE[stage];
   return (
     <span title={s.title} className={`inline-flex items-center gap-1.5 whitespace-nowrap ${className}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}`} />
       <span className={s.text}>Stage {stage}</span>
-      {stage === 2 && age !== null && age !== undefined && <span className="num text-ink-3">{stageAge(age)}</span>}
+      {detail ? (
+        <span className="text-ink-2">· {detail}</span>
+      ) : (
+        stage === 2 && age !== null && age !== undefined && <span className="num text-ink-3">{stageAge(age)}</span>
+      )}
     </span>
   );
 }

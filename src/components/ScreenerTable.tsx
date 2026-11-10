@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { ChevronDown, Search, Star } from "lucide-react";
 import type { NewsBundle, ScreenRow } from "@/engine/types";
 import { price, titleCase } from "@/lib/format";
-import { baseShort, Change, FirstLine, PhaseLabel, phaseDetail, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
+import { baseShort, Change, FirstLine, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
 import { isStar, starCount } from "@/engine/star";
 import { Select } from "./Select";
 import { Bone } from "./Skeleton";
@@ -224,9 +224,9 @@ function DesktopTable({ rows, news, live, heads, loading = false }: { rows: Scre
               <td className={`${td} text-xs`}>
                 <StageLabel stage={r.stage} />
                 {r.phase && (
-                  <span className="mt-1 block whitespace-nowrap">
+                  <span className="mt-1 block truncate" title={phaseDetail(r)}>
                     <PhaseLabel phase={r.phase} stage={r.stage} />
-                    <span className="text-ink-3"> · {phaseDetail(r).replace(" above base", "")}</span>
+                    {phaseNote(r) && <span className="text-ink-3"> · {phaseNote(r)}</span>}
                   </span>
                 )}
               </td>
