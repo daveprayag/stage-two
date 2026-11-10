@@ -34,8 +34,14 @@ export const LIVE_MAX_AGE_MS = 3 * 60_000;
 export function liveIsFresh(f: { at: string; date: string | null } | null | undefined, asOf: ISODate, now = Date.now()): boolean {
   if (!f || !f.at || !f.date || f.date < asOf) return false;
   if (!marketOpen(now)) return true;
-  return now - Date.parse(f.at) <= LIVE_MAX_AGE_MS;
+  const age = now - Date.parse(f.at);
+  // NSE's prices dated today: trading, so they must be minutes old. Dated an earlier day during market hours: no
+  // trading today (a holiday), so the last close is the latest price; the engine re-checks NSE every 15 minutes then.
+  return f.date >= istNow(now).date ? age <= LIVE_MAX_AGE_MS : age <= HOLIDAY_MAX_AGE_MS;
 }
+
+/** On a trading holiday the engine re-checks NSE every 15 minutes; allow a little slack. */
+export const HOLIDAY_MAX_AGE_MS = 20 * 60_000;
 
 /**
  * Milliseconds until the next live-price window opens (09:15 IST on a weekday); 0 if it is open now. Holidays are not

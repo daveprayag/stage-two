@@ -60,6 +60,10 @@ describe("liveIsFresh", () => {
     expect(liveIsFresh({ at: "2026-11-10T05:29:00Z", date: "2026-11-10" }, "2026-11-09", open)).toBe(true);
     expect(liveIsFresh({ at: "2026-11-10T05:20:00Z", date: "2026-11-10" }, "2026-11-09", open)).toBe(false);
   });
+  it("on a trading holiday accepts the last close, re-checked every 15 minutes", () => {
+    expect(liveIsFresh({ at: "2026-11-10T05:20:00Z", date: "2026-11-09" }, "2026-11-09", open)).toBe(true);
+    expect(liveIsFresh({ at: "2026-11-10T05:00:00Z", date: "2026-11-09" }, "2026-11-09", open)).toBe(false);
+  });
   it("accepts the day's last file after the close, but never one older than the screen", () => {
     expect(liveIsFresh({ at: "2026-11-10T10:15:00Z", date: "2026-11-10" }, "2026-11-10", closed)).toBe(true);
     expect(liveIsFresh({ at: "2026-11-09T10:15:00Z", date: "2026-11-09" }, "2026-11-10", closed)).toBe(false);
