@@ -21,7 +21,7 @@ import { readStocks, StocksWriter, type StoreHeadFile } from "./storefile";
 import { picksFor, upsertEntry, type TrackEntry } from "./track";
 import type { Filing, Headline, ISODate, NewsBundle, NewsVerdict, RunRecord, ScreenFile, ScreenRow } from "./types";
 import { SessionsUpdater, WINDOW, type SessionInput } from "./update";
-import { istNow, liveWindow, marketOpen } from "./clock";
+import { holidayConfirmed, istNow, liveWindow, marketOpen } from "./clock";
 import { AI_PICKS_MAX_RUNS, type AiPicks } from "./aipicks";
 import { BOARD_MEETINGS_URL, mergeResults, parseBoardMeetings, RESULTS_AHEAD_DAYS, RESULTS_BACK_DAYS, type ResultsFile } from "./results";
 
@@ -262,6 +262,10 @@ export async function runEod(st: Storage, opts: JobOptions = {}): Promise<RunRec
   } catch (e) {
     const detail = String(e instanceof Error ? e.message : e);
     log.push(`ERROR ${detail}`);
+    // On a confirmed holiday the prices cannot change, so a refused re-check loses nothing: keep it off the failures.
+    if (await noTradingToday(st).catch(() => false)) {
+      return finish(st, { ...base, ok: true, skipped: true, detail: `no trading today; NSE re-check failed (${detail}), last close stands`, log });
+    }
     return finish(st, { ...base, ok: false, detail, log });
   }
 }
@@ -447,15 +451,12 @@ export async function fetchQuote(symbol: string): Promise<LiveQuote | null> {
   return raw ? parseQuote(symbol, JSON.parse(new TextDecoder().decode(raw))) : null;
 }
 
-/** On a trading holiday the clock says "open": after this, check NSE only every 15 minutes. */
-const HOLIDAY_GAP_MS = 15 * 60_000;
+/** On a trading holiday the clock says "open": once NSE has confirmed it, check only every 30 minutes. */
+const HOLIDAY_GAP_MS = 30 * 60_000;
 
-/** After 09:30 IST, the last live prices are still from an earlier day: NSE is not trading today (a holiday). */
+/** NSE's prices, fetched today after 09:30 IST, are still from an earlier day: no trading today (a holiday). */
 export async function noTradingToday(st: Storage, now = Date.now()): Promise<boolean> {
-  const t = istNow(now);
-  if (t.hour * 60 + t.minute < 9 * 60 + 30) return false;
-  const live = await st.getJson<LiveFile>(P.live);
-  return !!live?.date && live.date < t.date;
+  return holidayConfirmed(await st.getJson<LiveFile>(P.live), now);
 }
 
 export async function runLive(st: Storage, opts: JobOptions = {}): Promise<RunRecord> {

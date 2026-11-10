@@ -28,19 +28,31 @@ export function liveWindow(now = Date.now()): boolean {
 export const LIVE_MAX_AGE_MS = 3 * 60_000;
 
 /**
+ * NSE is not trading today: a live file fetched today at or after 09:30 IST still carries an earlier day's prices.
+ * (Before 09:30 NSE may not have published today's first prices yet, so that proves nothing.)
+ */
+export function holidayConfirmed(f: { at: string; date: string | null } | null | undefined, now = Date.now()): boolean {
+  if (!f?.at || !f.date) return false;
+  const today = istNow(now).date;
+  const at = istNow(Date.parse(f.at));
+  return f.date < today && at.date === today && at.hour * 60 + at.minute >= 9 * 60 + 30;
+}
+
+/**
  * Whether a live price file can be shown as the latest price: from the screen's session or later, and during market
- * hours no older than LIVE_MAX_AGE_MS. Outside market hours the last file of the day holds the closing prices.
+ * hours no older than LIVE_MAX_AGE_MS. Outside market hours the last file of the day holds the closing prices. On a
+ * confirmed trading holiday the last close is the latest price all day, however long ago NSE was last asked.
  */
 export function liveIsFresh(f: { at: string; date: string | null } | null | undefined, asOf: ISODate, now = Date.now()): boolean {
   if (!f || !f.at || !f.date || f.date < asOf) return false;
   if (!marketOpen(now)) return true;
-  const age = now - Date.parse(f.at);
-  // NSE's prices dated today: trading, so they must be minutes old. Dated an earlier day during market hours: no
-  // trading today (a holiday), so the last close is the latest price; the engine re-checks NSE every 15 minutes then.
-  return f.date >= istNow(now).date ? age <= LIVE_MAX_AGE_MS : age <= HOLIDAY_MAX_AGE_MS;
+  if (f.date >= istNow(now).date) return now - Date.parse(f.at) <= LIVE_MAX_AGE_MS;
+  // Dated an earlier day during market hours: fine once NSE has shown that today is a holiday; before 09:30 the
+  // engine may simply not have today's first prices yet, so allow a short wait.
+  return holidayConfirmed(f, now) || now - Date.parse(f.at) <= HOLIDAY_MAX_AGE_MS;
 }
 
-/** On a trading holiday the engine re-checks NSE every 15 minutes; allow a little slack. */
+/** Before 09:30 IST, an earlier day's prices count as current for this long. */
 export const HOLIDAY_MAX_AGE_MS = 20 * 60_000;
 
 /**

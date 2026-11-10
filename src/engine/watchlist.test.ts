@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { liveIsFresh } from "./clock";
+import { holidayConfirmed, liveIsFresh } from "./clock";
 import { addItem, historyFor, removeItem, watchRow, watchSummary, type WatchItem } from "./watchlist";
 
 const item = (over: Partial<WatchItem> = {}): WatchItem => ({
@@ -60,9 +60,17 @@ describe("liveIsFresh", () => {
     expect(liveIsFresh({ at: "2026-11-10T05:29:00Z", date: "2026-11-10" }, "2026-11-09", open)).toBe(true);
     expect(liveIsFresh({ at: "2026-11-10T05:20:00Z", date: "2026-11-10" }, "2026-11-09", open)).toBe(false);
   });
-  it("on a trading holiday accepts the last close, re-checked every 15 minutes", () => {
+  it("on a trading holiday keeps the last close all day once NSE has confirmed it", () => {
+    // Fetched 10:50 and 09:35 IST today, still dated yesterday: holiday confirmed, however old.
     expect(liveIsFresh({ at: "2026-11-10T05:20:00Z", date: "2026-11-09" }, "2026-11-09", open)).toBe(true);
-    expect(liveIsFresh({ at: "2026-11-10T05:00:00Z", date: "2026-11-09" }, "2026-11-09", open)).toBe(false);
+    expect(liveIsFresh({ at: "2026-11-10T04:05:00Z", date: "2026-11-09" }, "2026-11-09", open)).toBe(true);
+    // Last fetched yesterday evening: nothing confirmed today, so not shown during market hours.
+    expect(liveIsFresh({ at: "2026-11-09T10:15:00Z", date: "2026-11-09" }, "2026-11-09", open)).toBe(false);
+  });
+  it("before 09:30 allows an earlier day's prices for a few minutes only", () => {
+    const at920 = Date.parse("2026-11-10T03:50:00Z"); // 09:20 IST
+    expect(liveIsFresh({ at: "2026-11-10T03:49:00Z", date: "2026-11-09" }, "2026-11-09", at920)).toBe(true);
+    expect(holidayConfirmed({ at: "2026-11-10T03:49:00Z", date: "2026-11-09" }, at920)).toBe(false);
   });
   it("accepts the day's last file after the close, but never one older than the screen", () => {
     expect(liveIsFresh({ at: "2026-11-10T10:15:00Z", date: "2026-11-10" }, "2026-11-10", closed)).toBe(true);
