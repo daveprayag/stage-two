@@ -91,12 +91,6 @@ export default async function StockPage({ params }: Props) {
                 <span>{screens.join(", ")}</span>
               </>
             )}
-            {(row.scans.length > 0 || row.setup) && (
-              <>
-                <span className="text-ink-3">·</span>
-                <span>Ankur&apos;s scans: {[...row.scans, ...(row.setup ? [`${row.setup} setup`] : [])].join(", ")}</span>
-              </>
-            )}
           </p>
         )}
       </div>
