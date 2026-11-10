@@ -210,6 +210,8 @@ export interface ScreenFile {
   newsAt: string | null;
   /** AI picks experiment (aipicks.ts): set by the news job once per session. */
   aiPicks?: AiPicks | null;
+  /** Failed AI-pick runs for this session (capped, to stay inside the free daily request limit). */
+  aiPicksTries?: { asOf: ISODate; n: number };
 }
 
 export interface RunRecord {

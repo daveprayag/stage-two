@@ -22,7 +22,7 @@ import { picksFor, upsertEntry, type TrackEntry } from "./track";
 import type { Filing, Headline, ISODate, NewsBundle, NewsVerdict, RunRecord, ScreenFile, ScreenRow } from "./types";
 import { SessionsUpdater, WINDOW, type SessionInput } from "./update";
 import { istNow, liveWindow, marketOpen } from "./clock";
-import type { AiPicks } from "./aipicks";
+import { AI_PICKS_MAX_RUNS, type AiPicks } from "./aipicks";
 import { BOARD_MEETINGS_URL, mergeResults, parseBoardMeetings, RESULTS_AHEAD_DAYS, RESULTS_BACK_DAYS, type ResultsFile } from "./results";
 
 export { istNow, liveWindow, marketOpen };
@@ -322,6 +322,8 @@ export type Picker = (screen: ScreenFile) => Promise<AiPicks | null>;
 /** AI picks once per session; failures are logged and leave the screen without picks. */
 async function addAiPicks(screen: ScreenFile, picker: Picker | undefined, log: string[], redo = false): Promise<boolean> {
   if (!picker || (!redo && screen.aiPicks?.asOf === screen.asOf)) return false;
+  const tries = screen.aiPicksTries?.asOf === screen.asOf ? screen.aiPicksTries.n : 0;
+  if (!redo && tries >= AI_PICKS_MAX_RUNS) return false;
   try {
     const p = await picker(screen);
     screen.aiPicks = p;
@@ -330,6 +332,7 @@ async function addAiPicks(screen: ScreenFile, picker: Picker | undefined, log: s
   } catch (e) {
     // Keep an earlier session's picks out; the next evening run tries again (aiPicks.asOf stays behind).
     if (screen.aiPicks?.asOf !== screen.asOf) screen.aiPicks = null;
+    screen.aiPicksTries = { asOf: screen.asOf, n: tries + 1 };
     log.push(`AI picks not made this run (next run retries): ${String(e instanceof Error ? e.message : e).slice(0, 200)}`);
   }
   return true;

@@ -30,6 +30,11 @@ export interface AiPicks {
  */
 export const AI_PICKS_MODELS = "gemini-3.6-flash,gemini-3.8-flash";
 export const AI_PICKS_COUNT = 5;
+/**
+ * Free tier (AI Studio, 2026-11-10): 3.6 Flash and 3.8 Flash allow 5 requests a minute and 20 a day each. A run makes at
+ * most 2 tries per model and a session at most AI_PICKS_MAX_RUNS runs: ≤ 8 requests a day per model, even if both stay busy.
+ */
+export const AI_PICKS_MAX_RUNS = 4;
 const MAX_CANDIDATES = 80;
 
 /** Strongest ∪ Momentum leaders, best screener score first. */
@@ -116,7 +121,7 @@ export function cleanPicks(raw: unknown, allowed: Set<string>): AiPick[] {
 export async function makeAiPicks(screen: ScreenFile, cfg: GeminiConfig, models = AI_PICKS_MODELS): Promise<AiPicks | null> {
   const rows = candidatesFor(screen.rows);
   if (!rows.length) return null;
-  const { text, model, skipped } = await askModel(picksPrompt(screen.asOf, rows, screen.news), SCHEMA, cfg, { models, timeoutMs: 150_000, temperature: 0, attempts: 3, waitMs: 15_000 });
+  const { text, model, skipped } = await askModel(picksPrompt(screen.asOf, rows, screen.news), SCHEMA, cfg, { models, timeoutMs: 150_000, temperature: 0, attempts: 2, waitMs: 15_000 });
   const picks = cleanPicks(JSON.parse(text || "{}"), new Set(rows.map((r) => r.symbol)));
   return { asOf: screen.asOf, at: new Date().toISOString(), model, ...(skipped.length ? { skipped } : {}), picks };
 }
