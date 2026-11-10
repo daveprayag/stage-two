@@ -9,8 +9,8 @@ Formerly *StockGenius* (Yahoo Finance, ~380 hardcoded symbols). Now every EQ sto
 
 | Screen | Rule |
 | --- | --- |
-| Strongest | RS ≥ 90 and trend template ≥ 7/8 (in livermore's 2021–26 data the best list for big gainers: 35% hit +50% in 6 months in 2021–24 vs 23% for all stocks, 17% vs 13% in 2025–26) |
-| Momentum leaders | RS ≥ 80, 20-day ADR in the top 40% of liquid stocks, industry in the top 40% by median 3-month return, stage 2 (similar odds to Strongest; the 2025–26 hold-out test of average returns failed) |
+| Strongest | RS ≥ 90 and trend template ≥ 7/8 (livermore: hit +50% in 6 months 29% vs 20% for all stocks in the pre-registered 2016–21 test, beat the average stock in 45/64 months; 35% vs 23% in 2021–24; 17% vs 13% in 2025–26) |
+| Momentum leaders | RS ≥ 80, 20-day ADR in the top 40% of liquid stocks, industry in the top 40% by median 3-month return, stage 2 (livermore: passed the pre-registered 2016–21 test, 49/64 months, +7.2 pp; failed 2025–26, +1.3 pp) |
 | Resuming after a pause | Rallied 20%+, paused 5+ sessions within 25%, closed back above the pause top in the last 5 sessions, ≤ 8% above it; stop = pause low |
 
 Removed from the UI on 2026-11-10 (still tagged in the engine; all but Ankur's scans still recorded in the track record): Top setups, Breaking out,

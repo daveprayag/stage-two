@@ -29,7 +29,7 @@ export const SCREENS: { key: TabKey; label: string; mobile: string; short: strin
     mobile: "Strongest",
     short: "Top 10% performers, uptrend intact",
     blurb:
-      "RS 90+ (beat 90% of NSE stocks over the past year) with the uptrend intact. In our tests the list most likely to hold the big gainers: 35% of such stocks rose 50%+ within 6 months in 2021–24 (vs 23% of all stocks) and 17% in 2025–26 (vs 13%). About 1 in 5 also fell 20%+, so use a stop and own several.",
+      "RS 90+ (beat 90% of NSE stocks over the past year) with the uptrend intact. Tested on 2016–21, years it was never tuned on: 29% rose 50%+ within 6 months (vs 20% of all stocks) and it beat the average stock in 45 of 64 months. It also helped in 2021–24, but not in 2025–26. About 1 in 5 fell 20%+, so use a stop and own several.",
   },
   {
     key: "momentum",
@@ -37,7 +37,7 @@ export const SCREENS: { key: TabKey; label: string; mobile: string; short: strin
     mobile: "Momentum",
     short: "Strong, volatile, in a strong sector",
     blurb:
-      "RS 80+, bigger daily swings than most stocks (top 40%), industry in the top 40% by 3-month return, in stage 2. Similar odds to Strongest (35% rose 50%+ in 2021–24, 17% in 2025–26) with more sector support; the stars come from this list. A shortlist to research, not a buy list.",
+      "RS 80+, bigger daily swings than most stocks (top 40%), industry in the top 40% by 3-month return, in stage 2. On 2016–21, data it was never built on, 31% rose 50%+ within 6 months (vs 20% of all stocks) and it beat the average stock in 49 of 64 months; the edge held in 2021–24 and faded in 2025–26. The stars come from this list. A shortlist to research, not a buy list.",
   },
   {
     key: "resuming",

@@ -117,11 +117,12 @@ export default function GuidePage() {
 
       <Section title="Choosing which stock to buy">
         <p>
-          Our 2021–24 research found that <em>which</em> stock you buy matters far more than the exact entry. Stocks that went on to rise 50%+ within six months
-          had a common profile before the move: strong relative strength, bigger daily swings than most stocks, and a strong sector. The Momentum leaders
-          list is that profile. In 2021–24 its stocks hit +50% within six months 41% of the time against 29% for the average stock. On 2025–26, data it was
-          not built from, the edge mostly faded: 17% against 13%, with no better average return and more 20%+ losers (22% vs 17%). Treat it as where to start
-          looking, not as a buy signal: the checks below and your own stop do the rest.
+          Our research found that <em>which</em> stock you buy matters far more than the exact entry. Stocks that went on to rise 50%+ within six months had a
+          common profile before the move: strong relative strength, bigger daily swings than most stocks, and a strong sector. The Momentum leaders list is
+          that profile, found on 2021–24 data and then tested, unchanged, on two periods it never saw. On 2016–21 it passed: its stocks beat the average stock
+          in 49 of 64 months, and 31% rose 50%+ against 20%. On 2025–26 it failed: 17% against 13%, with no better average return. Over ten years that is a
+          real but uneven edge, and it gave no protection in small-cap sell-offs (2018, 2025). Treat it as where to start looking, not as a buy signal: the
+          checks below and your own stop do the rest.
         </p>
         <ol className="list-decimal space-y-2 pl-5">
           <li><strong className="text-ink">Start from Strongest or Momentum leaders</strong>, with the phase filter on Early or Early + mid. In 2021–24 early-phase picks had fewer 20%+ losers than the rest (5% vs 7%); in 2025–26 the difference was small.</li>
