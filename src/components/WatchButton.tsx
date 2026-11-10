@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Bookmark, BookmarkCheck, Loader2 } from "lucide-react";
 import { addToWatchlist, checkPasscode, loadWatchedSymbols, removeFromWatchlist, savedPasscode, savePasscode, WatchError } from "./watch";
 
 /** Asks for the watchlist passcode once per browser; calls onOk with it after the engine accepts it. */
@@ -52,7 +52,7 @@ export function PasscodeForm({ onOk, onCancel }: { onOk: (p: string) => void; on
   );
 }
 
-/** Stock page: add to / remove from the watchlist. */
+/** Stock page: save to / remove from the watchlist. A bookmark icon (with a label on wider screens). */
 export function WatchButton({ symbol }: { symbol: string }) {
   const [watched, setWatched] = useState<boolean | null>(null);
   const [loadErr, setLoadErr] = useState(false);
@@ -91,29 +91,38 @@ export function WatchButton({ symbol }: { symbol: string }) {
     else setAsk(true);
   };
 
-  if (loadErr) return <p className="text-xs text-down">Watchlist unavailable</p>;
-  if (watched === null) return <div className="h-9 w-36 animate-pulse rounded-lg bg-surface-2" aria-hidden="true" />;
+  const label = watched ? "Saved" : "Save";
   return (
-    <div className="flex flex-col items-start gap-2">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={click}
-          disabled={busy}
-          className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors disabled:opacity-60 ${
-            watched ? "border-up/50 bg-up-soft/40 text-up hover:border-up" : "border-line-strong bg-surface text-ink hover:border-ink"
-          }`}
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : watched ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          {watched ? "Remove from watchlist" : "Add to watchlist"}
-        </button>
-        {watched && (
-          <Link href="/watchlist" className="text-xs text-ink-3 underline-offset-2 hover:text-ink hover:underline">
-            See how it&apos;s doing
-          </Link>
+    <div className="relative">
+      <button
+        onClick={click}
+        disabled={busy || watched === null || loadErr}
+        aria-pressed={!!watched}
+        aria-label={watched ? `Remove ${symbol} from your watchlist` : `Save ${symbol} to your watchlist`}
+        title={loadErr ? "Watchlist unavailable" : watched ? "On your watchlist: tap to remove" : "Save to your watchlist"}
+        className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-full border px-2.5 text-sm transition-colors disabled:opacity-60 sm:px-3.5 ${
+          watched ? "border-up/50 bg-up-soft/40 text-up hover:border-up" : "border-line-strong bg-surface text-ink hover:border-ink"
+        }`}
+      >
+        {busy || watched === null ? (
+          <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden="true" />
+        ) : watched ? (
+          <BookmarkCheck className="h-[18px] w-[18px]" fill="currentColor" fillOpacity={0.15} aria-hidden="true" />
+        ) : (
+          <Bookmark className="h-[18px] w-[18px]" aria-hidden="true" />
         )}
-      </div>
-      {ask && <PasscodeForm onOk={(p) => void act(p)} onCancel={() => setAsk(false)} />}
-      {err && !ask && <p className="text-xs text-down" role="alert">{err}</p>}
+        <span className="hidden sm:inline">{label}</span>
+      </button>
+      {(ask || err) && (
+        <div className="absolute top-full right-0 z-20 mt-2 w-72 rounded-xl border border-line bg-surface p-3 shadow-lg">
+          {ask ? <PasscodeForm onOk={(p) => void act(p)} onCancel={() => setAsk(false)} /> : <p className="text-xs text-down" role="alert">{err}</p>}
+          {watched && !ask && (
+            <Link href="/watchlist" className="mt-2 block text-xs text-ink-3 hover:text-ink">
+              Open the watchlist
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   );
 }

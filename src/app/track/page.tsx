@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Change } from "@/components/Badges";
 import { Card, Page, PageTitle } from "@/components/Page";
+import { Bone } from "@/components/Skeleton";
 import { SHOWN_TRACK, TRACK_LISTS } from "@/engine/track";
 import { getTrack } from "@/lib/data";
 import { day } from "@/lib/format";
@@ -10,23 +12,12 @@ export const dynamic = "force-dynamic";
 
 const pct = (x: number | null) => (x === null ? "—" : `${Math.round(x * 100)}%`);
 
-export default async function TrackPage() {
+async function TrackData() {
   const data = await getTrack();
   const perf = data?.first ? data : null;
-  const first = data?.first;
   return (
-    <Page>
-      <PageTitle title="Track record">
-        <p>
-          Every evening each list&apos;s picks are saved with that day&apos;s close. This page shows how they have done since, next to the NIFTY 500 over the
-          same days: an honest, forward-only record{first ? ` that started on ${day(first)}` : ""}. Nothing is back-filled.
-        </p>
-        <p className="mt-2">
-          Give it months before reading anything into it: a few weeks of results mostly reflect what the market did. The research behind Momentum leaders
-          measured 6-month outcomes.
-        </p>
-      </PageTitle>
-
+    <>
+      {perf?.first && <p className="-mt-2 text-xs text-ink-3">Record started on {day(perf.first)}.</p>}
       {!perf ? (
         <p className="text-sm text-ink-3">No picks recorded yet. The first nightly run after launch will start the record.</p>
       ) : (
@@ -114,6 +105,74 @@ export default async function TrackPage() {
           </Card>
         </>
       )}
+    </>
+  );
+}
+
+/** Same rows as the real table, list names shown, numbers as placeholders. */
+function TrackSkeleton() {
+  const lists = TRACK_LISTS.filter((l) => l.shown);
+  return (
+    <Card>
+      <span className="sr-only" role="status">Loading the latest data…</span>
+      <ul className="divide-y divide-line md:hidden" aria-hidden="true">
+        {lists.map((l) => (
+          <li key={l.key} className="px-4 py-3.5">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[15px] text-ink">{l.label}</span>
+              <Bone className="h-4 w-14" />
+            </div>
+            <Bone className="mt-2 h-3 w-56" />
+          </li>
+        ))}
+      </ul>
+      <div className="hidden md:block" aria-hidden="true">
+        <table className="w-full text-sm">
+          <thead className="border-b border-line text-left">
+            <tr className="text-xs text-ink-3">
+              <th className="px-3 py-3 pl-5 font-normal">List</th>
+              <th className="px-3 py-3 text-right font-normal">Pick days</th>
+              <th className="px-3 py-3 text-right font-normal">Picks</th>
+              <th className="px-3 py-3 text-right font-normal">Return since pick</th>
+              <th className="px-3 py-3 text-right font-normal">NIFTY 500, same days</th>
+              <th className="px-3 py-3 text-right font-normal">Days beating NIFTY</th>
+              <th className="px-3 py-3 pr-5 text-right font-normal">Picks up</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {lists.map((l) => (
+              <tr key={l.key}>
+                <td className="px-3 py-3.5 pl-5 text-ink">{l.label}</td>
+                {[0, 1, 2, 3, 4, 5].map((k) => (
+                  <td key={k} className="px-3 py-3.5 last:pr-5">
+                    <Bone className="ml-auto h-4 w-12" />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+export default function TrackPage() {
+  return (
+    <Page>
+      <PageTitle title="Track record">
+        <p>
+          Every evening each list&apos;s picks are saved with that day&apos;s close. This page shows how they have done since, next to the NIFTY 500 over the
+          same days: an honest, forward-only record. Nothing is back-filled.
+        </p>
+        <p className="mt-2">
+          Give it months before reading anything into it: a few weeks of results mostly reflect what the market did. The research behind Momentum leaders
+          measured 6-month outcomes.
+        </p>
+      </PageTitle>
+      <Suspense fallback={<TrackSkeleton />}>
+        <TrackData />
+      </Suspense>
     </Page>
   );
 }

@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { ChevronDown, Search, Star } from "lucide-react";
 import type { NewsBundle, ScreenRow } from "@/engine/types";
 import { price, titleCase } from "@/lib/format";
-import { baseShort, Change, FirstLine, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
+import { baseShort, Change, FirstLine, PhaseLabel, phaseDetail, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
 import { isStar, starCount } from "@/engine/star";
 import { Select } from "./Select";
+import { Bone } from "./Skeleton";
 import type { LiveFile } from "@/engine/jobs";
 import { liveLabel, useLivePrices } from "./live";
 
@@ -73,54 +74,76 @@ const fromHigh = (r: ScreenRow) => (r.pctFromHigh < 0.05 ? "At high" : `−${r.p
 function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: Px | undefined | null }) {
   return (
     <li>
-      <Link href={href(r)} className="flex items-center gap-3 px-4 py-4 active:bg-surface-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="flex min-w-0 items-center gap-1.5">
+      <Link href={href(r)} className="block px-4 py-4 active:bg-surface-2">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
               <span className="truncate text-[15px] font-medium text-ink">{r.symbol}</span>
               {isStar(r, n) && <StarMark count={starCount(r, n)} />}
-            </span>
-            <span className="num flex shrink-0 items-center gap-1.5 text-[15px] text-ink">
-              {q === null ? "—" : price(q ? q.last : r.close)}
-            </span>
+            </div>
+            <div className="mt-0.5 truncate text-xs text-ink-3">{r.industry ?? titleCase(r.name)}</div>
           </div>
-          <div className="mt-0.5 flex items-baseline justify-between gap-3 text-xs">
-            <span className="truncate text-ink-3">{r.industry ?? titleCase(r.name)}</span>
-            <Change value={q === null ? null : q ? q.pChange : r.chgPct} className="shrink-0" />
+          <div className="shrink-0 text-right">
+            <div className="num text-[15px] text-ink">{q === null ? "—" : price(q ? q.last : r.close)}</div>
+            <Change value={q === null ? null : q ? q.pChange : r.chgPct} className="text-xs" />
           </div>
-          <dl className="mt-3 grid grid-cols-4 gap-2 text-xs">
-            <div>
-              <dt className="text-ink-3">RS</dt>
-              <dd className="num mt-0.5 text-ink">{r.rs}</dd>
-            </div>
-            <div>
-              <dt className="text-ink-3">Phase</dt>
-              <dd className="mt-0.5">
-                <PhaseLabel phase={r.phase} stage={r.stage} />
-                {phaseNote(r) && <span className="mt-0.5 block text-[11px] leading-tight text-ink-3">{phaseNote(r)}</span>}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-ink-3">Above base</dt>
-              <dd className="num mt-0.5 text-ink">{baseShort(r)}</dd>
-            </div>
-            <div>
-              <dt className="text-ink-3">From high</dt>
-              <dd className="num mt-0.5 text-ink">{fromHigh(r)}</dd>
-            </div>
-          </dl>
-          {n?.ai && n.ai.sentiment !== "none" && (
-            <p className="mt-3 flex items-start gap-2.5 text-xs leading-relaxed text-ink-2">
-              <FirstLine>
-                <SentimentDot s={n.ai.sentiment} />
-              </FirstLine>
-              <span className="line-clamp-2">{n.ai.summary}</span>
-            </p>
-          )}
         </div>
-        <ChevronRight className="h-4 w-4 shrink-0 text-ink-3" aria-hidden="true" />
+        <dl className="mt-3 grid grid-cols-4 rounded-lg bg-surface-2/60 px-1 py-2 text-center">
+          <MiniStat label="RS"><span className="num">{r.rs}</span></MiniStat>
+          <MiniStat label="Phase"><PhaseLabel phase={r.phase} stage={r.stage} /></MiniStat>
+          <MiniStat label="Above base"><span className="num">{baseShort(r)}</span></MiniStat>
+          <MiniStat label="From high"><span className="num">{fromHigh(r)}</span></MiniStat>
+        </dl>
+        {n?.ai && n.ai.sentiment !== "none" && (
+          <p className="mt-3 flex items-start gap-2.5 text-xs leading-relaxed text-ink-2">
+            <FirstLine>
+              <SentimentDot s={n.ai.sentiment} />
+            </FirstLine>
+            <span className="line-clamp-2">{n.ai.summary}</span>
+          </p>
+        )}
       </Link>
     </li>
+  );
+}
+
+/** Value over label, for the four numbers on a phone card. */
+function MiniStat({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col-reverse gap-0.5 px-1">
+      <dt className="truncate text-[11px] text-ink-3">{label}</dt>
+      <dd className="truncate text-sm text-ink">{children}</dd>
+    </div>
+  );
+}
+
+/** Placeholder rows while the latest data loads: same layout as the real ones. */
+function MobileSkeleton() {
+  return (
+    <ul className="divide-y divide-line md:hidden" aria-hidden="true">
+      {Array.from({ length: 6 }, (_, i) => (
+        <li key={i} className="px-4 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Bone className="h-4 w-24" />
+              <Bone className="h-3 w-32" />
+            </div>
+            <div className="flex flex-col items-end gap-1.5">
+              <Bone className="h-4 w-16" />
+              <Bone className="h-3 w-10" />
+            </div>
+          </div>
+          <dl className="mt-3 grid grid-cols-4 rounded-lg bg-surface-2/60 px-1 py-2 text-center">
+            {["RS", "Phase", "Above base", "From high"].map((l) => (
+              <div key={l} className="flex flex-col-reverse items-center gap-1 px-1">
+                <dt className="text-[11px] text-ink-3">{l}</dt>
+                <dd><Bone className="h-4 w-8" /></dd>
+              </div>
+            ))}
+          </dl>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -130,7 +153,7 @@ const td = "px-3 py-3.5 first:pl-5 last:pr-5";
 /** Sector heading shown above the first stock of each sector when sorting by sector. */
 type Heads = Map<string, string>;
 
-function DesktopTable({ rows, news, live, heads }: { rows: ScreenRow[]; news: Record<string, NewsBundle>; live: Record<string, Px> | null; heads: Heads | null }) {
+function DesktopTable({ rows, news, live, heads, loading = false }: { rows: ScreenRow[]; news: Record<string, NewsBundle>; live: Record<string, Px> | null; heads: Heads | null; loading?: boolean }) {
   return (
     <table className="w-full table-fixed text-sm">
       <colgroup>
@@ -156,6 +179,19 @@ function DesktopTable({ rows, news, live, heads }: { rows: ScreenRow[]; news: Re
         </tr>
       </thead>
       <tbody className="divide-y divide-line">
+        {loading &&
+          Array.from({ length: 8 }, (_, i) => (
+            <tr key={i} aria-hidden="true">
+              <td className={td}><Bone className="h-4 w-24" /><Bone className="mt-1.5 h-3 w-32" /></td>
+              <td className={td}><Bone className="ml-auto h-4 w-16" /><Bone className="mt-1.5 ml-auto h-3 w-10" /></td>
+              <td className={td}><Bone className="h-4 w-16" /></td>
+              <td className={td}><Bone className="h-4 w-20" /><Bone className="mt-1.5 h-3 w-24" /></td>
+              <td className={td}><Bone className="ml-auto h-4 w-12" /></td>
+              <td className={td}><Bone className="ml-auto h-4 w-12" /></td>
+              <td className={td}><Bone className="ml-auto h-4 w-10" /></td>
+              <td className={td}><Bone className="h-3 w-full" /><Bone className="mt-1.5 h-3 w-2/3" /></td>
+            </tr>
+          ))}
         {rows.map((r) => {
           const n = news[r.symbol];
           const head = heads?.get(r.isin);
@@ -249,33 +285,44 @@ function Glossary() {
   );
 }
 
-function Toggle({ on, set, label }: { on: boolean; set: (f: (x: boolean) => boolean) => void; label: string }) {
+/** On/off filter as a chip: compact, and its state is visible in its own colour. */
+function Chip({ on, set, children }: { on: boolean; set: (f: (x: boolean) => boolean) => void; children: React.ReactNode }) {
   return (
-    <button role="switch" aria-checked={on} onClick={() => set((x) => !x)} className="flex items-center gap-2 py-1 text-ink-2">
-      {label}
-      <span className={`relative h-5 w-9 rounded-full transition-colors ${on ? "bg-up" : "bg-line-strong"}`}>
-        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${on ? "left-[18px]" : "left-0.5"}`} />
-      </span>
+    <button
+      aria-pressed={on}
+      onClick={() => set((x) => !x)}
+      className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs whitespace-nowrap transition-colors ${
+        on ? "border-ink bg-ink text-bg" : "border-line text-ink-2 hover:border-line-strong hover:text-ink"
+      }`}
+    >
+      {children}
     </button>
   );
 }
+
+const NO_ROWS: ScreenRow[] = [];
+const NO_NEWS: Record<string, NewsBundle> = {};
+const NO_SECTORS: { industry: string; rs: number }[] = [];
 
 const control = "h-10 rounded-lg border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-line-strong md:h-9";
 
 export function ScreenerTable({
   rows,
-  news,
-  asOf,
-  initialLive,
-  sectorOrder,
+  news = NO_NEWS,
+  asOf = "",
+  initialLive = null,
+  sectorOrder = NO_SECTORS,
 }: {
-  rows: ScreenRow[];
-  news: Record<string, NewsBundle>;
-  asOf: string;
-  initialLive: LiveFile | null;
+  /** null while the latest data loads: everything that doesn't depend on it is shown, the rest as placeholders. */
+  rows: ScreenRow[] | null;
+  news?: Record<string, NewsBundle>;
+  asOf?: string;
+  initialLive?: LiveFile | null;
   /** Sectors strongest first, as on the Sectors page (median RS). */
-  sectorOrder: { industry: string; rs: number }[];
+  sectorOrder?: { industry: string; rs: number }[];
 }) {
+  const loading = rows === null;
+  const list = rows ?? NO_ROWS;
   // Latest NSE prices for every stock. In market hours, if they are not fresh, no prices are shown (never old ones).
   const { file: liveFile, unavailable } = useLivePrices(asOf, initialLive);
   const live = useMemo<Record<string, Px> | null>(
@@ -285,12 +332,12 @@ export function ScreenerTable({
   const [phase, setPhase] = useState<PhaseFilter>("all");
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
-    for (const r of rows) {
+    for (const r of list) {
       if (!phaseOk(r, phase)) continue;
       for (const t of r.tags) c[t] = (c[t] ?? 0) + 1;
     }
     return c;
-  }, [rows, phase]);
+  }, [list, phase]);
   const [tab, setTab] = useState<TabKey>("leader");
   const [q, setQ] = useState("");
   const [sector, setSector] = useState("");
@@ -317,7 +364,7 @@ export function ScreenerTable({
     url.searchParams.set("tab", t);
     window.history.replaceState(null, "", url);
   };
-  const sectors = useMemo(() => [...new Set(rows.map((r) => r.industry).filter((x): x is string => !!x))].sort(), [rows]);
+  const sectors = useMemo(() => [...new Set(list.map((r) => r.industry).filter((x): x is string => !!x))].sort(), [list]);
 
   // Sector position on the Sectors page (0 = strongest); unclassified stocks go last.
   const sectorPos = useMemo(() => new Map(sectorOrder.map((x, i) => [x.industry, i])), [sectorOrder]);
@@ -327,7 +374,7 @@ export function ScreenerTable({
     const needle = q.trim().toUpperCase();
     const base = SORTS.find((s) => s.key === sort)?.fn ?? SORTS[0]!.fn;
     const fn = sort === "sector" ? (a: ScreenRow, b: ScreenRow) => pos(a) - pos(b) || b.score - a.score : base;
-    return rows
+    return list
       .filter(
         (r) =>
           // A search looks through every screened stock, not just the open list.
@@ -340,7 +387,7 @@ export function ScreenerTable({
       )
       .sort(fn);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pos depends only on sectorPos
-  }, [rows, tab, q, sector, sort, positive, starred, news, phase, sectorPos]);
+  }, [list, tab, q, sector, sort, positive, starred, news, phase, sectorPos]);
 
   // Sorting by sector: a heading above the first stock of each sector, with its rank on the Sectors page.
   const heads = useMemo<Heads | null>(() => {
@@ -384,16 +431,17 @@ export function ScreenerTable({
               role="radio"
               aria-checked={on}
               onClick={() => choose(t.key)}
-              className={`flex flex-col rounded-xl border p-2.5 text-left transition-colors sm:p-3 ${on ? "border-ink bg-surface" : "border-line hover:border-line-strong"}`}
+              className={`flex min-w-0 flex-col gap-1 rounded-xl border px-3 py-2.5 text-left transition-colors sm:py-3 ${on ? "border-ink bg-surface" : "border-line hover:border-line-strong"}`}
             >
-              <span className="flex items-baseline justify-between gap-2">
-                <span className={`text-sm font-medium ${on ? "text-ink" : "text-ink-2"}`}>
-                  <span className="sm:hidden">{t.mobile}</span>
-                  <span className="hidden sm:inline">{t.label}</span>
-                </span>
-                <span className="num text-xs text-ink-3">{counts[t.key] ?? 0}</span>
+              <span className={`truncate text-sm font-medium ${on ? "text-ink" : "text-ink-2"}`}>
+                <span className="sm:hidden">{t.mobile}</span>
+                <span className="hidden sm:inline">{t.label}</span>
               </span>
-              <span className="mt-1 hidden text-xs leading-snug text-ink-3 sm:block">{t.short}</span>
+              <span className="flex items-center gap-1 text-xs text-ink-3">
+                {loading ? <Bone className="h-3 w-8" /> : <span className="num">{counts[t.key] ?? 0}</span>}
+                <span>stocks</span>
+                <span className="hidden truncate sm:inline">· {t.short.toLowerCase()}</span>
+              </span>
             </button>
           );
         })}
@@ -413,12 +461,12 @@ export function ScreenerTable({
       <Glossary />
 
       <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-        <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 text-xs text-ink-3 md:px-5">
-          <span>
-            <span className="num text-ink-2">{shown.length}</span> {shown.length === 1 ? "stock" : "stocks"}
+        <div className="flex flex-col gap-2 border-b border-line px-4 py-3 text-xs text-ink-3 sm:flex-row sm:items-center sm:justify-between md:px-5">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {loading ? <Bone className="h-3 w-16" /> : <span><span className="num text-ink-2">{shown.length}</span> {shown.length === 1 ? "stock" : "stocks"}</span>}
             {liveFile && (
               <span
-                className="ml-2 inline-flex items-center gap-1.5"
+                className="inline-flex items-center gap-1.5 whitespace-nowrap"
                 title="Prices and today's change are live from NSE. Lists, stages and checks update after today's close."
               >
                 <span className={`h-1.5 w-1.5 rounded-full bg-up ${liveFile.marketOpen ? "animate-pulse" : ""}`} aria-hidden="true" />
@@ -426,18 +474,30 @@ export function ScreenerTable({
               </span>
             )}
             {unavailable && (
-              <span role="alert" className="ml-2 inline-flex items-center gap-1.5 text-down">
+              <span role="alert" className="inline-flex items-center gap-1.5 whitespace-nowrap text-down">
                 <span className="h-1.5 w-1.5 rounded-full bg-down" aria-hidden="true" />
                 live prices unavailable, retrying
               </span>
             )}
           </span>
-          <div className="flex items-center gap-4">
-            <Toggle on={starred} set={setStarred} label="Starred only" />
-            <Toggle on={positive} set={setPositive} label="Positive news" />
+          <div className="flex items-center gap-2">
+            <Chip on={starred} set={setStarred}>
+              <Star className="h-3 w-3" fill="currentColor" aria-hidden="true" /> Starred only
+            </Chip>
+            <Chip on={positive} set={setPositive}>
+              <span className="h-1.5 w-1.5 rounded-full bg-up" aria-hidden="true" /> Positive news
+            </Chip>
           </div>
         </div>
-        {shown.length ? (
+        {loading ? (
+          <>
+            <span className="sr-only" role="status">Loading the latest data…</span>
+            <MobileSkeleton />
+            <div className="hidden md:block">
+              <DesktopTable rows={NO_ROWS} news={NO_NEWS} live={null} heads={null} loading />
+            </div>
+          </>
+        ) : shown.length ? (
           <>
             <ul className="divide-y divide-line md:hidden">
               {shown.map((r) => (

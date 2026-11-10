@@ -58,12 +58,12 @@ function SummaryCard({ s }: { s: WatchSummary }) {
 }
 
 function StarThen({ r }: { r: WatchRow }) {
-  if (r.starred) return <span className="inline-flex items-center gap-1 text-amber"><StarMark count={r.starCount ?? 5} /> starred</span>;
+  if (r.starred) return <span title="Starred when added" className="inline-flex align-middle"><StarMark count={r.starCount ?? 5} /></span>;
   return <span className="text-ink-3">{r.momentum ? `momentum leader, ${r.starCount ?? 0}/6 checks` : "not starred"}</span>;
 }
 
 function StarNow({ r }: { r: WatchRow }) {
-  if (r.starredNow) return <span className="inline-flex items-center gap-1 text-amber"><StarMark count={r.starCountNow ?? 5} /> starred</span>;
+  if (r.starredNow) return <span title="Starred today" className="inline-flex md:justify-end"><StarMark count={r.starCountNow ?? 5} /></span>;
   return <span className="text-ink-3">{r.starCountNow !== null ? `${r.starCountNow}/6 checks` : "not a momentum leader"}</span>;
 }
 
@@ -139,23 +139,9 @@ export function WatchlistView() {
       </div>
     );
   }
-  if (!data) {
-    return (
-      <div className="flex flex-col gap-4" aria-busy="true">
-        <span className="sr-only" role="status">Loading the latest data…</span>
-        <Bone className="h-10 w-full rounded-lg sm:w-96" />
-        <div className="grid gap-3 md:grid-cols-3">
-          <Bone className="h-36 rounded-2xl" />
-          <Bone className="h-36 rounded-2xl" />
-          <Bone className="h-36 rounded-2xl" />
-        </div>
-        <Bone className="h-64 rounded-2xl" />
-      </div>
-    );
-  }
-
-  const pricesDown = marketOpen() && !data.liveFresh;
-  const rows = data.items;
+  const loading = !data;
+  const pricesDown = !!data && marketOpen() && !data.liveFresh;
+  const rows = data?.items ?? [];
   return (
     <div className="flex flex-col gap-5">
       <form
@@ -186,16 +172,34 @@ export function WatchlistView() {
         </div>
       )}
       {actErr && !ask && <p className="text-xs text-down" role="alert">{actErr}</p>}
-      {!data.canEdit && (
+      {data && !data.canEdit && (
         <p className="rounded-xl border border-amber/40 bg-surface p-3 text-xs text-ink-2">
           The watchlist passcode isn&apos;t set up yet, so stocks can&apos;t be added. It is the WATCHLIST_KEY secret on the stage-two-engine Worker in Cloudflare.
         </p>
       )}
 
       <div className="grid gap-3 md:grid-cols-3">
-        {data.summary.map((s) => (
-          <SummaryCard key={s.key} s={s} />
-        ))}
+        {data
+          ? data.summary.map((s) => <SummaryCard key={s.key} s={s} />)
+          : ["Starred when added", "Not starred when added", "All watched"].map((l, i) => (
+              <div key={l} className={`rounded-2xl border bg-surface p-4 ${i === 0 ? "border-amber/50" : "border-line"}`} aria-hidden="true">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
+                    {i === 0 && <StarMark count={5} />}
+                    {l}
+                  </span>
+                  <Bone className="h-3 w-12" />
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-x-3 gap-y-3">
+                  {["Avg return", "vs NIFTY 500", "Up now", "Rose 10%+", "Fell 8%+", "Avg best"].map((x) => (
+                    <div key={x}>
+                      <div className="text-xs text-ink-3">{x}</div>
+                      <Bone className="mt-1 h-4 w-10" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
       </div>
       <p className="-mt-2 text-xs leading-relaxed text-ink-3">
         Each stock is measured from the price when you added it. &quot;Rose 10%+&quot; and &quot;Fell 8%+&quot; count the best and worst point since then, from
@@ -204,10 +208,14 @@ export function WatchlistView() {
 
       <div className="overflow-hidden rounded-2xl border border-line bg-surface">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5 text-xs text-ink-3 md:px-5">
-          <span>
-            <span className="num text-ink-2">{rows.length}</span> watched · lists as of {day(data.asOf)}
-            {data.liveAt && <span className="ml-2">· prices {data.marketLive ? "live" : "as of"} {istTime(data.liveAt)}</span>}
-          </span>
+          {data ? (
+            <span>
+              <span className="num text-ink-2">{rows.length}</span> watched · lists as of {day(data.asOf)}
+              {data.liveAt && <span className="ml-2">· prices {data.marketLive ? "live" : "as of"} {istTime(data.liveAt)}</span>}
+            </span>
+          ) : (
+            <Bone className="h-3 w-48" />
+          )}
           {pricesDown && (
             <span role="alert" className="inline-flex items-center gap-1.5 text-down">
               <span className="h-1.5 w-1.5 rounded-full bg-down" aria-hidden="true" />
@@ -215,7 +223,22 @@ export function WatchlistView() {
             </span>
           )}
         </div>
-        {!rows.length ? (
+        {loading ? (
+          <>
+          <span className="sr-only" role="status">Loading the latest data…</span>
+          <ul className="divide-y divide-line" aria-hidden="true">
+            {Array.from({ length: 4 }, (_, i) => (
+              <li key={i} className="flex items-center justify-between gap-4 px-4 py-4 md:px-5">
+                <div className="flex flex-col gap-1.5">
+                  <Bone className="h-4 w-24" />
+                  <Bone className="h-3 w-40" />
+                </div>
+                <Bone className="h-4 w-32" />
+              </li>
+            ))}
+          </ul>
+          </>
+        ) : !rows.length ? (
           <p className="px-5 py-12 text-center text-sm text-ink-3">Nothing on your watchlist yet. Add a stock above or from its page.</p>
         ) : (
           <>

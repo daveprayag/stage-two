@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { Change, RsMeter } from "@/components/Badges";
 import { Card, Page, PageTitle } from "@/components/Page";
+import { Bone } from "@/components/Skeleton";
 import { getScreen } from "@/lib/data";
 import type { SectorRow } from "@/engine/types";
 
@@ -34,17 +36,12 @@ function Stage2({ v }: { v: number }) {
 const th = "px-3 py-3 text-xs font-normal text-ink-3 first:pl-5 last:pr-5";
 const td = "px-3 py-3.5 first:pl-5 last:pr-5";
 
-export default async function SectorsPage() {
-  const sectors = (await getScreen())?.sectors ?? [];
+/** The ranking; sectors null = still loading (same layout, placeholder values). */
+function SectorsCard({ sectors }: { sectors: SectorRow[] | null }) {
   return (
-    <Page>
-      <PageTitle title="Sector strength">
-        Leaders tend to come in groups. Sectors are ranked by the median RS rating of their liquid stocks, with the share already in a stage 2 uptrend. &quot;Strong&quot;
-        marks the top 40% of industries by 3-month return, the ones that count for Momentum leaders. Groups follow NSE&apos;s industry classification.
-      </PageTitle>
       <Card>
         <ol className="divide-y divide-line md:hidden">
-          {sectors.map((s, k) => (
+          {sectors === null ? <MobileBones /> : sectors.map((s, k) => (
             <li key={s.industry} className="px-4 py-4">
               <div className="flex items-baseline gap-3">
                 <span className="num w-5 shrink-0 text-xs text-ink-3">{k + 1}</span>
@@ -89,7 +86,7 @@ export default async function SectorsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
-            {sectors.map((s, k) => (
+            {sectors === null ? <RowBones /> : sectors.map((s, k) => (
               <tr key={s.industry}>
                 <td className={`${td} num text-ink-3`}>{k + 1}</td>
                 <td className={td}>
@@ -119,6 +116,55 @@ export default async function SectorsPage() {
           </tbody>
         </table>
       </Card>
+  );
+}
+
+function MobileBones() {
+  return Array.from({ length: 8 }, (_, i) => (
+    <li key={i} className="px-4 py-4" aria-hidden="true">
+      <div className="flex items-baseline gap-3">
+        <Bone className="h-3 w-4" />
+        <Bone className="h-4 flex-1" />
+        <Bone className="h-3 w-14" />
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2 pl-7">
+        <Bone className="h-8" />
+        <Bone className="h-8" />
+        <Bone className="h-8" />
+      </div>
+    </li>
+  ));
+}
+
+function RowBones() {
+  return Array.from({ length: 10 }, (_, i) => (
+    <tr key={i} aria-hidden="true">
+      <td className={td}><Bone className="h-3 w-4" /></td>
+      <td className={td}><Bone className="h-4 w-40" /></td>
+      <td className={td}><Bone className="h-4 w-20" /></td>
+      <td className={td}><Bone className="h-4 w-16" /></td>
+      <td className={td}><Bone className="ml-auto h-4 w-12" /></td>
+      <td className={td}><Bone className="ml-auto h-4 w-12" /></td>
+      <td className={td}><Bone className="h-4 w-48" /></td>
+    </tr>
+  ));
+}
+
+async function SectorsData() {
+  const screen = await getScreen();
+  return <SectorsCard sectors={screen.sectors} />;
+}
+
+export default function SectorsPage() {
+  return (
+    <Page>
+      <PageTitle title="Sector strength">
+        Leaders tend to come in groups. Sectors are ranked by the median RS rating of their liquid stocks, with the share already in a stage 2 uptrend. &quot;Strong&quot;
+        marks the top 40% of industries by 3-month return, the ones that count for Momentum leaders. Groups follow NSE&apos;s industry classification.
+      </PageTitle>
+      <Suspense fallback={<SectorsCard sectors={null} />}>
+        <SectorsData />
+      </Suspense>
     </Page>
   );
 }

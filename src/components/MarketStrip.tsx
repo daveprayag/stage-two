@@ -4,6 +4,7 @@ import { StageLabel } from "./Badges";
 import type { LiveFile } from "@/engine/jobs";
 import { LiveIndex } from "./LiveIndex";
 import { Card } from "./Page";
+import { Bone } from "./Skeleton";
 
 function Breadth({ label, value }: { label: string; value: number }) {
   const tone = value >= 60 ? "bg-up" : value >= 40 ? "bg-amber" : "bg-down";
@@ -67,6 +68,42 @@ export function MarketStrip({ m, asOf, initialLive }: { m: MarketSnapshot; asOf:
           {int(m.stage2Count)}
           <span className="text-sm text-ink-3"> of {int(m.universe)}</span>
         </Stat>
+      </dl>
+    </Card>
+  );
+}
+
+/** The market box while the latest data loads: labels shown, values as placeholders. */
+export function MarketStripSkeleton() {
+  const label = (t: string) => (
+    <div className="bg-surface px-4 py-3.5 sm:px-5">
+      <dt className="text-xs text-ink-3">{t}</dt>
+      <dd className="mt-2">
+        <Bone className="h-5 w-24" />
+      </dd>
+    </div>
+  );
+  return (
+    <Card>
+      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="flex items-end justify-between gap-4 sm:justify-start sm:gap-6">
+          <div>
+            <div className="text-xs text-ink-3">NIFTY 500</div>
+            <Bone className="mt-1.5 h-7 w-40" />
+            <Bone className="mt-1.5 h-3 w-48" />
+          </div>
+          <div className="flex flex-col items-end gap-1.5 sm:items-start">
+            <Bone className="h-4 w-16" />
+            <Bone className="h-3 w-36" />
+          </div>
+        </div>
+        <Bone className="h-4 w-full sm:w-80" />
+      </div>
+      <dl className="grid grid-cols-2 gap-px border-t border-line bg-line lg:grid-cols-4">
+        {label("Stocks above 50-day avg")}
+        {label("Stocks above 200-day avg")}
+        {label("New 52-week highs / lows")}
+        {label("In stage 2")}
       </dl>
     </Card>
   );

@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Check, ChevronLeft, X } from "lucide-react";
-import { Change, PhaseLabel, phaseDetail, RsMeter, SHOWN_TAGS, StageLabel, StarMark, TAG_LABEL } from "@/components/Badges";
+import { Suspense } from "react";
+import { Check, X } from "lucide-react";
+import { Change, RsMeter } from "@/components/Badges";
+import { Bone } from "@/components/Skeleton";
+import { StockBodySkeleton, StockGlance, StockHeader } from "@/components/StockParts";
 import { AiSummary, Sources } from "@/components/NewsPanel";
 import { Card, CardHeader, Page } from "@/components/Page";
 import { PriceChart } from "@/components/PriceChart";
 import { LivePrice } from "@/components/LivePrice";
-import { WatchButton } from "@/components/WatchButton";
 import { isStar, marketNote, starChecks } from "@/engine/star";
 import { Checklists } from "@/components/Checklists";
-import { crore, day, price, titleCase } from "@/lib/format";
+import { crore, price, titleCase } from "@/lib/format";
 import { getQuote, getStock } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -32,8 +33,7 @@ function Fact({ label, children, hint, note }: { label: string; children: React.
   );
 }
 
-export default async function StockPage({ params }: Props) {
-  const symbol = decodeURIComponent((await params).symbol).toUpperCase();
+async function StockBody({ symbol }: { symbol: string }) {
   const [data, quote] = await Promise.all([getStock(symbol), getQuote(symbol)]);
   if (!data) notFound();
   const { detail: d, row: rowOrNull, market } = data;
@@ -47,51 +47,22 @@ export default async function StockPage({ params }: Props) {
   const passed = d.checklist.filter((c) => c.pass).length;
   const star = row ? starChecks(row, shortlisted) : [];
   const starred = row ? isStar(row, shortlisted) : false;
-  const screens = [...(starred ? ["Starred"] : []), ...(row?.tags ?? []).filter((t) => SHOWN_TAGS.includes(t)).map((t) => TAG_LABEL[t])];
   const fromHigh = (1 - last.close / d.hi52) * 100;
 
   return (
-    <Page>
+    <>
       <div className="flex flex-col gap-4">
-        <Link href="/" className="-ml-1 inline-flex w-fit items-center gap-0.5 text-sm text-ink-2 hover:text-ink">
-          <ChevronLeft className="h-4 w-4" /> Screener
-        </Link>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="flex items-center gap-3 font-display text-[2.75rem] leading-none tracking-tight sm:text-6xl">
-              {d.symbol}
-              {starred && <StarMark count={star.filter((c) => c.pass).length} className="h-7 w-7 sm:h-8 sm:w-8" />}
-            </h1>
-            <p className="mt-2 text-sm text-ink-2">{titleCase(d.name)}</p>
-            <p className="mt-0.5 text-xs text-ink-3">
-              {d.industry ?? "Industry not classified"}
-              {d.band !== null ? ` · ${d.band}% price band` : ""}
-            </p>
-            <div className="mt-3">
-              <WatchButton symbol={d.symbol} />
-            </div>
-          </div>
-          <LivePrice symbol={d.symbol} close={last.close} chg={chg} date={last.time} initial={quote} />
-        </div>
-        {row && (
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-2">
-            <StageLabel stage={row.stage} age={row.stageAge} />
-            {row.phase && (
-              <>
-                <span className="text-ink-3">·</span>
-                <span>
-                  <PhaseLabel phase={row.phase} stage={row.stage} /> in the uptrend ({phaseDetail(row).toLowerCase()}
-                  {row.baseDate && !row.inBase ? `, left its base after ${day(row.baseDate)}` : ""})
-                </span>
-              </>
-            )}
-            {screens.length > 0 && (
-              <>
-                <span className="text-ink-3">·</span>
-                <span>{screens.join(", ")}</span>
-              </>
-            )}
-          </p>
+        <StockHeader
+          symbol={d.symbol}
+          stars={starred ? star.filter((c) => c.pass).length : null}
+          name={titleCase(d.name)}
+          industry={`${d.industry ?? "Industry not classified"}${d.band !== null ? ` · ${d.band}% price band` : ""}`}
+          price={<LivePrice symbol={d.symbol} close={last.close} chg={chg} date={last.time} initial={quote} />}
+        />
+        {row ? (
+          <StockGlance row={row} />
+        ) : (
+          <p className="text-sm text-ink-3">Outside the liquid universe the screener ranks (under ₹2 Cr a day, ₹30 or less, or in a 2% / 5% band).</p>
         )}
       </div>
 
@@ -145,6 +116,38 @@ export default async function StockPage({ params }: Props) {
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+export default async function StockPage({ params }: Props) {
+  const symbol = decodeURIComponent((await params).symbol).toUpperCase();
+  return (
+    <Page>
+      <Suspense
+        fallback={
+          <>
+            <div className="flex flex-col gap-4">
+              <StockHeader
+                symbol={symbol}
+                stars={null}
+                name={<Bone className="mt-1 h-4 w-48" />}
+                industry={<Bone className="mt-1.5 h-3 w-32" />}
+                price={
+                  <div className="flex flex-col gap-2 sm:items-end">
+                    <Bone className="h-8 w-36" />
+                    <Bone className="h-4 w-28" />
+                  </div>
+                }
+              />
+              <StockGlance row={undefined} />
+            </div>
+            <StockBodySkeleton />
+          </>
+        }
+      >
+        <StockBody symbol={symbol} />
+      </Suspense>
     </Page>
   );
 }
