@@ -364,14 +364,16 @@ export function ScreenerTable({
     [liveFile, unavailable],
   );
   const [phase, setPhase] = useState<PhaseFilter>("all");
+  const [firstLeg, setFirstLeg] = useState(false);
+  // The list counts follow the "which stocks" filters (phase, first leg), so an empty list never surprises.
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
     for (const r of list) {
-      if (!phaseOk(r, phase)) continue;
+      if (!phaseOk(r, phase) || (firstLeg && !isFirstLeg(r))) continue;
       for (const t of r.tags) c[t] = (c[t] ?? 0) + 1;
     }
     return c;
-  }, [list, phase]);
+  }, [list, phase, firstLeg]);
   const [tab, setTab] = useState<TabKey>("leader");
   const [q, setQ] = useState("");
   const [sector, setSector] = useState("");
@@ -379,7 +381,6 @@ export function ScreenerTable({
   const [positive, setPositive] = useState(false);
   const [starred, setStarred] = useState(false);
   const [noResults, setNoResults] = useState(false);
-  const [firstLeg, setFirstLeg] = useState(false);
   // The open tab lives in the URL (?tab=setup) so a view can be shared or bookmarked.
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
@@ -426,6 +427,17 @@ export function ScreenerTable({
       .sort(fn);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pos depends only on sectorPos
   }, [list, tab, q, sector, sort, positive, starred, noResults, firstLeg, news, phase, sectorPos]);
+
+  const emptyNote = useMemo(() => {
+    const label = (k: TabKey) => SCREENS.find((x) => x.key === k)?.label ?? k;
+    if (firstLeg) {
+      const others = SCREENS.filter((x) => x.key !== tab && (counts[x.key] ?? 0) > 0).map((x) => `${x.label} (${counts[x.key]})`);
+      const why = tab === "leader" ? ": Strongest needs RS 90+, which a stock rarely reaches while still in its first leg" : "";
+      return `No first-leg stocks on ${label(tab)} today${why}.${others.length ? ` Try ${others.join(" or ")}.` : ""}`;
+    }
+    if (starred || positive || noResults || phase !== "all" || sector) return "No stock on this list passes the filters switched on. Clear one to see more.";
+    return "Nothing matches today. Lists like this are often empty when the market is weak.";
+  }, [firstLeg, tab, counts, starred, positive, noResults, phase, sector]);
 
   // Sorting by sector: a heading above the first stock of each sector, with its rank on the Sectors page.
   const heads = useMemo<Heads | null>(() => {
@@ -558,7 +570,7 @@ export function ScreenerTable({
           </>
         ) : (
           <p className="px-4 py-12 text-center text-sm leading-relaxed text-ink-3">
-            {q.trim() ? "No screened stock matches. The screener only covers stocks in or near an uptrend; open any stock at /stock/SYMBOL." : "Nothing matches today. Lists like this are often empty when the market is weak."}
+            {q.trim() ? "No screened stock matches. The screener only covers stocks in or near an uptrend; open any stock at /stock/SYMBOL." : emptyNote}
           </p>
         )}
       </div>
