@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { ChevronDown, Search, Star } from "lucide-react";
 import type { NewsBundle, ScreenRow } from "@/engine/types";
 import { price, titleCase } from "@/lib/format";
-import { baseShort, Change, ExtendedBadge, FirstLine, ResultsBadge, sinceText, resultsSoon, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
+import { baseShort, Change, ExtendedBadge, FirstLine, isFirstLeg, ResultsBadge, sinceText, resultsSoon, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
 import { isStar, starCount } from "@/engine/star";
 import { Select } from "./Select";
 import { Bone } from "./Skeleton";
@@ -49,6 +49,9 @@ export const SCREENS: { key: TabKey; label: string; mobile: string; short: strin
       "Rallied 20%+, paused for 5+ sessions without falling more than 25%, and closed back above the top of the pause in the last 5 sessions (now no more than 8% above it). The when, not the what: on average no better than any uptrend day, but the low of the pause is a natural, close stop. Best used on stocks that are also Strongest or Momentum leaders.",
   },
 ];
+
+const FIRST_LEG_HINT =
+  "Stocks in an uptrend still less than 50% above their 52-week low: the first leg of their rise. Rare: 2–6% of Momentum leaders. Earlier is not better on its own: in 2016–24 they reached +50% within 6 months less often than leaders that had already doubled (18% vs 35%), and did better only in the months right after a market bottom.";
 
 const SORTS: { key: SortKey; label: string; fn: (a: ScreenRow, b: ScreenRow) => number }[] = [
   { key: "score", label: "Best match", fn: (a, b) => b.score - a.score },
@@ -313,9 +316,10 @@ function Glossary() {
 }
 
 /** On/off filter as a chip: compact, and its state is visible in its own colour. */
-function Chip({ on, set, children }: { on: boolean; set: (f: (x: boolean) => boolean) => void; children: React.ReactNode }) {
+function Chip({ on, set, children, title }: { on: boolean; set: (f: (x: boolean) => boolean) => void; children: React.ReactNode; title?: string }) {
   return (
     <button
+      title={title}
       aria-pressed={on}
       onClick={() => set((x) => !x)}
       className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs whitespace-nowrap transition-colors ${
@@ -375,6 +379,7 @@ export function ScreenerTable({
   const [positive, setPositive] = useState(false);
   const [starred, setStarred] = useState(false);
   const [noResults, setNoResults] = useState(false);
+  const [firstLeg, setFirstLeg] = useState(false);
   // The open tab lives in the URL (?tab=setup) so a view can be shared or bookmarked.
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
@@ -415,11 +420,12 @@ export function ScreenerTable({
           (!positive || news[r.symbol]?.ai?.sentiment === "positive") &&
           (!starred || isStar(r, news[r.symbol])) &&
           (!noResults || !resultsSoon(r)) &&
+          (!firstLeg || isFirstLeg(r)) &&
           (!needle || r.symbol.includes(needle) || r.name.toUpperCase().includes(needle)),
       )
       .sort(fn);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pos depends only on sectorPos
-  }, [list, tab, q, sector, sort, positive, starred, noResults, news, phase, sectorPos]);
+  }, [list, tab, q, sector, sort, positive, starred, noResults, firstLeg, news, phase, sectorPos]);
 
   // Sorting by sector: a heading above the first stock of each sector, with its rank on the Sectors page.
   const heads = useMemo<Heads | null>(() => {
@@ -518,6 +524,9 @@ export function ScreenerTable({
             </Chip>
             <Chip on={positive} set={setPositive}>
               <span className="h-1.5 w-1.5 rounded-full bg-up" aria-hidden="true" /> Positive news
+            </Chip>
+            <Chip on={firstLeg} set={setFirstLeg} title={FIRST_LEG_HINT}>
+              First leg only
             </Chip>
             <Chip on={noResults} set={setNoResults}>
               <span className="hidden sm:inline">Hide results this week</span>

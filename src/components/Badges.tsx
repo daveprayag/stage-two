@@ -46,15 +46,27 @@ export function PhaseLabel({ phase, stage }: { phase: "early" | "mid" | "late" |
   );
 }
 
+/** % above the 52-week low below which a stage 2 stock counts as in the first leg of its rise (display and filter only). */
+export const FIRST_LEG_PCT = 50;
+export const isFirstLeg = (r: { stage?: Stage; pctAboveLow?: number }) => r.stage === 2 && r.pctAboveLow !== undefined && r.pctAboveLow < FIRST_LEG_PCT;
+/**
+ * The phase restarts at every new base, so "early" can follow a doubling. In stage 2: "first leg" while the stock is
+ * under 50% above its 52-week low, otherwise how far it already stands above that low ("after +105%").
+ */
+export function legNote(r: { stage?: Stage; phase?: "early" | "mid" | "late" | null; pctAboveLow?: number }): string {
+  if (r.stage !== 2 || !r.phase || r.phase === "late" || r.pctAboveLow === undefined) return "";
+  return isFirstLeg(r) ? "first leg" : `after +${r.pctAboveLow.toFixed(0)}%`;
+}
+
 /** Next to the phase in tight spaces: the rally number, or why a stock is late. */
-export function phaseNote(r: { phase?: "early" | "mid" | "late" | null; rallies?: number; riseFromBase?: number | null; largestRallyPct?: number }): string {
+export function phaseNote(r: { phase?: "early" | "mid" | "late" | null; rallies?: number; riseFromBase?: number | null; largestRallyPct?: number; stage?: Stage; pctAboveLow?: number }): string {
   if (!r.phase || r.rallies === undefined) return "";
   if (r.phase === "late") {
     if (r.riseFromBase === null) return "no base";
     if (r.rallies >= 3) return `${r.rallies} rallies`;
     return "80%+ rally";
   }
-  return r.rallies ? `rally ${r.rallies}` : "";
+  return [r.rallies ? `rally ${r.rallies}` : "", legNote(r)].filter(Boolean).join(" · ");
 }
 
 /** "Rally 1 · +37% above base", "In base", "No base in 14 months". */

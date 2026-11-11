@@ -7,7 +7,7 @@ import { ChevronLeft } from "lucide-react";
 import type { AiPick } from "@/engine/aipicks";
 import type { ScreenRow, Stage } from "@/engine/types";
 import { day } from "@/lib/format";
-import { daysUntil, PhaseLabel, phaseDetail, shortDay, sinceText, SHOWN_TAGS, StageLabel, StarMark, TAG_LABEL } from "./Badges";
+import { daysUntil, isFirstLeg, PhaseLabel, phaseDetail, shortDay, sinceText, SHOWN_TAGS, StageLabel, StarMark, TAG_LABEL } from "./Badges";
 import { Card } from "./Page";
 import { Bone } from "./Skeleton";
 import { WatchButton } from "./WatchButton";
@@ -57,6 +57,12 @@ const STAGE_NOTE: Record<Stage, string> = {
   3: "Topping: the 150-day EMA has flattened after an advance",
   4: "Downtrend: below a falling 150-day EMA",
 };
+
+/** The phase note, honest about a new base after a big run (the phase restarts at every base). */
+function phaseNoteLong(row: ScreenRow): string {
+  if (!row.phase || row.phase === "late" || isFirstLeg(row)) return `${PHASE_NOTE[row.phase ?? "early"]}${isFirstLeg(row) ? `; still in the first leg of its rise (+${row.pctAboveLow.toFixed(0)}% from its 52-week low)` : ""}`;
+  return `${row.phase === "early" ? "Early in a new leg" : "Second rally of a new leg"}: it already stands +${row.pctAboveLow.toFixed(0)}% above its 52-week low, so this is not the start of its rise`;
+}
 
 const PHASE_NOTE = {
   early: "First rally out of its base, the lowest-risk time to buy",
@@ -119,7 +125,7 @@ export function StockGlance({ row, aiPick }: { row: ScreenRow | null | undefined
             <span className="text-ink-3">Not in an uptrend</span>
           )
         }
-        note={row.phase ? `${PHASE_NOTE[row.phase]}.${left}` : "Phases are only counted in stage 2."}
+        note={row.phase ? `${phaseNoteLong(row)}.${left}` : "Phases are only counted in stage 2."}
       />
       <ResultsGlance row={row} />
       <Glance
