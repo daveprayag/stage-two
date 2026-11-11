@@ -16,7 +16,7 @@ import {
   ALL_INDICES_URL, parseAllIndices, parseStocksTraded, STOCKS_TRADED_URL, type CorpAction, type LiveIndex, type LiveQuote,
 } from "./nse";
 import { analyseStock, BENCHMARK, rankWork, screenFromWork, withSector, type Sectors, type Work } from "./screen";
-import { attachSince, updateSince, type SinceFile } from "./since";
+import { attachSince, previousMembers, updateSince, type SinceFile } from "./since";
 import { P, type Storage } from "./storage";
 import { readStocks, StocksWriter, type StoreHeadFile } from "./storefile";
 import { picksFor, upsertEntry, type TrackEntry, type TrackListKey } from "./track";
@@ -200,6 +200,15 @@ async function labelStocks(st: Storage, symbols: string[], sectors: Sectors, log
   log.push(`sectors: ${added} of ${todo.length} unlabelled stocks labelled (${symbols.length - todo.length} left)`);
 }
 
+/** ISINs on Momentum leaders in the latest recorded session before `asOf` (the sector buffer in rankWork). */
+async function prevMomentum(st: Storage, asOf: ISODate): Promise<Set<string>> {
+  const fromSince = previousMembers(await st.getJson<SinceFile>(P.since), asOf);
+  if (fromSince) return new Set(fromSince);
+  const entries = (await st.getJson<TrackEntry[]>(P.track)) ?? [];
+  const prev = entries.filter((e) => e.date < asOf).at(-1);
+  return new Set((prev?.lists.momentum ?? []).map((p) => p.isin));
+}
+
 /** Advance the Momentum-leaders stretch state to the store's session and add `momentumSince` to the rows. */
 async function addSince(st: Storage, head: StoreHeadFile, rows: ScreenRow[], closeSeries: Map<string, (number | null)[]>, log: string[]) {
   const prev = await st.getJson<SinceFile>(P.since);
@@ -287,7 +296,7 @@ export async function runEod(st: Storage, opts: JobOptions = {}): Promise<RunRec
       await st.putJson(P.head, head);
     }
     await st.putJson(P.closes, closes);
-    const ranked = rankWork(work);
+    const ranked = rankWork(work, await prevMomentum(st, head.asOf));
     await addSince(st, head, ranked.all, closeSeries, log).catch((e) => log.push(`momentum-since failed: ${String(e)}`));
     // Same session rebuilt: keep the news already fetched; newsAt null makes the news job refresh the shortlist.
     // Carry the last news over until the news job replaces it (newsAt null makes it run), so a new session does not

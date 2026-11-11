@@ -294,7 +294,7 @@ function analyseAll(store: PriceStore, sectors?: Sectors): { all: ScreenRow[]; l
 }
 
 /** Cross-sectional step: RS ratings, industry ranks, tags and scores for every liquid stock's row. */
-export function rankWork(work: Work[]): { all: ScreenRow[]; liquid: Work[] } {
+export function rankWork(work: Work[], prevMomentum: ReadonlySet<string> = new Set()): { all: ScreenRow[]; liquid: Work[] } {
   const liquid = work.filter((w) => w.liquid);
   // RS rating: percentile of the weighted return among liquid stocks.
   const sorted = [...liquid].sort((a, b) => a.rsRaw - b.rsRaw);
@@ -314,7 +314,9 @@ export function rankWork(work: Work[]): { all: ScreenRow[]; liquid: Work[] } {
     row.sectorRank = row.industry ? (sectorRanks.get(row.industry)?.rank ?? null) : null;
     row.sectorLeaders = row.industry ? (strongByIndustry.get(row.industry) ?? 0) : 0;
     row.tags = tagsFor(row);
-    if (row.rs >= MOMENTUM.minRs && row.adr >= adrCut && (row.sectorRank ?? 0) >= MOMENTUM.minSectorRank && row.stage === 2) row.tags.push("momentum");
+    // Sector buffer: a stock already on the list (previous session) stays while its industry is in the top 50%.
+    const minSector = prevMomentum.has(row.isin) ? MOMENTUM.staySectorRank : MOMENTUM.minSectorRank;
+    if (row.rs >= MOMENTUM.minRs && row.adr >= adrCut && (row.sectorRank ?? 0) >= minSector && row.stage === 2) row.tags.push("momentum");
     // Checked after the other tags: the entry-pattern check reads them.
     if (row.tags.length && technicalPass(row)) row.tags.push("qualified");
     row.score = scoreFor(row);
@@ -322,8 +324,12 @@ export function rankWork(work: Work[]): { all: ScreenRow[]; liquid: Work[] } {
   return { all, liquid };
 }
 
-/** Momentum-leader thresholds (livermore EXPERIMENTS "Winner patterns"). */
-export const MOMENTUM = { minRs: 80, adrQuantile: 0.6, minSectorRank: 0.6 } as const;
+/**
+ * Momentum-leader thresholds (livermore EXPERIMENTS "Winner patterns"). staySectorRank: once on the list, a stock stays
+ * while its industry is in the top 50% (livermore EXPERIMENTS "STICKINESS", S1, 2026-11-11: a third less daily churn,
+ * same returns in 2016–24 and 2012–15).
+ */
+export const MOMENTUM = { minRs: 80, adrQuantile: 0.6, minSectorRank: 0.6, staySectorRank: 0.5 } as const;
 
 function quantile(xs: number[], q: number): number {
   const v = xs.filter(Number.isFinite).sort((a, b) => a - b);

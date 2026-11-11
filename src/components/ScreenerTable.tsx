@@ -38,7 +38,7 @@ export const SCREENS: { key: TabKey; label: string; mobile: string; short: strin
     mobile: "Momentum",
     short: "Strong, volatile, in a strong sector",
     blurb:
-      "RS 80+, bigger daily swings than most stocks (top 40%), industry in the top 40% by 3-month return, in stage 2. On 2016–21, data it was never built on, 31% rose 50%+ within 6 months (vs 20% of all stocks) and it beat the average stock in 49 of 64 months; the edge held in 2021–24 and faded in 2025–26. The stars come from this list. A shortlist to research, not a buy list.",
+      "RS 80+, bigger daily swings than most stocks (top 40%), industry in the top 40% by 3-month return (once on the list, it stays while the industry is in the top 50%), in stage 2. On 2016–21, data it was never built on, 31% rose 50%+ within 6 months (vs 20% of all stocks) and it beat the average stock in 49 of 64 months; the edge held in 2021–24 and faded in 2025–26. The stars come from this list. A shortlist to research, not a buy list.",
   },
   {
     key: "resuming",

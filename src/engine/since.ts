@@ -17,6 +17,16 @@ export interface SinceFile {
   asOf: ISODate;
   /** isin → first session of the stretch and the last session it was on the list. */
   runs: Record<string, { start: ISODate; last: ISODate }>;
+  /** Who was on the list in the session before asOf (kept so a same-day rebuild still knows; the sector buffer). */
+  prev?: { asOf: ISODate; members: string[] };
+}
+
+/** ISINs on the list in the latest session before `asOf`, or null if the state can't tell. */
+export function previousMembers(state: SinceFile | null, asOf: ISODate): string[] | null {
+  if (!state) return null;
+  if (state.asOf < asOf) return Object.entries(state.runs).filter(([, r]) => r.last === state.asOf).map(([isin]) => isin);
+  if (state.asOf === asOf) return state.prev?.members ?? null;
+  return null;
 }
 
 /** Advance the state to session `asOf` (sessions = every stored session, oldest first) with today's list members. */
@@ -40,7 +50,8 @@ export function updateSince(state: SinceFile | null, asOf: ISODate, sessions: re
   }
   // Off the list today: kept while the break so far (today included) could still be a short one.
   for (const [isin, r] of Object.entries(prev)) if (!on.has(isin) && since(r.last) <= SINCE_GAP) runs[isin] = r;
-  return { version: 1, from: state?.from ?? asOf, asOf, runs };
+  const before = state && state.asOf < asOf ? { asOf: state.asOf, members: previousMembers(state, asOf) ?? [] } : state?.prev;
+  return { version: 1, from: state?.from ?? asOf, asOf, runs, ...(before ? { prev: before } : {}) };
 }
 
 /** Set `momentumSince` on the rows on Momentum leaders (closeOn: the split-adjusted close of that stock on a session). */

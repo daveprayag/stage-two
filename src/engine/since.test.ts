@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attachSince, SINCE_GAP, updateSince } from "./since";
+import { attachSince, previousMembers, SINCE_GAP, updateSince } from "./since";
 import type { ScreenRow } from "./types";
 
 const S = Array.from({ length: 40 }, (_, k) => new Date(Date.UTC(2026, 0, 1 + k)).toISOString().slice(0, 10));
@@ -39,5 +39,14 @@ describe("momentum since", () => {
     attachSince(rows, st, (isin, d) => (isin === "INE1" && d === S[1] ? 100 : null));
     expect(rows[0]!.momentumSince).toEqual({ date: S[1], close: 100, orEarlier: false });
     expect(rows[1]!.momentumSince).toBeNull();
+  });
+
+  it("remembers the previous session's members, also through a same-day re-run", () => {
+    let st = updateSince(null, S[0]!, S, ["INE1", "INE2"]);
+    st = updateSince(st, S[1]!, S, ["INE1"]);
+    expect(previousMembers(st, S[2]!)).toEqual(["INE1"]);
+    expect(previousMembers(st, S[1]!)?.sort()).toEqual(["INE1", "INE2"]);
+    const again = updateSince(st, S[1]!, S, ["INE1", "INE3"]);
+    expect(previousMembers(again, S[1]!)?.sort()).toEqual(["INE1", "INE2"]);
   });
 });

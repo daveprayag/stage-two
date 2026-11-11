@@ -106,7 +106,7 @@ export default function GuidePage() {
       <Section title="The lists">
         <ul className="list-disc pl-5">
           <li><strong className="text-ink">Strongest:</strong> RS 90 or more with the uptrend intact. The list most likely to hold the big gainers.</li>
-          <li><strong className="text-ink">Momentum leaders:</strong> RS 80+, volatility in the top 40%, a top-40% sector, in stage 2 (see below). The stars come from here.</li>
+          <li><strong className="text-ink">Momentum leaders:</strong> RS 80+, volatility in the top 40%, a top-40% sector, in stage 2 (see below). Once on the list, a stock stays while its sector is in the top 50%, so one sector slipping a single place doesn&apos;t empty the list overnight (tested: a third less daily churn, the same returns). The stars come from here.</li>
           <li><strong className="text-ink">Resuming after a pause:</strong> rallied, paused, and moving again. Not a reason to buy on its own, but it gives a close, clear stop.</li>
         </ul>
         <p>
