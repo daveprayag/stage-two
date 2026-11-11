@@ -201,7 +201,7 @@ export function ExtendedBadge({ r }: { r: { ret3m?: number | null } }) {
   );
 }
 
-/** Momentum leaders stretch: "since 11 Aug · +38%" (short) or "On Momentum leaders since 11 Aug at ₹177, +38% since" (long). */
+/** Momentum leaders stretch: "Since 11 Aug · +38%" (short) or "On Momentum leaders since 11 Aug at ₹177, +38% since" (long). */
 export function sinceText(r: Pick<ScreenRow, "momentumSince" | "close">, long = false, now?: number | null): string | null {
   const s = r.momentumSince;
   if (!s) return null;
@@ -209,6 +209,6 @@ export function sinceText(r: Pick<ScreenRow, "momentumSince" | "close">, long = 
   const pct = s.close ? (last / s.close - 1) * 100 : null;
   const chg = pct === null ? "" : `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(0)}%`;
   const when = `${shortDay(s.date)}${s.orEarlier ? " or earlier" : ""}`;
-  if (!long) return `On list since ${when}${chg ? ` · ${chg}` : ""}`;
+  if (!long) return `Since ${when}${chg ? ` · ${chg}` : ""}`;
   return `On Momentum leaders since ${when}${s.close ? ` at ₹${price(s.close)}` : ""}${chg ? `, ${chg} since` : ""}`;
 }
