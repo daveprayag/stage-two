@@ -3,6 +3,7 @@ import { strToU8, zipSync } from "fflate";
 import { runEod, runLive, runNews, type LiveFile } from "./jobs";
 import { MemoryStorage, P } from "./storage";
 import { decodeStore, encodeStore, type StoreHeadFile } from "./storefile";
+import type { TrackEntry } from "./track";
 import type { PriceStore, ScreenFile, StockSeries } from "./types";
 
 const HEADER = "TradDt,BizDt,Sgmt,Src,FinInstrmTp,FinInstrmId,ISIN,TckrSymb,SctySrs,XpryDt,FininstrmActlXpryDt,StrkPric,OptnTp,FinInstrmNm,OpnPric,HghPric,LwPric,ClsPric,LastPric,PrvsClsgPric,UndrlygPric,SttlmPric,OpnIntrst,ChngInOpnIntrst,TtlTradgVol,TtlTrfVal,TtlNbOfTxsExctd,SsnId,NewBrdLotQty,Rmks,Rsvd1,Rsvd2,Rsvd3,Rsvd4";
@@ -65,6 +66,25 @@ describe("jobs on storage", () => {
     expect((await st.getJson<Record<string, string>>(P.sectors))!.NEWCO).toBe("Capital Goods");
     // A second call within 5 minutes is throttled and not logged.
     expect((await runEod(st)).skipped).toBe(true);
+
+    // The track record is a forward record (every stock labelled first, so the reruns make no NSE sector requests).
+    await st.putJson(P.sectors, Object.fromEntries([...Object.values(s0.stocks).map((x) => [x.symbol, "Hot"]), ["NEWCO", "Hot"]]));
+    // A rebuild leaves a recorded day alone...
+    const day = (await st.getJson<TrackEntry[]>(P.track))![0]!;
+    await st.putJson(P.track, [{ ...day, lists: {} }]);
+    expect((await runEod(st, { rebuild: true, force: true })).ok).toBe(true);
+    expect((await st.getJson<TrackEntry[]>(P.track))![0]!.lists).toEqual({});
+    // ...the evening news job finishes the day and marks it final...
+    const enrich = async (_asOf: string, items: { symbol: string }[]) => Object.fromEntries(items.map((i) => [i.symbol, { headlines: [], ai: null }]));
+    expect((await runNews(st, enrich)).ok).toBe(true);
+    const finished = (await st.getJson<TrackEntry[]>(P.track))![0]!;
+    expect(finished.final).toBe(true);
+    expect(Object.keys(finished.lists).length).toBeGreaterThan(0);
+    // ...and later rebuilds and news runs keep it exactly as it was.
+    await st.putJson(P.track, [{ ...finished, lists: { leader: [] } }]);
+    await runEod(st, { rebuild: true, force: true });
+    await runNews(st, enrich, { force: true });
+    expect((await st.getJson<TrackEntry[]>(P.track))![0]!.lists).toEqual({ leader: [] });
   }, 60_000);
 
   it("merges headlines and summaries from the enrich endpoint into the screen", async () => {

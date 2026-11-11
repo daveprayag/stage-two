@@ -27,7 +27,7 @@ export function technicalChecks(r: ScreenRow): Check[] {
       key: "trend",
       label: "Live uptrend, not a dying one",
       pass: r.stage === 2 && !!r.ma200Rising && !!r.ma50Rising,
-      value: `Stage ${r.stage}; 50-day ${r.ma50Rising ? "rising" : "not rising"}, 200-day ${r.ma200Rising ? "rising" : "not rising"}`,
+      value: `Stage ${r.stage}; 50-day EMA ${r.ma50Rising ? "rising" : "not rising"}, 200-day EMA ${r.ma200Rising ? "rising" : "not rising"}`,
     },
     {
       key: "phase",
@@ -37,7 +37,7 @@ export function technicalChecks(r: ScreenRow): Check[] {
         ? `${r.phase[0]!.toUpperCase()}${r.phase.slice(1)}: ${r.riseFromBase === null ? "no sideways base in 14 months" : r.inBase ? "still in its base" : `${r.rallies ? `rally ${r.rallies}` : "just out of its base"}, +${(r.riseFromBase ?? 0).toFixed(0)}% above the base`}`
         : r.phase === undefined ? "n/a" : "Not in stage 2",
     },
-    { key: "template", label: "All moving averages stacked (trend template 8/8)", pass: r.template >= 8, value: `${r.template} of 8` },
+    { key: "template", label: "All EMAs stacked (trend template 8/8)", pass: r.template >= 8, value: `${r.template} of 8` },
     {
       key: "ema",
       label: "Price above the 20- and 50-day EMAs",
@@ -49,8 +49,8 @@ export function technicalChecks(r: ScreenRow): Check[] {
     {
       key: "stretch",
       label: "Near the high but not stretched",
-      pass: r.pctFromHigh <= 15 && r.close <= 1.25 * r.sma50 && runUp <= 60,
-      value: `${pct(r.pctFromHigh)} below high, ${pct((r.close / r.sma50 - 1) * 100)} above 50-day, ${Number.isFinite(runUp) ? pct(runUp, 0) : "?"} in 2 months`,
+      pass: r.pctFromHigh <= 15 && r.close <= 1.25 * r.ema50 && runUp <= 60,
+      value: `${pct(r.pctFromHigh)} below high, ${pct((r.close / r.ema50 - 1) * 100)} above the 50-day EMA, ${Number.isFinite(runUp) ? pct(runUp, 0) : "?"} in 2 months`,
     },
     {
       key: "volume",

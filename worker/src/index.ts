@@ -346,7 +346,7 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
       if (!symbol) return json({ error: "symbol?" }, 60, 400);
       const [head, screen] = await Promise.all([st.getJson<StoreHeadFile>(P.head), st.getJson<ScreenFile>(P.screen)]);
       // "v2": bump when the response shape changes, so old edge-cached copies are not served.
-      return cached(req, ctx, `v3|${head?.asOf ?? ""}|${screen?.newsAt ?? ""}|${screen?.aiPicks?.at ?? ""}`, () => stockApi(env, symbol));
+      return cached(req, ctx, `v4|${head?.asOf ?? ""}|${screen?.newsAt ?? ""}|${screen?.aiPicks?.at ?? ""}`, () => stockApi(env, symbol));
     }
     case "live": {
       if (!parts[2]) {

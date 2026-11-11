@@ -1,6 +1,6 @@
-/** Everything the stock page shows for one symbol: bars, moving averages, levels, trendlines and the checklist. */
+/** Everything the stock page shows for one symbol: bars, 50/150/200-day EMAs, levels, trendlines and the checklist. */
 import { DEFAULT_LEVELS, supportResistance, trendline } from "./levels";
-import { compact, maxIn, minIn, smaArr } from "./series";
+import { compact, emaLines, maxIn, minIn } from "./series";
 import type { Level, PriceStore, ScreenRow, TrendLine } from "./types";
 
 export interface ChartBar {
@@ -46,9 +46,7 @@ export function stockDetail(store: PriceStore, symbol: string, row: ScreenRow | 
   const n = cp.close.length;
   if (n < 2) return null;
   const i = n - 1;
-  const ma50 = smaArr(cp.close, 50);
-  const ma150 = smaArr(cp.close, 150);
-  const ma200 = smaArr(cp.close, 200);
+  const { ma50, ma150, ma200 } = emaLines(cp.close, s.ema0);
   const d = { dates: cp.dates, high: cp.high, low: cp.low, close: cp.close };
   const { resistance, support } = supportResistance(d, i, { ...DEFAULT_LEVELS, max: 3, preferTouches: 2 });
   const yr = Math.min(252, n);
@@ -62,11 +60,11 @@ export function stockDetail(store: PriceStore, symbol: string, row: ScreenRow | 
   const ok = (x: number) => Number.isFinite(x);
   const r = (x: number) => (ok(x) ? x.toFixed(2) : "n/a");
   const checklist: CheckItem[] = [
-    { label: "Price above the 150- and 200-day averages", pass: ok(m150) && ok(m200) && c > m150 && c > m200, value: `${r(c)} vs ${r(m150)} / ${r(m200)}` },
-    { label: "150-day average above the 200-day", pass: ok(m150) && ok(m200) && m150 > m200, value: `${r(m150)} vs ${r(m200)}` },
-    { label: "200-day average rising for at least a month", pass: ok(m200) && ok(m200ago) && m200 > m200ago, value: ok(m200ago) ? `${((m200 / m200ago - 1) * 100).toFixed(1)}% in 21 sessions` : "n/a" },
-    { label: "50-day average above the 150- and 200-day", pass: ok(m50) && ok(m150) && ok(m200) && m50 > m150 && m50 > m200, value: `${r(m50)}` },
-    { label: "Price above the 50-day average", pass: ok(m50) && c > m50, value: ok(m50) ? `${((c / m50 - 1) * 100).toFixed(1)}% above` : "n/a" },
+    { label: "Price above the 150- and 200-day EMAs", pass: ok(m150) && ok(m200) && c > m150 && c > m200, value: `${r(c)} vs ${r(m150)} / ${r(m200)}` },
+    { label: "150-day EMA above the 200-day EMA", pass: ok(m150) && ok(m200) && m150 > m200, value: `${r(m150)} vs ${r(m200)}` },
+    { label: "200-day EMA rising for at least a month", pass: ok(m200) && ok(m200ago) && m200 > m200ago, value: ok(m200ago) ? `${((m200 / m200ago - 1) * 100).toFixed(1)}% in 21 sessions` : "n/a" },
+    { label: "50-day EMA above the 150- and 200-day EMAs", pass: ok(m50) && ok(m150) && ok(m200) && m50 > m150 && m50 > m200, value: `${r(m50)}` },
+    { label: "Price above the 50-day EMA", pass: ok(m50) && c > m50, value: ok(m50) ? `${((c / m50 - 1) * 100).toFixed(1)}% above` : "n/a" },
     { label: "At least 30% above the 52-week low", pass: c >= 1.3 * lo52, value: `${((c / lo52 - 1) * 100).toFixed(0)}% above ${lo52.toFixed(2)}` },
     { label: "Within 25% of the 52-week high", pass: c >= 0.75 * hi52, value: `${((1 - c / hi52) * 100).toFixed(1)}% below ${hi52.toFixed(2)}` },
     { label: "Relative strength rating at least 70", pass: (row?.rs ?? 0) >= 70, value: row ? `RS ${row.rs}` : "not in the liquid universe" },

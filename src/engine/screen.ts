@@ -21,7 +21,7 @@ import { rsi } from "./core/systematic";
 import { technicalPass } from "./topsetup";
 import { basePivot, supportResistance } from "./levels";
 import { nextResults, resultsReaction } from "./results";
-import { compact, countRallies, findBase, findResume, maxIn, median, minIn, phaseOf, retPct, smaArr, stageAt, toBars } from "./series";
+import { compact, countRallies, emaLines, findBase, findResume, maxIn, median, minIn, phaseOf, retPct, stageAt, toBars } from "./series";
 import type { ISODate, MarketSnapshot, PriceStore, ScreenFile, ScreenRow, ScreenTag, SectorRow, Stage, StockSeries } from "./types";
 
 export const BENCHMARK = "NIFTY 500";
@@ -53,13 +53,13 @@ export interface Work {
   /** Today's high/low set a new 52-week high/low (prior 251 sessions). */
   newHigh: boolean;
   newLow: boolean;
-  /** Closed above its 50- / 200-day average (market breadth). */
+  /** Closed above its 50- / 200-day EMA (market breadth). */
   above50: boolean;
   above200: boolean;
 }
 
 /** The parts of the store the screen needs besides the stocks themselves. */
-export type StoreHead = Pick<PriceStore, "asOf" | "dates" | "indices">;
+export type StoreHead = Pick<PriceStore, "asOf" | "dates" | "indices" | "ema0">;
 
 /**
  * ETFs and index funds trade in NSE's EQ series too; names look like "ICICIPRAMC - EVIETF", "BFAM - NIFTYBETF",
@@ -105,9 +105,7 @@ export function analyseStock(store: StoreHead, s: StockSeries, bench: (number | 
   const f = computeFeatures(toBars(cp, s), cfg);
   const close = cp.close;
   const c = close[i] as number;
-  const ma50 = smaArr(close, 50);
-  const ma150 = smaArr(close, 150);
-  const ma200 = smaArr(close, 200);
+  const { ma50, ma150, ma200 } = emaLines(close, s.ema0);
   const turnoverCr = f.turnover50Cr[i] as number;
   const liquid = c > MIN_CLOSE && turnoverCr >= MIN_TURNOVER_CR && !(s.band !== null && EXCLUDED_BANDS.has(s.band));
 
@@ -208,14 +206,13 @@ export function analyseStock(store: StoreHead, s: StockSeries, bench: (number | 
       symbol: s.symbol, isin: s.isin, name: s.name, industry: s.industry, close: c, chgPct,
       rsLineHigh, ret1m: r(21), ret3m: r3, ret6m: r(126),
       pctFromHigh: (1 - c / hi52) * 100, pctAboveLow: (c / lo52 - 1) * 100,
-      sma50: m50, sma150: m150, sma200: has200 ? m200 : null, stage, stageAge,
+      ema50: m50, ema150: m150, ema200: has200 ? m200 : null, stage, stageAge,
       templateBase: crit.filter(Boolean).length,
       tight10, dryUp, rvol, adr: f.adr20[i] as number, turnoverCr, band: s.band,
       resistance: nearest, pctToResistance: nearest !== null ? (nearest / c - 1) * 100 : null,
       breakout, scans, setup,
       rsi14: Number.isFinite(rsi14v) ? rsi14v : null,
       ema20: f.ema20[i] as number,
-      ema50: f.ema50[i] as number,
       ma50Rising: ma50ago !== undefined && Number.isFinite(ma50ago) && m50 > ma50ago,
       ma200Rising: has200 && m200ago !== undefined && Number.isFinite(m200ago) && m200 > m200ago,
       upDownVol,
@@ -260,9 +257,7 @@ function marketSnapshot(store: StoreHead, liquid: Work[], name = BENCHMARK): Mar
   const close = raw.filter((x): x is number => x !== null);
   const i = close.length - 1;
   if (i < 200) return null;
-  const ma50 = smaArr(close, 50);
-  const ma150 = smaArr(close, 150);
-  const ma200 = smaArr(close, 200);
+  const { ma50, ma150, ma200 } = emaLines(close, store.ema0?.[name]);
   const c = close[i] as number;
   const above = (k: "50" | "200") => liquid.filter((w) => (k === "50" ? w.above50 : w.above200)).length;
   return {
@@ -270,8 +265,8 @@ function marketSnapshot(store: StoreHead, liquid: Work[], name = BENCHMARK): Mar
     close: c,
     chgPct: (c / (close[i - 1] as number) - 1) * 100,
     stage: (stageAt(close, ma150, i) ?? 1) as Stage,
-    aboveSma50: c > (ma50[i] as number),
-    aboveSma200: c > (ma200[i] as number),
+    aboveEma50: c > (ma50[i] as number),
+    aboveEma200: c > (ma200[i] as number),
     pctAbove50: liquid.length ? (above("50") / liquid.length) * 100 : 0,
     pctAbove200: liquid.length ? (above("200") / liquid.length) * 100 : 0,
     newHighs: liquid.filter((w) => w.newHigh).length,

@@ -4,7 +4,7 @@ import { Card, Page, PageTitle } from "@/components/Page";
 export const metadata: Metadata = { title: "Guide", description: "Stages, phases, relative strength and the star checks, in plain words." };
 
 function StagesDiagram() {
-  // Schematic price path through the four stages, with its 30-week average lagging behind.
+  // Schematic price path through the four stages, with its 150-day EMA lagging behind.
   return (
     <svg viewBox="0 0 640 220" className="h-auto w-full" role="img" aria-label="Price moving through stage 1 base, stage 2 advance, stage 3 top and stage 4 decline, with a lagging moving average">
       <g stroke="var(--line)" strokeWidth="1">
@@ -20,7 +20,7 @@ function StagesDiagram() {
         <text x="365" y="200">3 · Top</text>
         <text x="515" y="200">4 · Decline</text>
       </g>
-      <text x="620" y="140" fontSize="11" textAnchor="end" fill="var(--chart-ma200)" fontFamily="var(--font-geist), sans-serif">30-week average</text>
+      <text x="620" y="140" fontSize="11" textAnchor="end" fill="var(--chart-ma200)" fontFamily="var(--font-geist), sans-serif">150-day EMA</text>
     </svg>
   );
 }
@@ -41,32 +41,35 @@ export default function GuidePage() {
         Moving averages, stages, support and resistance, volume: what swing traders use them for, how this app computes them, and how much weight they can carry.
       </PageTitle>
 
-      <Section title="The 50- and 200-day moving averages">
+      <Section title="The 50- and 200-day EMAs">
         <p>
-          A moving average is the average closing price of the last N sessions, drawn as a line. The 50-day follows the intermediate trend; the 200-day (about
-          40 weeks) follows the long trend. On a weekly chart the same lines are the 10- and 40-week averages.
+          A moving average smooths the closing price into a line. This app uses exponential moving averages (EMAs) for every price line, the stage and the
+          trend checks: each day the EMA moves a fixed share of the way from yesterday&apos;s value to today&apos;s close (2 ÷ (N + 1): about 4% for the
+          50-day, 1% for the 200-day), so recent sessions count most and it turns sooner than a simple average of the last N closes. The 50-day follows the
+          intermediate trend; the 200-day (about 40 weeks) follows the long trend. They are computed over each stock&apos;s history since 2015 (or since it
+          listed), the way charting platforms compute them.
         </p>
         <ul className="list-disc space-y-1 pl-5">
           <li><strong className="text-ink">Trend filter.</strong> Momentum traders only buy stocks above both lines, with the 200-day rising. Mark Minervini&apos;s trend template (the 8-point checklist on each stock page) is the strict version.</li>
-          <li><strong className="text-ink">Support in uptrends.</strong> In a healthy advance, pullbacks often stall near the 50-day. A close well below it is the first sign the trend is weakening.</li>
-          <li><strong className="text-ink">Resistance in downtrends.</strong> When a falling stock or index rallies up to its 50- or 200-day and turns down there, traders say the average &quot;acted as resistance&quot;: sellers who bought higher use the bounce to get out.</li>
+          <li><strong className="text-ink">Support in uptrends.</strong> In a healthy advance, pullbacks often stall near the 50-day EMA. A close well below it is the first sign the trend is weakening.</li>
+          <li><strong className="text-ink">Resistance in downtrends.</strong> When a falling stock or index rallies up to its 50- or 200-day and turns down there, traders say the line &quot;acted as resistance&quot;: sellers who bought higher use the bounce to get out.</li>
           <li><strong className="text-ink">Crosses.</strong> The 50-day crossing above the 200-day is a &quot;golden cross&quot;, below it a &quot;death cross&quot;. Both are slow and mostly used to judge the overall market.</li>
         </ul>
       </Section>
 
       <Section title="Stages">
         <p>
-          Stan Weinstein split a stock&apos;s life into four stages using the 30-week (≈150-day) average. Swing traders only want stage 2. This app calls a stock
-          stage 2 when it closes above a 150-day average that rose more than 1% over the last 20 sessions; stage 4 is the mirror image; a flat average is
-          stage 3 after an advance and stage 1 otherwise.
+          Stan Weinstein split a stock&apos;s life into four stages using the 30-week (≈150-day) average. Swing traders only want stage 2. This app uses the
+          150-day EMA: a stock is stage 2 when it closes above a 150-day EMA that rose more than 1% over the last 20 sessions; stage 4 is the mirror image; a
+          flat EMA is stage 3 after an advance and stage 1 otherwise.
         </p>
         <Card className="p-4">
           <StagesDiagram />
         </Card>
         <p>
           <strong className="text-ink">Phase within stage 2.</strong> Rallies are counted from the moment the stock leaves its latest side trend:
-          8+ weeks moving sideways within a 35% range while its 50-day average goes flat (Ankur: &quot;a re-base of 8+ weeks and ≤ 35% depth resets the
-          count&quot;). A short pause inside an uptrend, like his 4–5 bar contraction, keeps the 50-day rising and does not reset it. A rally is a rise
+          8+ weeks moving sideways within a 35% range while its 50-day EMA goes flat (Ankur: &quot;a re-base of 8+ weeks and ≤ 35% depth resets the
+          count&quot;). A short pause inside an uptrend, like his 4–5 bar contraction, keeps the 50-day EMA rising and does not reset it. A rally is a rise
           of 20%+ without a 10% pullback. <em>Early</em> = still in the base, just out of it, or in the first rally; <em>mid</em> = the second;
           <em> late</em> = the third or later, any rally of 80%+, or no side trend at all in the last 14 months. In our 2021–24 test, stocks after an
           80%+ rally had weaker returns over the next month; the &quot;Early only&quot; filter on the screener hides everything else.
@@ -128,7 +131,8 @@ export default function GuidePage() {
           that profile, found on 2021–24 data and then tested, unchanged, on two periods it never saw. On 2016–21 it passed: its stocks beat the average stock
           in 49 of 64 months, and 31% rose 50%+ against 20%. On 2025–26 it failed: 17% against 13%, with no better average return. Over ten years that is a
           real but uneven edge, and it gave no protection in small-cap sell-offs (2018, 2025). Treat it as where to start looking, not as a buy signal: the
-          checks below and your own stop do the rest.
+          checks below and your own stop do the rest. (Re-run on EMAs, the 2016–21 and 2021–24 results moved by less than half a point; the 2025–26 figures
+          are from the original run on simple averages.)
         </p>
         <ol className="list-decimal space-y-2 pl-5">
           <li><strong className="text-ink">Start from Strongest or Momentum leaders</strong>, with the phase filter on Early or Early + mid. In 2021–24 early-phase picks had fewer 20%+ losers than the rest (5% vs 7%); in 2025–26 the difference was small.</li>
@@ -138,7 +142,7 @@ export default function GuidePage() {
           <li><strong className="text-ink">Own several, not one.</strong> Even in 2021–24 only about 4 in 10 of these picks reached +50%, and in 2025–26 fewer than 2 in 10; the rest go nowhere or fall, and you cannot tell which in advance. Five to ten positions across different sectors is what turns those odds into a result.</li>
           <li><strong className="text-ink">Size by the stop.</strong> These stocks move 4–6% a day, and winners typically dipped 6% (a quarter of them 11%+) before running, so very tight stops shake you out. Decide the stop first, then buy only as many shares as that loss allows. The &quot;Resuming after a pause&quot; list helps: a stock that rallied, paused and is moving again has a natural stop at the pause low, and the stock page shows how far away it is.</li>
           <li><strong className="text-ink">Give winners time.</strong> The edge was measured over six months, not days. Exits for this list have not been tested yet; check the Track record page as it builds.</li>
-          <li><strong className="text-ink">Respect the market.</strong> In 2021–22 the same profile still lost money, just less than other stocks. When the NIFTY 500 is below its 200-day average, buy less.</li>
+          <li><strong className="text-ink">Respect the market.</strong> In 2021–22 the same profile still lost money, just less than other stocks. When the NIFTY 500 is below its 200-day EMA, buy less.</li>
         </ol>
         <p>
           The <span className="text-amber">★</span> star marks momentum leaders that pass at least 5 of these checks at once: early or mid phase, RS 90+, a sector

@@ -10,7 +10,7 @@ Formerly *StockGenius* (Yahoo Finance, ~380 hardcoded symbols). Now every EQ sto
 | Screen | Rule |
 | --- | --- |
 | Strongest | RS ≥ 90 and trend template ≥ 7/8 (livermore: hit +50% in 6 months 29% vs 20% for all stocks in the pre-registered 2016–21 test, beat the average stock in 45/64 months; 35% vs 23% in 2021–24; 17% vs 13% in 2025–26) |
-| Momentum leaders | RS ≥ 80, 20-day ADR in the top 40% of liquid stocks, industry in the top 40% by median 3-month return, stage 2 (livermore: passed the pre-registered 2016–21 test, 49/64 months, +7.2 pp; failed 2025–26, +1.3 pp) |
+| Momentum leaders | RS ≥ 80, 20-day ADR in the top 40% of liquid stocks, industry in the top 40% by median 3-month return, stage 2 (livermore: passed the pre-registered 2016–21 test, 49/64 months, +7.2 pp on simple averages and +6.8 pp on EMAs; failed 2025–26, +1.3 pp, simple averages) |
 | Resuming after a pause | Rallied 20%+, paused 5+ sessions within 25%, closed back above the pause top in the last 5 sessions, ≤ 8% above it; stop = pause low |
 
 Removed from the UI on 2026-11-10 (still tagged in the engine; all but Ankur's scans still recorded in the track record): Top setups, Breaking out,
@@ -18,17 +18,24 @@ Tight near highs, New uptrends, Ankur's scans. Tight ranges and breakouts found 
 
 Star (★): a momentum leader that passes at least 5 of 6 checks (momentum profile, early/mid phase, RS ≥ 90, 3+ strong
 stocks in its industry, positive news without red flags, resuming after a pause with a stop ≤ 12%). Market (NIFTY 500 vs
-its 200-day) is shown but not counted. A summary of the Guide's selection steps, not a separately tested signal.
+its 200-day EMA) is shown but not counted. A summary of the Guide's selection steps, not a separately tested signal.
 
 Phase (stage 2 only): rallies (20%+ without a 10% pullback) counted from when the stock left its latest side-trend base
-(40+ sessions within a 35% range, ending within 12% of where it started, 50-day average moving at most 5%). Early = in
+(40+ sessions within a 35% range, ending within 12% of where it started, 50-day EMA moving at most 5%). Early = in
 or just out of the base, or the first rally; mid = second; late = third or later, any 80%+ rally, or no base in the
 ~14 months of history. The screener can show early only or early + mid.
 
 Universe: EQ series, not ETFs/index funds, close > ₹30, 50-day average traded value ≥ ₹2 Cr, not in the 2% / 5% price bands.
-Stage = Weinstein stage from the 150-day average; RS = percentile of 3/6/9/12-month returns (latest quarter double).
+Stage = Weinstein stage from the 150-day EMA; RS = percentile of 3/6/9/12-month returns (latest quarter double).
 Support/resistance = clusters of swing highs/lows (5 bars each side, 2.5% tolerance); trendlines = longest line through
 two rising lows / falling highs that no close has broken. These are shortlists, not tested buy signals (see /guide).
+
+Moving averages: every price line and trend rule uses EMAs (50/150/200-day; since 2026-11-11, livermore DECISIONS.md
+"Moving averages: EMA"); volume and traded-value averages are simple averages. The store keeps 300 sessions, so each stock
+and index carries `ema0`, its EMAs on the session before the first stored one: the EMAs continue from it and match a
+full-history EMA. `update.ts` rolls `ema0` forward as the window drops days, a split rescales it with the history, and a
+stock listed inside the window starts TradingView-style (simple average of its first N closes) until its own seed forms.
+Seeds came from livermore's history back to 2015 (`pnpm bt ema-seeds`, then `scripts/apply-ema-seeds.mts`).
 
 ## How it runs
 

@@ -1,6 +1,6 @@
 /** Helpers to turn the aligned store into per-stock bar arrays (traded sessions only) and simple indicators. */
 import type { Bar } from "./core/types";
-import type { PriceStore, Stage, StockSeries } from "./types";
+import type { EmaSeed, PriceStore, Stage, StockSeries } from "./types";
 
 export interface Compact {
   dates: string[];
@@ -44,6 +44,70 @@ export function toBars(cp: Compact, s: StockSeries): Bar[] {
     series: s.series,
     priceBand: s.band,
   }));
+}
+
+/**
+ * Price averages are EMAs (livermore DECISIONS.md "Moving averages: EMA", 2026-11-11): the 50-, 150- and 200-day lines,
+ * stage, base detection and the market filter. Volume and traded-value averages stay simple averages.
+ */
+export const EMA_PERIODS = [50, 150, 200] as const;
+
+export type { EmaSeed } from "./types";
+
+/**
+ * Exponential moving average, α = 2 / (period + 1). From `seed` (the EMA before values[0]) when given; otherwise as
+ * TradingView's ta.ema: the simple average of the first `period` values, then exponential (NaN before that).
+ */
+export function emaArr(values: readonly number[], period: number, seed?: number | null): number[] {
+  const out = new Array<number>(values.length).fill(Number.NaN);
+  const a = 2 / (period + 1);
+  let e: number;
+  let from: number;
+  if (seed !== undefined && seed !== null && Number.isFinite(seed)) {
+    e = seed;
+    from = 0;
+  } else {
+    if (values.length < period) return out;
+    let sum = 0;
+    for (let i = 0; i < period; i++) sum += values[i] as number;
+    e = sum / period;
+    out[period - 1] = e;
+    from = period;
+  }
+  for (let i = from; i < values.length; i++) {
+    e = a * (values[i] as number) + (1 - a) * e;
+    out[i] = e;
+  }
+  return out;
+}
+
+/** The 50/150/200-day EMAs of a compact close series, continuing from the stored seed. */
+export function emaLines(close: readonly number[], seed?: EmaSeed | null): { ma50: number[]; ma150: number[]; ma200: number[] } {
+  const [ma50, ma150, ma200] = EMA_PERIODS.map((p, k) => emaArr(close, p, seed?.[k])) as [number[], number[], number[]];
+  return { ma50, ma150, ma200 };
+}
+
+/**
+ * The seed after the window drops its first `drop` slots. `values` are the slot values before dropping (null = no
+ * trade that day). The new seed is the line's value at the last dropped close, so the remaining line is unchanged.
+ * Without a seed (a recent listing) the line is TradingView-style; if it starts after the drop point, its first value
+ * is stepped back (e[j−1] = (e[j] − α·v[j]) / (1 − α)) to the seed that reproduces it exactly from the new start.
+ */
+export function rollSeed(seed: EmaSeed | null | undefined, values: readonly (number | null | undefined)[], drop: number): EmaSeed | null {
+  const all = values.filter((v): v is number => v !== null && v !== undefined);
+  const dropped = values.slice(0, drop).filter((v): v is number => v !== null && v !== undefined).length;
+  if (!dropped) return seed ?? null;
+  const next = EMA_PERIODS.map((p, k) => {
+    const line = emaArr(all, p, seed?.[k]);
+    let e = line[dropped - 1] as number;
+    if (Number.isFinite(e)) return e;
+    if (all.length < p) return null; // no line yet: it will start TradingView-style from the bars that remain
+    const a = 2 / (p + 1);
+    e = line[p - 1] as number;
+    for (let j = p - 1; j >= dropped; j--) e = (e - a * (all[j] as number)) / (1 - a);
+    return e;
+  });
+  return next.some((x) => x !== null) ? next : null;
 }
 
 /** Simple moving average; NaN until `period` values exist. */

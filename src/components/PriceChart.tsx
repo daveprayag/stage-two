@@ -162,9 +162,9 @@ export function PriceChart({ d, initialQuote }: { d: StockDetail; initialQuote: 
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-x-4 gap-y-1">
-          {toggle("ma50", "50-day", "var(--chart-ma50)")}
-          {toggle("ma200", "200-day", "var(--chart-ma200)")}
-          {toggle("ma150", "150-day", "var(--chart-ma150)", true)}
+          {toggle("ma50", "50 EMA", "var(--chart-ma50)")}
+          {toggle("ma200", "200 EMA", "var(--chart-ma200)")}
+          {toggle("ma150", "150 EMA", "var(--chart-ma150)", true)}
           {toggle("levels", "Resistance / support", "var(--down)")}
           {toggle("trend", "Trendlines", "var(--up)")}
         </div>

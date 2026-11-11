@@ -36,6 +36,8 @@ export interface TrackEntry {
   date: ISODate;
   nifty: number | null;
   lists: Partial<Record<TrackListKey, TrackPick[]>>;
+  /** Recorded after that evening's news: later runs leave it as it was (AI picks may still be added). */
+  final?: boolean;
 }
 
 const inList = (key: TrackListKey, r: ScreenRow, s: ScreenFile): boolean => {

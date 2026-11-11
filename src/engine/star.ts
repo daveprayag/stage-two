@@ -59,8 +59,8 @@ export function marketNote(m: MarketSnapshot | null | undefined): Check | null {
   if (!m) return null;
   return {
     key: "market",
-    label: "Market: NIFTY 500 above its 200-day average",
-    pass: m.aboveSma200,
-    value: m.aboveSma200 ? "Yes: normal position sizes" : "No: buy less (the same profile still lost money in 2021–22)",
+    label: "Market: NIFTY 500 above its 200-day EMA",
+    pass: m.aboveEma200,
+    value: m.aboveEma200 ? "Yes: normal position sizes" : "No: buy less (the same profile still lost money in 2021–22)",
   };
 }

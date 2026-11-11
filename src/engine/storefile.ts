@@ -4,7 +4,7 @@
  *   prices/stocks.ndjson.gz   one StockSeries per line, gzip
  * Uses Web Streams (DecompressionStream / CompressionStream), available in Cloudflare Workers and Node 18+.
  */
-import type { ISODate, PriceStore, StockSeries } from "./types";
+import type { EmaSeed, ISODate, PriceStore, StockSeries } from "./types";
 
 export interface StoreHeadFile {
   version: 2;
@@ -13,6 +13,8 @@ export interface StoreHeadFile {
   indices: Record<string, (number | null)[]>;
   /** Every stock's current ISIN (the updater needs them before streaming, to tell ISIN changes from new listings). */
   isins: string[];
+  /** Index name → 50/150/200-day EMAs just before the first stored session (types.ts EmaSeed). */
+  ema0?: Record<string, EmaSeed>;
 }
 
 /** Stream StockSeries out of a gzipped NDJSON body. */
@@ -77,6 +79,7 @@ export class StocksWriter {
 
 export const headOf = (store: PriceStore): StoreHeadFile => ({
   version: 2, asOf: store.asOf, dates: store.dates, indices: store.indices, isins: Object.keys(store.stocks),
+  ...(store.ema0 ? { ema0: store.ema0 } : {}),
 });
 
 /** Whole store → the two files (local scripts, migration). */
@@ -88,7 +91,7 @@ export async function encodeStore(store: PriceStore): Promise<{ head: StoreHeadF
 
 /** The two files → whole store (local scripts, tests). */
 export async function decodeStore(head: StoreHeadFile, stocks: Uint8Array): Promise<PriceStore> {
-  const out: PriceStore = { version: 1, asOf: head.asOf, dates: head.dates, indices: head.indices, stocks: {} };
+  const out: PriceStore = { version: 1, asOf: head.asOf, dates: head.dates, indices: head.indices, stocks: {}, ...(head.ema0 ? { ema0: head.ema0 } : {}) };
   for await (const s of readStocks(new Blob([stocks as Uint8Array<ArrayBuffer>]).stream())) out.stocks[s.isin] = s;
   return out;
 }

@@ -1,7 +1,8 @@
 /**
  * Add new sessions to the rolling price store.
  * Order per stock and session: ISIN change → split/bonus adjustment of the history → the session's bar; then bands,
- * trimming to WINDOW sessions and dropping stocks that stopped trading.
+ * trimming to WINDOW sessions and dropping stocks that stopped trading. Trimming rolls each EMA seed (the 50/150/200-day
+ * EMA just before the first stored session) forward through the dropped days, so the EMAs stay full-history EMAs.
  *
  * SessionsUpdater works one stock at a time so the Cloudflare Worker can stream the store (128 MB memory):
  *   const u = new SessionsUpdater(head, sessions, WINDOW, head.isins);   // mutates head: dates, indices, asOf
@@ -11,6 +12,7 @@
  */
 import { applyFactor, corpActionFactor, gapFactor } from "./adjust";
 import type { BhavRow, CorpAction } from "./nse";
+import { rollSeed } from "./series";
 import type { ISODate, PriceStore, StockSeries } from "./types";
 
 export const WINDOW = 300;
@@ -37,7 +39,7 @@ function lastClose(s: StockSeries, before: number): number | null {
   return null;
 }
 
-export type StoreHeadMut = Pick<PriceStore, "dates" | "asOf" | "indices">;
+export type StoreHeadMut = Pick<PriceStore, "dates" | "asOf" | "indices" | "ema0">;
 
 export class SessionsUpdater {
   readonly log: string[] = [];
@@ -79,7 +81,11 @@ export class SessionsUpdater {
     this.extra = Math.max(0, head.dates.length - window);
     if (this.extra) {
       head.dates.splice(0, this.extra);
-      for (const arr of Object.values(head.indices)) arr.splice(0, this.extra);
+      for (const [name, arr] of Object.entries(head.indices)) {
+        const seed = rollSeed(head.ema0?.[name], arr, this.extra);
+        if (seed) (head.ema0 ??= {})[name] = seed;
+        arr.splice(0, this.extra);
+      }
     }
     if (inputs.length) head.asOf = inputs[inputs.length - 1]!.date;
   }
@@ -128,7 +134,11 @@ export class SessionsUpdater {
       if (row.name) s.name = row.name;
     }
     if (this.bands?.has(s.symbol)) s.band = this.bands.get(s.symbol) ?? null;
-    if (this.extra) for (const f of FIELDS) s[f].splice(0, this.extra);
+    if (this.extra) {
+      const seed = rollSeed(s.ema0, s.c, this.extra);
+      if (seed) s.ema0 = seed;
+      for (const f of FIELDS) s[f].splice(0, this.extra);
+    }
     const n = s.c.length;
     let seen = false;
     for (let j = Math.max(0, n - STALE_SESSIONS); j < n && !seen; j++) if (s.c[j] !== null) seen = true;

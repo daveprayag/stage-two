@@ -52,10 +52,10 @@ export function StockHeader({
 }
 
 const STAGE_NOTE: Record<Stage, string> = {
-  1: "Basing: moving sideways around a flat 150-day average",
-  2: "Uptrend: above a rising 150-day average",
-  3: "Topping: the average has flattened after an advance",
-  4: "Downtrend: below a falling 150-day average",
+  1: "Basing: moving sideways around a flat 150-day EMA",
+  2: "Uptrend: above a rising 150-day EMA",
+  3: "Topping: the 150-day EMA has flattened after an advance",
+  4: "Downtrend: below a falling 150-day EMA",
 };
 
 const PHASE_NOTE = {

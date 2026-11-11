@@ -8,6 +8,13 @@ import type { ResultsReaction } from "./results";
  */
 export type ISODate = string;
 
+/**
+ * Each EMA's value just before a series' first stored bar, in EMA_PERIODS order (null = not known). The store keeps
+ * WINDOW sessions; an EMA computed from the window alone would still carry its starting guess (≈ 37% of a 200-day EMA
+ * after 300 bars) and shift every day as the window moves. Starting from these values makes it the full-history EMA.
+ */
+export type EmaSeed = (number | null)[];
+
 export interface StockSeries {
   /** Current ISIN (changes on some splits; we follow it). */
   isin: string;
@@ -26,6 +33,8 @@ export interface StockSeries {
   l: (number | null)[];
   c: (number | null)[];
   v: (number | null)[];
+  /** 50/150/200-day EMAs just before the first stored session (see EmaSeed); absent for listings inside the window. */
+  ema0?: EmaSeed;
 }
 
 export interface PriceStore {
@@ -36,6 +45,8 @@ export interface PriceStore {
   stocks: Record<string, StockSeries>;
   /** Index closes aligned with `dates`, keyed by NSE index name ("NIFTY 500", "NIFTY BANK", ...). */
   indices: Record<string, (number | null)[]>;
+  /** Index name → 50/150/200-day EMAs just before the first stored session (see EmaSeed). */
+  ema0?: Record<string, EmaSeed>;
 }
 
 export type Stage = 1 | 2 | 3 | 4;
@@ -77,9 +88,10 @@ export interface ScreenRow {
   ret6m: number | null;
   pctFromHigh: number;
   pctAboveLow: number;
-  sma50: number;
-  sma150: number;
-  sma200: number | null;
+  /** 50/150/200-day EMAs (full-history, from the stored seeds). */
+  ema50: number;
+  ema150: number;
+  ema200: number | null;
   stage: Stage;
   /** Sessions since the stock last entered stage 2 (null if not in stage 2). */
   stageAge: number | null;
@@ -102,8 +114,7 @@ export interface ScreenRow {
   /** Wilder RSI(14). */
   rsi14: number | null;
   ema20: number;
-  ema50: number;
-  /** 50-day average rising over the last 10 sessions; 200-day rising over the last 21. */
+  /** 50-day EMA rising over the last 10 sessions; 200-day EMA rising over the last 21. */
   ma50Rising: boolean;
   ma200Rising: boolean;
   /** Volume on up days ÷ volume on down days, last 50 sessions (> 1 = buyers in control). */
@@ -160,8 +171,9 @@ export interface MarketSnapshot {
   close: number;
   chgPct: number;
   stage: Stage;
-  aboveSma50: boolean;
-  aboveSma200: boolean;
+  /** The index closed above its 50- / 200-day EMA. */
+  aboveEma50: boolean;
+  aboveEma200: boolean;
   /** Breadth among liquid stocks. */
   pctAbove50: number;
   pctAbove200: number;

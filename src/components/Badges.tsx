@@ -4,10 +4,10 @@ import { Star } from "lucide-react";
 import type { NewsVerdict, ScreenTag, Stage } from "@/engine/types";
 
 const STAGE: Record<Stage, { dot: string; text: string; title: string }> = {
-  1: { dot: "bg-ink-3", text: "text-ink-2", title: "Basing: price moving sideways around a flat 30-week average" },
-  2: { dot: "bg-up", text: "text-up", title: "Advancing: price above a rising 30-week average" },
-  3: { dot: "bg-amber", text: "text-amber", title: "Topping: the 30-week average has flattened after an advance" },
-  4: { dot: "bg-down", text: "text-down", title: "Declining: price below a falling 30-week average" },
+  1: { dot: "bg-ink-3", text: "text-ink-2", title: "Basing: price moving sideways around a flat 150-day EMA" },
+  2: { dot: "bg-up", text: "text-up", title: "Advancing: price above a rising 150-day EMA" },
+  3: { dot: "bg-amber", text: "text-amber", title: "Topping: the 150-day EMA has flattened after an advance" },
+  4: { dot: "bg-down", text: "text-down", title: "Declining: price below a falling 150-day EMA" },
 };
 
 export const stageAge = (age: number | null | undefined) => (age === null || age === undefined ? "" : age >= 120 ? "120d+" : `${age}d`);

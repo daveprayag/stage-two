@@ -167,6 +167,9 @@ export function TrackPage({ loading = false }: { loading?: boolean }) {
           Give it months before reading anything into it: a few weeks of results mostly reflect what the market did. The research behind Momentum leaders
           measured 6-month outcomes.
         </p>
+        <p className="mt-2">
+          Days are kept as recorded: picks up to 9 Nov 2026 were made with simple moving averages, later ones with EMAs.
+        </p>
       </PageTitle>
       {loading ? <TrackSkeleton /> : <Suspense fallback={<TrackSkeleton />}><TrackData /></Suspense>}
     </Page>

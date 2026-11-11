@@ -157,7 +157,7 @@ const COLUMNS: { label: string; right?: boolean; info: string }[] = [
   { label: "Stock", info: "NSE symbol and sector. ★ = a momentum leader passing at least 5 of the 6 star checks. Tags: amber “Results” = quarterly results due within a week; green ▲ / red ▼ = broke out / broke down on its latest results." },
   { label: "Close", right: true, info: "Latest price. Live from NSE during market hours (refreshed every minute); outside them, the last price of the day. Below it, today’s change." },
   { label: "RS", info: "Relative strength, 1–99: how the stock’s 3- to 12-month return ranks against every liquid NSE stock (latest quarter counts double). 90 = it beat 90% of them." },
-  { label: "Stage · phase", info: "Stage from the 150-day average: 1 basing, 2 uptrend, 3 topping, 4 downtrend. For stage 2, the phase: early = in or just out of its base, or the first rally; mid = second rally; late = third or later, or after an 80%+ run." },
+  { label: "Stage · phase", info: "Stage from the 150-day EMA: 1 basing, 2 uptrend, 3 topping, 4 downtrend. For stage 2, the phase: early = in or just out of its base, or the first rally; mid = second rally; late = third or later, or after an 80%+ run." },
   { label: "From high", right: true, info: "How far below its 52-week high the stock closed. Leaders usually trade within 15–25% of their high." },
   { label: "10d range", right: true, info: "High-to-low range of the last 10 sessions as a % of price. Small = quiet and tight (green at 8% or less)." },
   { label: "Vol 5/50", right: true, info: "Average volume of the last 5 sessions ÷ the last 50. Below 1 = trading is drying up (green at 0.8 or less); above 1 = busier than usual." },
@@ -274,7 +274,7 @@ function DesktopTable({ rows, news, live, heads, loading = false }: { rows: Scre
 const TERMS: [string, string][] = [
   ["RS", "Relative Strength rating, 1–99. Ranks how much the stock rose over 3, 6, 9 and 12 months against all ~1,350 liquid NSE stocks (last 3 months count double). 90 = beat 90% of the market. Not the same as RSI."],
   ["RSI", "Relative Strength Index (14 days), 0–100: momentum of recent price moves. Above ~70 is usually called overbought, but the strongest stocks often stay there for weeks."],
-  ["Stage", "Where the stock is in its cycle, from its 150-day average: 1 sideways base, 2 uptrend, 3 topping, 4 downtrend."],
+  ["Stage", "Where the stock is in its cycle, from its 150-day EMA: 1 sideways base, 2 uptrend, 3 topping, 4 downtrend."],
   ["Phase", "How far into its uptrend a stage 2 stock is, counted from when it left its latest base (8+ weeks sideways within a 35% range). A rally is a rise of 20%+ without a 10% pullback. Early = still in the base, just out of it, or in the first rally (Ankur's best buy: the first pause after the base); mid = second rally; late = third or later, any 80%+ rally, or no sideways base in the last 14 months. \u201cAbove base\u201d = how far the price is above the top of that base."],
   ["From high", "How far below its 52-week high it closed."],
   ["10d range", "Gap between the highest and lowest price of the last 10 sessions, as % of price. Small = quiet, tight."],

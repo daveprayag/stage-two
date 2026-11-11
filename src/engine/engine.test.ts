@@ -176,10 +176,10 @@ import { isTopSetup, technicalChecks, technicalPass } from "./topsetup";
 describe("top setups", () => {
   const base = {
     symbol: "AAA", isin: "INE1", name: "AAA LTD", industry: "Tech", close: 110, chgPct: 1.2, rs: 88, rsLineHigh: true,
-    ret1m: 8, ret3m: 20, ret6m: 30, pctFromHigh: 3, pctAboveLow: 60, sma50: 100, sma150: 90, sma200: 85, stage: 2 as const,
+    ret1m: 8, ret3m: 20, ret6m: 30, pctFromHigh: 3, pctAboveLow: 60, ema50: 100, ema150: 90, ema200: 85, stage: 2 as const,
     stageAge: 40, template: 8, tight10: 7, dryUp: 0.7, rvol: 80, adr: 3, turnoverCr: 25, band: 20, resistance: 113,
     pctToResistance: 2.7, breakout: false, scans: [], setup: null, tags: ["setup" as const], score: 100,
-    rsi14: 62, ema20: 106, ema50: 101, ma50Rising: true, ma200Rising: true, upDownVol: 1.6, runUp2m: 18,
+    rsi14: 62, ema20: 106, ma50Rising: true, ma200Rising: true, upDownVol: 1.6, runUp2m: 18,
     sectorRank: 0.8, resume: null, sectorLeaders: 4, rallies: 1, riseFromBase: 35, inBase: false, baseDate: "2026-08-01", largestRallyPct: 35, phase: "early" as const,
   } satisfies ScreenRow;
   const good = { filings: [], headlines: [], ai: { summary: "Order win", sentiment: "positive" as const, catalysts: ["₹500 Cr order"], redFlags: [] } };
@@ -192,7 +192,7 @@ describe("top setups", () => {
     const failing = (r: Partial<ScreenRow>) => technicalChecks({ ...base, ...r }).filter((c) => !c.pass).map((c) => c.key);
     expect(failing({ stage: 3, ma50Rising: false })).toContain("trend");
     expect(failing({ rsi14: 81 })).toEqual(["rsi"]);
-    expect(failing({ close: 130, ema20: 120, ema50: 110 })).toContain("stretch");
+    expect(failing({ close: 130, ema20: 120, ema50: 100 })).toContain("stretch");
     expect(failing({ turnoverCr: 3 })).toEqual(["liquidity"]);
     expect(failing({ band: 5 })).toEqual(["liquidity"]);
     expect(failing({ tags: ["leader"] })).toEqual(["pattern"]);

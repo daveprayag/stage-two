@@ -35,7 +35,7 @@ export function MarketStrip({ m, asOf, initialLive }: { m: MarketSnapshot; asOf:
     m.stage === 2 && m.pctAbove50 >= 50
       ? "Uptrend with broad participation: the backdrop breakouts need."
       : m.stage === 2
-        ? "Index in an uptrend, but fewer than half of stocks are above their 50-day average. Be selective."
+        ? "Index in an uptrend, but fewer than half of stocks are above their 50-day EMA. Be selective."
         : m.stage === 4
           ? "Index in a downtrend. Breakouts fail more often in this backdrop."
           : "Index moving sideways. Expect breakouts to be hit-and-miss.";
@@ -50,15 +50,15 @@ export function MarketStrip({ m, asOf, initialLive }: { m: MarketSnapshot; asOf:
           <div className="text-right text-xs sm:text-left">
             <StageLabel stage={m.stage} className="text-sm" />
             <div className="mt-1 text-ink-3">
-              {m.aboveSma50 ? "Above" : "Below"} 50-day · {m.aboveSma200 ? "above" : "below"} 200-day
+              {m.aboveEma50 ? "Above" : "Below"} 50-day EMA · {m.aboveEma200 ? "above" : "below"} 200-day EMA
             </div>
           </div>
         </div>
         <p className="text-sm text-ink-2 sm:max-w-md sm:text-right">{verdict}</p>
       </div>
       <dl className="grid grid-cols-2 gap-px border-t border-line bg-line lg:grid-cols-4">
-        <Breadth label="Stocks above 50-day avg" value={m.pctAbove50} />
-        <Breadth label="Stocks above 200-day avg" value={m.pctAbove200} />
+        <Breadth label="Stocks above 50-day EMA" value={m.pctAbove50} />
+        <Breadth label="Stocks above 200-day EMA" value={m.pctAbove200} />
         <Stat label="New 52-week highs / lows">
           <span className="text-up">{int(m.newHighs)}</span>
           <span className="text-ink-3"> / </span>
@@ -100,8 +100,8 @@ export function MarketStripSkeleton() {
         <Bone className="h-4 w-full sm:w-80" />
       </div>
       <dl className="grid grid-cols-2 gap-px border-t border-line bg-line lg:grid-cols-4">
-        {label("Stocks above 50-day avg")}
-        {label("Stocks above 200-day avg")}
+        {label("Stocks above 50-day EMA")}
+        {label("Stocks above 200-day EMA")}
         {label("New 52-week highs / lows")}
         {label("In stage 2")}
       </dl>

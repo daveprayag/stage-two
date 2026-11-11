@@ -18,7 +18,7 @@ import {
 import { analyseStock, BENCHMARK, rankWork, screenFromWork, withSector, type Sectors, type Work } from "./screen";
 import { P, type Storage } from "./storage";
 import { readStocks, StocksWriter, type StoreHeadFile } from "./storefile";
-import { picksFor, upsertEntry, type TrackEntry } from "./track";
+import { picksFor, upsertEntry, type TrackEntry, type TrackListKey } from "./track";
 import type { Filing, Headline, ISODate, NewsBundle, NewsVerdict, RunRecord, ScreenFile, ScreenRow } from "./types";
 import { SessionsUpdater, WINDOW, type SessionInput } from "./update";
 import { holidayConfirmed, istNow, liveWindow, marketOpen } from "./clock";
@@ -94,9 +94,34 @@ function pendingDays(asOf: ISODate, max = 10): ISODate[] {
   return days;
 }
 
-async function recordPicks(st: Storage, screen: ScreenFile, log: string[]): Promise<void> {
+/**
+ * The track record is a forward record: what the lists said that evening. The evening run records the day and the
+ * news job finishes it (stars need the news) and marks it final. After that only `only` lists are added (AI picks can
+ * arrive later); a rebuild (new sector labels, new averages) leaves recorded days as they were.
+ */
+async function recordPicks(
+  st: Storage,
+  screen: ScreenFile,
+  log: string[],
+  opts: { rebuild?: boolean; newsWasIn?: boolean; only?: TrackListKey[]; final?: boolean } = {},
+): Promise<void> {
   const entries = (await st.getJson<TrackEntry[]>(P.track)) ?? [];
-  const e = picksFor(screen);
+  const existing = entries.find((x) => x.date === screen.asOf);
+  if (existing && opts.rebuild) {
+    // Recorded before this rebuild, with that evening's news already in: it is complete, so seal it.
+    if (opts.newsWasIn && !existing.final) await st.putJson(P.track, upsertEntry(entries, { ...existing, final: true }));
+    log.push(`track record: ${screen.asOf} already recorded, kept as it was`);
+    return;
+  }
+  if (existing?.final && !opts.only) {
+    log.push(`track record: ${screen.asOf} is final, kept as it was`);
+    return;
+  }
+  const fresh = picksFor(screen);
+  let e: TrackEntry = existing && opts.only
+    ? { ...existing, lists: { ...existing.lists, ...Object.fromEntries(opts.only.map((k) => [k, fresh.lists[k] ?? []])) } }
+    : fresh;
+  if (opts.final) e = { ...e, final: true };
   await st.putJson(P.track, upsertEntry(entries, e));
   log.push(`track record: ${Object.entries(e.lists).map(([k, v]) => `${k} ${v?.length ?? 0}`).join(", ")}`);
 }
@@ -255,7 +280,7 @@ export async function runEod(st: Storage, opts: JobOptions = {}): Promise<RunRec
     await st.putJson(P.screenOn(screen.asOf), screen);
     await st.putJson(P.rows, ranked.all);
     log.push(`screen ${screen.asOf}: ${screen.rows.length} rows, ${writer.count} stocks stored`);
-    await recordPicks(st, screen, log);
+    await recordPicks(st, screen, log, { rebuild: !sessions.length, newsWasIn: !!prev?.newsAt && prev.asOf === screen.asOf });
     await labelStocks(st, unlabelled, sectors, log).catch((e) => log.push(`sector labels failed: ${String(e)}`));
     await st.putJson(P.eodState, { asOf: head.asOf, lastCheck: startedAt });
     return finish(st, { ...base, ok: true, detail: sessions.length ? `added ${sessions.map((x) => x.date).join(", ")}` : `screen rebuilt for ${head.asOf}`, log });
@@ -354,7 +379,7 @@ export async function runNews(st: Storage, enrich: Enricher, opts: JobOptions & 
       if (await addAiPicks(screen, opts.picker, log, opts.repick)) {
         await st.putJson(P.screen, screen);
         await st.putJson(P.screenOn(screen.asOf), screen);
-        await recordPicks(st, screen, log);
+        await recordPicks(st, screen, log, { only: ["ai"] });
         return finish(st, { ...base, ok: true, detail: `AI picks for ${screen.asOf}`, log });
       }
       return finish(st, { ...base, ok: true, skipped: true, detail: `news already added for ${screen.asOf}`, log });
@@ -380,7 +405,7 @@ export async function runNews(st: Storage, enrich: Enricher, opts: JobOptions & 
     await st.putJson(P.screen, latest);
     await st.putJson(P.screenOn(latest.asOf), latest);
     await st.putJson(P.filingsState, { lastCheck: latest.newsAt });
-    await recordPicks(st, latest, log);
+    await recordPicks(st, latest, log, { final: true });
     return finish(st, { ...base, ok: true, detail: `news for ${shortlist.length} stocks (${n} with AI summaries), session ${latest.asOf}`, log });
   } catch (e) {
     const detail = String(e instanceof Error ? e.message : e);
@@ -424,7 +449,8 @@ export async function runFilings(st: Storage, enrich: Enricher, opts: JobOptions
     latest.newsAt = new Date().toISOString();
     await st.putJson(P.screen, latest);
     await st.putJson(P.screenOn(latest.asOf), latest);
-    await recordPicks(st, latest, log);
+    // Only the lists that depend on news can change here (a red flag removes a star).
+    await recordPicks(st, latest, log, { only: ["star", "top"] });
     return finish(st, { ...base, ok: true, detail: `new filings for ${targets.map((r) => r.symbol).join(", ")}; ${n} summaries updated`, log });
   } catch (e) {
     const detail = String(e instanceof Error ? e.message : e);

@@ -89,4 +89,6 @@ export function applyFactor(s: StockSeries, factor: number, upTo: number): void 
     const vol = s.v[k];
     if (vol !== null && vol !== undefined) s.v[k] = Math.round(vol * factor);
   }
+  // The EMA seeds are averages of earlier prices: the same factor applies (unrounded; they are not shown).
+  if (s.ema0) s.ema0 = s.ema0.map((e) => (e === null ? null : e / factor));
 }
