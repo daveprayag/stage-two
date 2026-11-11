@@ -139,11 +139,14 @@ export function StockGlance({ row, aiPick }: { row: ScreenRow | null | undefined
           )
         }
         note={
-          aiPick
-            ? `AI pick (experiment): ${aiPick.reason}`
-            : lists.length
-              ? (sinceText(row, true) ?? "The screener lists it's on after the last close")
-              : "Not on Strongest, Momentum leaders or Resuming"
+          <>
+            {row.momentumSince && <span className="mb-1 block text-ink-2">{sinceText(row, true)}.</span>}
+            {aiPick
+              ? `AI pick (experiment): ${aiPick.reason}`
+              : lists.length
+                ? !row.momentumSince && "The screener lists it's on after the last close"
+                : "Not on Strongest, Momentum leaders or Resuming"}
+          </>
         }
       />
     </dl>
