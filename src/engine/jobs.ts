@@ -374,7 +374,7 @@ async function addAiPicks(screen: ScreenFile, picker: Picker | undefined, log: s
   try {
     const p = await picker(screen);
     screen.aiPicks = p;
-    log.push(p ? `AI picks (${p.model}): ${p.picks.map((x) => x.symbol).join(", ")}` : "AI picks: no candidates");
+    log.push(p ? `AI picks: ${p.picks.map((x) => x.symbol).join(", ")}` : "AI picks: no candidates");
     for (const s of p?.skipped ?? []) log.push(`  passed over: ${s}`);
   } catch (e) {
     // Keep an earlier session's picks out; the next evening run tries again (aiPicks.asOf stays behind).

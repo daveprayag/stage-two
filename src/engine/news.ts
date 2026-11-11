@@ -99,6 +99,10 @@ export async function fetchHeadlines(name: string, symbol: string): Promise<Head
  * News summaries: many small requests a day, so the light models (free tier, stable, fixed versions rather than
  * "-latest" aliases, which Google re-points on each release). Checked against Google's model and pricing pages 2026-11-10.
  */
+/** Strip the AI provider's and model's names from text the site shows (errors, logs): "AI" only. */
+export const genericAi = (s: string): string =>
+  s.replace(/generativelanguage\.googleapis\.com[^\s"']*/gi, "AI service").replace(/\bgemini[\w.-]*/gi, "AI model").replace(/\bgoogle ai\b/gi, "AI");
+
 export const DEFAULT_GEMINI_MODELS = "gemini-3.5-flash-lite,gemini-3.1-flash-lite";
 
 export interface GeminiConfig {
@@ -173,7 +177,8 @@ export async function askModel(
       signal: AbortSignal.timeout(opts.timeoutMs ?? GEMINI_TIMEOUT_MS),
     });
     const text = await res.text();
-    if (!res.ok) throw new Error(`model ${model} HTTP ${res.status}: ${text.slice(0, 200)}`);
+    // The provider and model stay unnamed in anything the site shows (user, 2026-11): "AI" only.
+    if (!res.ok) throw new Error(`AI model HTTP ${res.status}: ${genericAi(text.slice(0, 200))}`);
     const json = JSON.parse(text) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
     return json.candidates?.[0]?.content?.parts?.map((x) => x.text ?? "").join("") ?? "";
   };

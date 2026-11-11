@@ -15,7 +15,7 @@
  */
 import { stockDetail } from "../../src/engine/detail";
 import { enrich, type EnrichCacheFile } from "../../src/engine/enrich";
-import { fetchHeadlines } from "../../src/engine/news";
+import { fetchHeadlines, genericAi } from "../../src/engine/news";
 import { fetchQuote, istNow, liveWindow, marketOpen, noTradingToday, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile, type Picker } from "../../src/engine/jobs";
 import { AI_PICKS_MODELS, makeAiPicks } from "../../src/engine/aipicks";
 import { liveIsFresh } from "../../src/engine/clock";
@@ -380,7 +380,9 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
       const [runs, eod, filings, live] = await Promise.all([
         st.getJson<RunRecord[]>(P.runs), st.getJson(P.eodState), st.getJson(P.filingsState), st.getJson(P.liveState),
       ]);
-      return json({ runs: runs ?? [], eod, filings, live }, 30);
+      // Older records named the AI model; the site only ever says "AI".
+      const shown = (runs ?? []).map((r) => ({ ...r, detail: genericAi(r.detail), log: r.log.map(genericAi) }));
+      return json({ runs: shown, eod, filings, live }, 30);
     }
     case "run": {
       const job = parts[2];
