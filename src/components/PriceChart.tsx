@@ -38,7 +38,7 @@ export function PriceChart({ d, initialQuote }: { d: StockDetail; initialQuote: 
   const volRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const { quote } = useLiveQuote(d.symbol, initialQuote);
   const [on, setOn] = useState<Record<Overlay, boolean>>({ ma50: true, ma150: false, ma200: true, levels: true, trend: false });
-  const [range, setRange] = useState(126);
+  const [range, setRange] = useState(63);
   const [theme, setTheme] = useState(0);
 
   useEffect(() => {
