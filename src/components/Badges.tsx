@@ -219,7 +219,8 @@ export function sinceText(r: Pick<ScreenRow, "momentumSince" | "close">, long = 
   if (!s) return null;
   const last = now ?? r.close;
   const pct = s.close ? (last / s.close - 1) * 100 : null;
-  const chg = pct === null ? "" : `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(0)}%`;
+  const whole = pct === null ? null : Math.round(pct);
+  const chg = whole === null ? "" : `${whole >= 0 ? "+" : "−"}${Math.abs(whole)}%`;
   const when = `${shortDay(s.date)}${s.orEarlier ? " or earlier" : ""}`;
   if (!long) return `Since ${when}${chg ? ` · ${chg}` : ""}`;
   return `On Momentum leaders since ${when}${s.close ? ` at ₹${price(s.close)}` : ""}${chg ? `, ${chg} since` : ""}`;
