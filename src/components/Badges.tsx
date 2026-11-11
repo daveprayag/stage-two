@@ -1,7 +1,8 @@
 import { Star } from "lucide-react";
 
 /** Small typographic indicators. Colour is carried by a dot or the text itself, not by filled badges. */
-import type { NewsVerdict, ScreenTag, Stage } from "@/engine/types";
+import type { NewsVerdict, ScreenRow, ScreenTag, Stage } from "@/engine/types";
+import { price } from "@/lib/format";
 
 const STAGE: Record<Stage, { dot: string; text: string; title: string }> = {
   1: { dot: "bg-ink-3", text: "text-ink-2", title: "Basing: price moving sideways around a flat 150-day EMA" },
@@ -178,4 +179,36 @@ export function ResultsBadge({ r }: { r: { resultsOn?: string | null; resultsRea
     );
   }
   return null;
+}
+
+/** 3-month return (%) from which a stock is marked "Extended" (the 2016–24 top fifth of Momentum leaders; display only). */
+export const EXTENDED_PCT = 70;
+export const isExtended = (r: { ret3m?: number | null }) => r.ret3m !== null && r.ret3m !== undefined && r.ret3m >= EXTENDED_PCT;
+/**
+ * What the data says about stocks up 70%+ in 3 months (livermore research/winners/extnote.py, pre-registered 2026-11-11,
+ * every day on Momentum leaders, next 6 months).
+ */
+export const EXTENDED_NOTE =
+  "Up 70%+ in 3 months. Momentum leaders this extended ended the next 6 months 20%+ lower more often than the rest: 20% vs 13% in 2012–15, 17% vs 14% in 2016–24, 34% vs 23% in 2025–26. Their average return was as good or better before 2025 and lower in 2025–26. Expect bigger swings: use a wider stop and a smaller position.";
+
+/** Quiet pill after a symbol for a stock up 70%+ in 3 months; nothing otherwise. */
+export function ExtendedBadge({ r }: { r: { ret3m?: number | null } }) {
+  if (!isExtended(r)) return null;
+  return (
+    <span title={EXTENDED_NOTE} className="shrink-0 rounded-full border border-down/35 px-1.5 py-px text-[10px] leading-4 text-ink-2">
+      Extended
+    </span>
+  );
+}
+
+/** Momentum leaders stretch: "since 11 Aug · +38%" (short) or "On Momentum leaders since 11 Aug at ₹177, +38% since" (long). */
+export function sinceText(r: Pick<ScreenRow, "momentumSince" | "close">, long = false, now?: number | null): string | null {
+  const s = r.momentumSince;
+  if (!s) return null;
+  const last = now ?? r.close;
+  const pct = s.close ? (last / s.close - 1) * 100 : null;
+  const chg = pct === null ? "" : `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(0)}%`;
+  const when = `${shortDay(s.date)}${s.orEarlier ? " or earlier" : ""}`;
+  if (!long) return `On list since ${when}${chg ? ` · ${chg}` : ""}`;
+  return `On Momentum leaders since ${when}${s.close ? ` at ₹${price(s.close)}` : ""}${chg ? `, ${chg} since` : ""}`;
 }

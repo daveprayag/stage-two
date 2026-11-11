@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Check, X } from "lucide-react";
-import { Change, RsMeter } from "@/components/Badges";
+import { Change, EXTENDED_NOTE, isExtended, RsMeter } from "@/components/Badges";
 import { StockGlance, StockHeader, StockLoading } from "@/components/StockParts";
 import { AiSummary, Sources } from "@/components/NewsPanel";
 import { Card, CardHeader, Page } from "@/components/Page";
@@ -60,7 +60,14 @@ async function StockBody({ symbol }: { symbol: string }) {
           price={<LivePrice symbol={d.symbol} close={last.close} chg={chg} date={last.time} initial={quote} />}
         />
         {row ? (
-          <StockGlance row={row} aiPick={data.aiPick ?? null} />
+          <>
+            <StockGlance row={row} aiPick={data.aiPick ?? null} />
+            {isExtended(row) && (
+              <p className="text-xs leading-relaxed text-ink-3">
+                <span className="text-ink-2">Extended: up {row.ret3m?.toFixed(0)}% in 3 months.</span> {EXTENDED_NOTE.replace(/^Up 70%\+ in 3 months\. /, "")}
+              </p>
+            )}
+          </>
         ) : (
           <p className="text-sm text-ink-3">Outside the liquid universe the screener ranks (under ₹2 Cr a day, ₹30 or less, or in a 2% / 5% band).</p>
         )}
@@ -79,7 +86,7 @@ async function StockBody({ symbol }: { symbol: string }) {
               <Fact label="RS rating" hint="Relative Strength rating, 1–99: 3–12 month performance ranked against all liquid NSE stocks" note={row ? `Beat ${row.rs}% of NSE stocks` : undefined}>{row ? <RsMeter rs={row.rs} /> : "—"}</Fact>
               <Fact label="From 52-week high">{fromHigh < 0.05 ? "At high" : `−${fromHigh.toFixed(1)}%`}</Fact>
               <Fact label="1 month"><Change value={row?.ret1m} /></Fact>
-              <Fact label="3 months"><Change value={row?.ret3m} /></Fact>
+              <Fact label="3 months" hint={row && isExtended(row) ? EXTENDED_NOTE : undefined} note={row && isExtended(row) ? "Extended: more 20%+ losers historically" : undefined}><Change value={row?.ret3m} /></Fact>
               <Fact label="10-day range" hint="High–low range of the last 10 sessions as % of price">{row ? `${row.tight10.toFixed(1)}%` : "—"}</Fact>
               <Fact label="Volume 5/50" hint="Below 1 means volume is drying up">{row ? row.dryUp.toFixed(2) : "—"}</Fact>
               <Fact label="Avg daily value" hint="50-day average traded value">{row ? crore(row.turnoverCr) : "—"}</Fact>

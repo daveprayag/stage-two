@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { ChevronDown, Search, Star } from "lucide-react";
 import type { NewsBundle, ScreenRow } from "@/engine/types";
 import { price, titleCase } from "@/lib/format";
-import { baseShort, Change, FirstLine, ResultsBadge, resultsSoon, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
+import { baseShort, Change, ExtendedBadge, FirstLine, ResultsBadge, sinceText, resultsSoon, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
 import { isStar, starCount } from "@/engine/star";
 import { Select } from "./Select";
 import { Bone } from "./Skeleton";
@@ -82,6 +82,7 @@ function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: P
               <span className="truncate text-[15px] font-medium text-ink">{r.symbol}</span>
               {isStar(r, n) && <StarMark count={starCount(r, n)} />}
               <ResultsBadge r={r} />
+                    <ExtendedBadge r={r} />
             </div>
             <div className="mt-0.5 truncate text-xs text-ink-3">{r.industry ?? titleCase(r.name)}</div>
           </div>
@@ -96,6 +97,7 @@ function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: P
           <MiniStat label="Above base"><span className="num">{baseShort(r)}</span></MiniStat>
           <MiniStat label="From high"><span className="num">{fromHigh(r)}</span></MiniStat>
         </dl>
+        {r.momentumSince && <p className="mt-2 text-xs text-ink-3">{sinceText(r, true, q?.last)}</p>}
         {n?.ai && n.ai.sentiment !== "none" && (
           <p className="mt-3 flex items-start gap-2.5 text-xs leading-relaxed text-ink-2">
             <FirstLine>
@@ -157,7 +159,7 @@ const COLUMNS: { label: string; right?: boolean; info: string }[] = [
   { label: "Stock", info: "NSE symbol and sector. ★ = a momentum leader passing at least 5 of the 6 star checks. Tags: amber “Results” = quarterly results due within a week; green ▲ / red ▼ = broke out / broke down on its latest results." },
   { label: "Close", right: true, info: "Latest price. Live from NSE during market hours (refreshed every minute); outside them, the last price of the day. Below it, today’s change." },
   { label: "RS", info: "Relative strength, 1–99: how the stock’s 3- to 12-month return ranks against every liquid NSE stock (latest quarter counts double). 90 = it beat 90% of them." },
-  { label: "Stage · phase", info: "Stage from the 150-day EMA: 1 basing, 2 uptrend, 3 topping, 4 downtrend. For stage 2, the phase: early = in or just out of its base, or the first rally; mid = second rally; late = third or later, or after an 80%+ run." },
+  { label: "Stage · phase", info: "Stage from the 150-day EMA: 1 basing, 2 uptrend, 3 topping, 4 downtrend. For stage 2, the phase: early = in or just out of its base, or the first rally; mid = second rally; late = third or later, or after an 80%+ run. For Momentum leaders, when its current stretch on the list began and the move since (breaks of up to two weeks off the list don't reset it)." },
   { label: "From high", right: true, info: "How far below its 52-week high the stock closed. Leaders usually trade within 15–25% of their high." },
   { label: "10d range", right: true, info: "High-to-low range of the last 10 sessions as a % of price. Small = quiet and tight (green at 8% or less)." },
   { label: "Vol 5/50", right: true, info: "Average volume of the last 5 sessions ÷ the last 50. Below 1 = trading is drying up (green at 0.8 or less); above 1 = busier than usual." },
@@ -225,6 +227,7 @@ function DesktopTable({ rows, news, live, heads, loading = false }: { rows: Scre
                     <span className="truncate font-medium text-ink">{r.symbol}</span>
                     {isStar(r, n) && <StarMark count={starCount(r, n)} />}
                     <ResultsBadge r={r} />
+                    <ExtendedBadge r={r} />
                   </span>
                   <span className="mt-0.5 block truncate text-xs text-ink-3">{r.industry ?? titleCase(r.name)}</span>
                 </Link>
@@ -244,6 +247,11 @@ function DesktopTable({ rows, news, live, heads, loading = false }: { rows: Scre
                   <span className="mt-1 block truncate" title={phaseDetail(r)}>
                     <PhaseLabel phase={r.phase} stage={r.stage} />
                     {phaseNote(r) && <span className="text-ink-3"> · {phaseNote(r)}</span>}
+                  </span>
+                )}
+                {r.momentumSince && (
+                  <span className="mt-1 block truncate text-ink-3" title={sinceText(r, true, live?.[r.symbol]?.last) ?? undefined}>
+                    {sinceText(r, false, live?.[r.symbol]?.last)}
                   </span>
                 )}
               </td>
@@ -279,6 +287,8 @@ const TERMS: [string, string][] = [
   ["From high", "How far below its 52-week high it closed."],
   ["10d range", "Gap between the highest and lowest price of the last 10 sessions, as % of price. Small = quiet, tight."],
   ["Vol 5/50", "Average volume of the last 5 days ÷ last 50 days. Below 1 = volume drying up; well above 1 = heavy buying or selling."],
+  ["On list since", "Momentum leaders only: the session its current stretch on the list began, and how far it has moved since. A stock that drops off for up to 10 sessions and comes back keeps its date. Our lists flag stocks after they have moved: in 2012–26 the typical big winner was already 40–55% above its low when it first appeared, and catching it earlier did not pay."],
+  ["Extended", "Up 70%+ in 3 months. Momentum leaders this extended ended the next 6 months 20%+ lower more often than the rest (about 1 in 5 vs 1 in 7 in 2012–24; 1 in 3 vs 1 in 4 in 2025–26), though their average return was as good or better before 2025. A caution about risk, not a sell signal."],
   ["\u2605 Star", "A momentum leader that passes at least 5 of the 6 checks from the Guide: momentum profile, early or mid phase, RS 90+, sector moving as a group (3+ strong stocks), positive news without red flags, and resuming after a pause with a stop within 12%. The stock page lists each check."],
   ["News dot", "Green positive, red negative, grey neutral, from an AI summary of NSE filings and headlines."],
 ];

@@ -30,6 +30,8 @@ export const P = {
   results: "news/results.json",
   sectors: "meta/sectors.json",
   track: "track/picks.json",
+  /** When each stock's current stretch on Momentum leaders began (src/engine/since.ts). */
+  since: "meta/momentum-since.json",
   live: "live/latest.json",
 } as const;
 

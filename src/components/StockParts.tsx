@@ -7,7 +7,7 @@ import { ChevronLeft } from "lucide-react";
 import type { AiPick } from "@/engine/aipicks";
 import type { ScreenRow, Stage } from "@/engine/types";
 import { day } from "@/lib/format";
-import { daysUntil, PhaseLabel, phaseDetail, shortDay, SHOWN_TAGS, StageLabel, StarMark, TAG_LABEL } from "./Badges";
+import { daysUntil, PhaseLabel, phaseDetail, shortDay, sinceText, SHOWN_TAGS, StageLabel, StarMark, TAG_LABEL } from "./Badges";
 import { Card } from "./Page";
 import { Bone } from "./Skeleton";
 import { WatchButton } from "./WatchButton";
@@ -142,7 +142,7 @@ export function StockGlance({ row, aiPick }: { row: ScreenRow | null | undefined
           aiPick
             ? `AI pick (experiment): ${aiPick.reason}`
             : lists.length
-              ? "The screener lists it's on after the last close"
+              ? (sinceText(row, true) ?? "The screener lists it's on after the last close")
               : "Not on Strongest, Momentum leaders or Resuming"
         }
       />

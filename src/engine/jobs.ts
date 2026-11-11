@@ -16,6 +16,7 @@ import {
   ALL_INDICES_URL, parseAllIndices, parseStocksTraded, STOCKS_TRADED_URL, type CorpAction, type LiveIndex, type LiveQuote,
 } from "./nse";
 import { analyseStock, BENCHMARK, rankWork, screenFromWork, withSector, type Sectors, type Work } from "./screen";
+import { attachSince, updateSince, type SinceFile } from "./since";
 import { P, type Storage } from "./storage";
 import { readStocks, StocksWriter, type StoreHeadFile } from "./storefile";
 import { picksFor, upsertEntry, type TrackEntry, type TrackListKey } from "./track";
@@ -199,6 +200,20 @@ async function labelStocks(st: Storage, symbols: string[], sectors: Sectors, log
   log.push(`sectors: ${added} of ${todo.length} unlabelled stocks labelled (${symbols.length - todo.length} left)`);
 }
 
+/** Advance the Momentum-leaders stretch state to the store's session and add `momentumSince` to the rows. */
+async function addSince(st: Storage, head: StoreHeadFile, rows: ScreenRow[], closeSeries: Map<string, (number | null)[]>, log: string[]) {
+  const prev = await st.getJson<SinceFile>(P.since);
+  const members = rows.filter((r) => r.tags.includes("momentum")).map((r) => r.isin);
+  const state = updateSince(prev, head.asOf, head.dates, members);
+  const pos = new Map(head.dates.map((d, k) => [d, k]));
+  attachSince(rows, state, (isin, d) => {
+    const k = pos.get(d);
+    return k === undefined ? null : (closeSeries.get(isin)?.[k] ?? null);
+  });
+  await st.putJson(P.since, state);
+  log.push(`momentum-since ${state.asOf}: ${members.length} on the list, ${members.filter((i) => state.runs[i]?.start === state.asOf).length} new`);
+}
+
 export async function runEod(st: Storage, opts: JobOptions = {}): Promise<RunRecord> {
   const startedAt = new Date().toISOString();
   const base = { job: "eod" as const, startedAt, ...(opts.source ? { source: opts.source } : {}) };
@@ -235,9 +250,11 @@ export async function runEod(st: Storage, opts: JobOptions = {}): Promise<RunRec
     const closes: Record<string, [string, number]> = {};
     const unlabelled: string[] = [];
     const bench = head.indices[BENCHMARK] ?? [];
+    const closeSeries = new Map<string, (number | null)[]>();
     const keep = async (s: import("./types").StockSeries) => {
       await writer.write(s);
       isins.push(s.isin);
+      closeSeries.set(s.isin, s.c);
       for (let k = s.c.length - 1; k >= 0; k--) {
         const c = s.c[k];
         if (c !== null && c !== undefined) {
@@ -271,6 +288,7 @@ export async function runEod(st: Storage, opts: JobOptions = {}): Promise<RunRec
     }
     await st.putJson(P.closes, closes);
     const ranked = rankWork(work);
+    await addSince(st, head, ranked.all, closeSeries, log).catch((e) => log.push(`momentum-since failed: ${String(e)}`));
     // Same session rebuilt: keep the news already fetched; newsAt null makes the news job refresh the shortlist.
     // Carry the last news over until the news job replaces it (newsAt null makes it run), so a new session does not
     // briefly show no stars between the two jobs.

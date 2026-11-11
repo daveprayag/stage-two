@@ -142,6 +142,12 @@ export interface ScreenRow {
   resultsOn?: ISODate | null;
   /** How it reacted to its latest results, if that was within the last 10 sessions. */
   resultsReaction?: ResultsReaction | null;
+  /**
+   * On Momentum leaders: first session of the current stretch on the list (breaks of up to 10 sessions don't end it,
+   * src/engine/since.ts) and that session's split-adjusted close; orEarlier = the stretch reaches back to the first
+   * session we have. null = not on the list; missing on rows built before 2026-11-11.
+   */
+  momentumSince?: { date: ISODate; close: number | null; orEarlier: boolean } | null;
   /** Ankur Patel's Chartink scans that fired today. */
   scans: string[];
   /** Ankur setup (livermore rule engine) that fired today, if any. */
