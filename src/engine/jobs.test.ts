@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { strToU8, zipSync } from "fflate";
-import { refreshFinancials, runEod, runLive, runNews, type LiveFile } from "./jobs";
+import { refreshFinancials, repairIndexCloses, runEod, runLive, runNews, type LiveFile } from "./jobs";
 import { MemoryStorage, P } from "./storage";
 import { decodeStore, encodeStore, type StoreHeadFile } from "./storefile";
 import type { TrackEntry } from "./track";
@@ -86,6 +86,24 @@ describe("jobs on storage", () => {
     await runNews(st, enrich, { force: true, financialsMax: 0 });
     expect((await st.getJson<TrackEntry[]>(P.track))![0]!.lists).toEqual({ leader: [] });
   }, 60_000);
+
+  it("fills index closes NSE published after the bhavcopy, and only for recent sessions without them", async () => {
+    const head = { dates: ["2026-11-10", "2026-11-11", "2026-11-12"], indices: { "NIFTY 500": [23500, 23779.3, null] } } as unknown as StoreHeadFile;
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      urls.push(url);
+      return url.includes("ind_close_all_12112026")
+        ? new Response("Index Name,Index Date,Open Index Value,High Index Value,Low Index Value,Closing Index Value\nNifty 500,12-11-2026,1,1,1,23901.5\nNifty 50,12-11-2026,1,1,1,26100\n")
+        : new Response("", { status: 404 });
+    });
+    const log: string[] = [];
+    expect(await repairIndexCloses(head, log)).toEqual(["2026-11-12"]);
+    expect(head.indices["NIFTY 500"]).toEqual([23500, 23779.3, 23901.5]);
+    expect(head.indices["NIFTY 50"]).toEqual([null, null, 26100]);
+    expect(urls).toHaveLength(1);
+    expect(await repairIndexCloses(head, log)).toEqual([]);
+    expect(urls).toHaveLength(1);
+  });
 
   it("results filings: reads the latest quarter and its year-ago filing once, and keeps them", async () => {
     const st = new MemoryStorage();

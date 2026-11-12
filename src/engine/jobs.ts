@@ -227,6 +227,57 @@ async function addSince(st: Storage, head: StoreHeadFile, rows: ScreenRow[], clo
   log.push(`momentum-since ${state.asOf}: ${members.length} on the list, ${members.filter((i) => state.runs[i]?.start === state.asOf).length} new`);
 }
 
+/** Sessions looked back over for index closes NSE published late. */
+const INDEX_REPAIR_SESSIONS = 3;
+
+/**
+ * Fill index closes for the latest few sessions that have none for the benchmark (NSE published the bhavcopy before
+ * ind_close_all). Mutates the head; returns the dates filled. A session whose file is still missing is retried on the
+ * next run.
+ */
+export async function repairIndexCloses(head: StoreHeadFile, log: string[]): Promise<ISODate[]> {
+  const bench = head.indices[BENCHMARK] ?? [];
+  const filled: ISODate[] = [];
+  for (let k = head.dates.length - 1; k >= Math.max(0, head.dates.length - INDEX_REPAIR_SESSIONS); k--) {
+    if (bench[k] !== null && bench[k] !== undefined) continue;
+    const d = head.dates[k] as ISODate;
+    const csv = await text(indexCloseUrl(d)).catch(() => null);
+    const closes = csv ? parseIndexClose(csv) : new Map<string, number>();
+    if (!closes.get(BENCHMARK)) {
+      log.push(`${d}: index closes still not published`);
+      continue;
+    }
+    for (const [name, close] of closes) {
+      const arr = (head.indices[name] ??= Array<number | null>(head.dates.length).fill(null));
+      while (arr.length < head.dates.length) arr.push(null);
+      arr[k] = close;
+    }
+    filled.push(d);
+    log.push(`${d}: index closes filled late (${closes.size} indices)`);
+  }
+  return filled;
+}
+
+/** The track record's NIFTY 500 close for sessions whose index closes were filled late (data, not picks). */
+async function fixTrackNifty(st: Storage, head: StoreHeadFile, dates: ISODate[], log: string[]): Promise<void> {
+  const entries = await st.getJson<TrackEntry[]>(P.track);
+  if (!entries) return;
+  const bench = head.indices[BENCHMARK] ?? [];
+  let n = 0;
+  for (const e of entries) {
+    const k = head.dates.indexOf(e.date);
+    const close = k >= 0 ? bench[k] : null;
+    if (dates.includes(e.date) && close && e.nifty !== close) {
+      e.nifty = close;
+      n++;
+    }
+  }
+  if (n) {
+    await st.putJson(P.track, entries);
+    log.push(`track record: NIFTY 500 close corrected for ${n} session(s)`);
+  }
+}
+
 export async function runEod(st: Storage, opts: JobOptions = {}): Promise<RunRecord> {
   const startedAt = new Date().toISOString();
   const base = { job: "eod" as const, startedAt, ...(opts.source ? { source: opts.source } : {}) };
@@ -238,7 +289,10 @@ export async function runEod(st: Storage, opts: JobOptions = {}): Promise<RunRec
     const head = await st.getJson<StoreHeadFile>(P.head);
     if (!head) throw new Error("no price store in R2 (run the migration first)");
     const days = pendingDays(head.asOf);
-    if (!opts.force && !opts.rebuild) {
+    // NSE sometimes publishes the index closes after the bhavcopy: fill any recent session still missing them.
+    const repaired = await repairIndexCloses(head, log);
+    if (repaired.length) await st.putJson(P.head, head);
+    if (!opts.force && !opts.rebuild && !repaired.length) {
       let found = false;
       for (const d of days) {
         if (await politeHead(bhavcopyUrl(d)).catch(() => false)) {
@@ -250,7 +304,7 @@ export async function runEod(st: Storage, opts: JobOptions = {}): Promise<RunRec
     }
     log.push(`store as of ${head.asOf}; checking ${days.join(", ") || "nothing"}`);
     const sessions = days.length ? await fetchSessions(days, log) : [];
-    if (!sessions.length && !opts.force && !opts.rebuild) return finish(st, { ...base, ok: true, skipped: true, detail: "no new session", log });
+    if (!sessions.length && !opts.force && !opts.rebuild && !repaired.length) return finish(st, { ...base, ok: true, skipped: true, detail: "no new session", log });
 
     const sectors = (await st.getJson<Sectors>(P.sectors)) ?? {};
     const results = (await refreshResults(st, log)).bySymbol;
@@ -312,6 +366,7 @@ export async function runEod(st: Storage, opts: JobOptions = {}): Promise<RunRec
     await st.putJson(P.rows, ranked.all);
     log.push(`screen ${screen.asOf}: ${screen.rows.length} rows, ${writer.count} stocks stored`);
     await recordPicks(st, screen, log, { rebuild: !sessions.length, newsWasIn: !!prev?.newsAt && prev.asOf === screen.asOf });
+    if (repaired.length) await fixTrackNifty(st, head, repaired, log);
     await labelStocks(st, unlabelled, sectors, log).catch((e) => log.push(`sector labels failed: ${String(e)}`));
     await st.putJson(P.eodState, { asOf: head.asOf, lastCheck: startedAt });
     return finish(st, { ...base, ok: true, detail: sessions.length ? `added ${sessions.map((x) => x.date).join(", ")}` : `screen rebuilt for ${head.asOf}`, log });
