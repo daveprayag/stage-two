@@ -385,6 +385,9 @@ const itemFor = (r: ScreenRow, filings: Filing[], results: StockResults | null =
   chgPct: r.chgPct, ret1m: r.ret1m, pctFromHigh: r.pctFromHigh, stage: r.stage, breakout: r.breakout, results,
 });
 
+/** How long a quarter's results figures stay in the news summary after they are filed. */
+export const RESULTS_FRESH_DAYS = 45;
+
 /** Most stocks the news job looks up results filings for in one run (each costs 1–3 NSE requests). */
 export const FINANCIALS_MAX_PER_RUN = 40;
 
@@ -483,10 +486,11 @@ export async function runNews(st: Storage, enrich: Enricher, opts: JobOptions & 
       log.push(`results filings unavailable: ${String(e)}`);
       return null;
     });
-    // Results figures go to the summary only when filed in the same 3 weeks as the filings it reads.
+    // Results figures go to the summary while they are this season's: filed in the last 45 days (a results season
+    // runs about six weeks, so results from its first half still count; last quarter's never do).
     const recent = (sym: string) => {
       const f = fin?.bySymbol[sym];
-      return f && f.filed >= addDays(screen.asOf, -21) ? f : null;
+      return f && f.filed >= addDays(screen.asOf, -RESULTS_FRESH_DAYS) ? f : null;
     };
     const got = await enrich(screen.asOf, shortlist.map((r) => itemFor(r, ann.bySymbol[r.symbol] ?? [], recent(r.symbol))));
     const news: Record<string, NewsBundle> = {};
