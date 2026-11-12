@@ -28,6 +28,8 @@ export const P = {
   watchlist: "user/watchlist.json",
   /** Quarterly results meeting dates by symbol (NSE board meetings), last 30 days to 35 days ahead. */
   results: "news/results.json",
+  /** Latest quarter's revenue and profit per stock from NSE's results filings (src/engine/financials.ts). */
+  financials: "news/financials.json",
   sectors: "meta/sectors.json",
   track: "track/picks.json",
   /** When each stock's current stretch on Momentum leaders began (src/engine/since.ts). */

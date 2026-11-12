@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { strToU8, zipSync } from "fflate";
-import { runEod, runLive, runNews, type LiveFile } from "./jobs";
+import { refreshFinancials, runEod, runLive, runNews, type LiveFile } from "./jobs";
 import { MemoryStorage, P } from "./storage";
 import { decodeStore, encodeStore, type StoreHeadFile } from "./storefile";
 import type { TrackEntry } from "./track";
@@ -76,16 +76,41 @@ describe("jobs on storage", () => {
     expect((await st.getJson<TrackEntry[]>(P.track))![0]!.lists).toEqual({});
     // ...the evening news job finishes the day and marks it final...
     const enrich = async (_asOf: string, items: { symbol: string }[]) => Object.fromEntries(items.map((i) => [i.symbol, { headlines: [], ai: null }]));
-    expect((await runNews(st, enrich)).ok).toBe(true);
+    expect((await runNews(st, enrich, { financialsMax: 0 })).ok).toBe(true);
     const finished = (await st.getJson<TrackEntry[]>(P.track))![0]!;
     expect(finished.final).toBe(true);
     expect(Object.keys(finished.lists).length).toBeGreaterThan(0);
     // ...and later rebuilds and news runs keep it exactly as it was.
     await st.putJson(P.track, [{ ...finished, lists: { leader: [] } }]);
     await runEod(st, { rebuild: true, force: true });
-    await runNews(st, enrich, { force: true });
+    await runNews(st, enrich, { force: true, financialsMax: 0 });
     expect((await st.getJson<TrackEntry[]>(P.track))![0]!.lists).toEqual({ leader: [] });
   }, 60_000);
+
+  it("results filings: reads the latest quarter and its year-ago filing once, and keeps them", async () => {
+    const st = new MemoryStorage();
+    const x = (rev: number, pat: number) =>
+      `<xbrli:context id="OneD"><xbrli:period><xbrli:startDate>QS</xbrli:startDate><xbrli:endDate>QE</xbrli:endDate></xbrli:period></xbrli:context>` +
+      `<in-capmkt:RevenueFromOperations contextRef="OneD">${rev}</in-capmkt:RevenueFromOperations><in-capmkt:ProfitLossForPeriod contextRef="OneD">${pat}</in-capmkt:ProfitLossForPeriod>`;
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      urls.push(url);
+      if (url.includes("integrated-filing-results")) return Response.json({ data: [
+        { type: "Integrated Filing- Financials", qe_Date: "30-SEP-2026", consolidated: "Standalone", broadcast_Date: "05-Nov-2026 21:44:07", xbrl: "https://a/now.xml" },
+        { type: "Integrated Filing- Financials", qe_Date: "30-SEP-2025", consolidated: "Standalone", broadcast_Date: "06-Nov-2025 10:00:00", xbrl: "https://a/ago.xml" },
+      ] });
+      if (url.endsWith("now.xml")) return new Response(x(6515667000, 100443000).replace("QS", "2026-07-01").replace("QE", "2026-09-30"));
+      if (url.endsWith("ago.xml")) return new Response(x(5800000000, 32000000).replace("QS", "2025-07-01").replace("QE", "2025-09-30"));
+      return new Response("", { status: 404 });
+    });
+    const log: string[] = [];
+    const f = await refreshFinancials(st, ["AVADH"], {}, log, "2026-11-11");
+    expect(f.bySymbol.AVADH).toMatchObject({ qe: "2026-09-30", filed: "2026-11-05", now: { revenueCr: 651.57, profitCr: 10.04 }, yearAgo: { revenueCr: 580, profitCr: 3.2 }, revenueYoY: 12.3, profitYoY: 213.7 });
+    expect(urls).toHaveLength(3);
+    // Checked today and nothing new: no requests the next night.
+    await refreshFinancials(st, ["AVADH"], {}, log, "2026-11-12");
+    expect(urls).toHaveLength(3);
+  }, 30_000);
 
   it("merges headlines and summaries from the enrich endpoint into the screen", async () => {
     const st = new MemoryStorage();

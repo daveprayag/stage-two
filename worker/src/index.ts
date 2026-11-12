@@ -16,6 +16,7 @@
 import { stockDetail } from "../../src/engine/detail";
 import { enrich, type EnrichCacheFile } from "../../src/engine/enrich";
 import { fetchHeadlines, genericAi } from "../../src/engine/news";
+import type { FinancialsFile } from "../../src/engine/financials";
 import { fetchQuote, istNow, liveWindow, marketOpen, noTradingToday, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile, type Picker } from "../../src/engine/jobs";
 import { AI_PICKS_MODELS, makeAiPicks } from "../../src/engine/aipicks";
 import { liveIsFresh } from "../../src/engine/clock";
@@ -163,11 +164,12 @@ async function cached(req: Request, ctx: Ctx, version: string, make: () => Promi
 
 async function stockApi(env: Env, symbol: string): Promise<Response> {
   const st = new R2Storage(env.DATA);
-  const [head, screen, rows, ann] = await Promise.all([
+  const [head, screen, rows, ann, fin] = await Promise.all([
     st.getJson<StoreHeadFile>(P.head),
     st.getJson<ScreenFile>(P.screen),
     st.getJson<ScreenRow[]>(P.rows),
     st.getJson<{ bySymbol: Record<string, Filing[]> }>(P.announcements),
+    st.getJson<FinancialsFile>(P.financials),
   ]);
   const body = await st.get(P.stocks);
   if (!head || !body) return json({ error: "no data" }, 60, 503);
@@ -188,6 +190,12 @@ async function stockApi(env: Env, symbol: string): Promise<Response> {
   return json(
     {
       asOf: head.asOf, detail, row, news, headlines, filings: ann?.bySymbol[symbol] ?? [], market: screen?.market ?? null,
+      results: (() => {
+        const r = fin?.bySymbol[symbol];
+        if (!r) return null;
+        const { checked: _checked, ...rest } = r;
+        return rest;
+      })(),
       aiPick: screen?.aiPicks?.asOf === head.asOf ? (screen.aiPicks.picks.find((p) => p.symbol === symbol) ?? null) : null,
       star: row ? { checks: starChecks(row, news ?? undefined), starred: isStar(row, news ?? undefined), market: marketNote(screen?.market) } : null,
       top: row ? { checks: topSetupChecks(row, news ?? undefined), pass: isTopSetup(row, news ?? undefined) } : null,

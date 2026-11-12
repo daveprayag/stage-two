@@ -7,6 +7,7 @@
  */
 import { XMLParser } from "fast-xml-parser";
 import { UA } from "./nse";
+import { resultsLine, type StockResults } from "./financials";
 import type { Filing, Headline, NewsVerdict, ScreenRow } from "./types";
 
 /** "BHARAT ELECTRONICS LTD" → "Bharat Electronics" (news search query). */
@@ -116,15 +117,17 @@ interface VerdictInput {
   row: ScreenRow;
   filings: Filing[];
   headlines: Headline[];
+  /** Latest quarter's figures from the company's NSE results filing. */
+  results?: StockResults | null;
 }
 
 function promptFor(items: VerdictInput[]): string {
-  const blocks = items.map(({ row, filings, headlines }) => {
+  const blocks = items.map(({ row, filings, headlines, results }) => {
     const f = filings.slice(0, 6).map((x) => `  - [${x.date}] ${x.category}: ${x.text}`).join("\n") || "  (none)";
     const h = headlines.slice(0, 6).map((x) => `  - [${x.date}] ${x.title} (${x.source})`).join("\n") || "  (none)";
     return `### ${row.symbol} — ${row.name} (${row.industry ?? "industry unknown"})
 Price action: ${row.chgPct.toFixed(1)}% today, ${row.ret1m?.toFixed(1) ?? "?"}% in 1 month, ${row.pctFromHigh.toFixed(1)}% below its 52-week high, stage ${row.stage}${row.breakout ? ", broke out today on heavy volume" : ""}.
-NSE filings (last 3 weeks):
+${results ? `Latest results, from the company's NSE filing: ${resultsLine(results)}\n` : ""}NSE filings (last 3 weeks):
 ${f}
 News headlines (last 2 weeks):
 ${h}`;
@@ -134,6 +137,7 @@ ${h}`;
 - sentiment: "positive", "negative" or "neutral" for the news itself; "none" if there is no relevant news.
 - catalysts: up to 3 short phrases (e.g. "Q2 profit +40% YoY", "₹1,200 Cr defence order").
 - redFlags: up to 3 short phrases on business or governance risk only (e.g. "promoter pledge", "SEBI notice", "auditor resignation", "large equity dilution", "profit warning"). Personal or crime news about current or former staff is not a red flag unless it affects the business. Empty if none.
+Where "Latest results" figures are given, they come from the company's own exchange filing in the last 3 weeks: judge the results on those figures (growth against the same quarter a year earlier), even when the filing title only says results were submitted, and put the growth in the catalysts or red flags.
 Do not predict prices, do not give advice, do not use outside knowledge, and ignore generic market-wrap headlines that only mention the stock in a list.
 
 ${blocks.join("\n\n")}`;

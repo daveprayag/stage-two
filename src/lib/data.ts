@@ -1,4 +1,5 @@
 import "server-only";
+import type { StockResults } from "@/engine/financials";
 import type { StockDetail } from "@/engine/detail";
 import type { DayPerformance, ListPerformance } from "@/engine/track";
 import type { Filing, Headline, MarketSnapshot, NewsBundle, RunRecord, ScreenFile, ScreenRow } from "@/engine/types";
@@ -25,6 +26,8 @@ export interface StockData {
   market: MarketSnapshot | null;
   /** Set when today's AI picks (experiment) include this stock. */
   aiPick?: AiPick | null;
+  /** Latest quarter's revenue and profit from the company's NSE results filing, when known. */
+  results?: StockResults | null;
 }
 export const getStock = (symbol: string) => engine<StockData>(`/api/stock/${encodeURIComponent(symbol)}`);
 

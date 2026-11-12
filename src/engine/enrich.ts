@@ -19,10 +19,10 @@ export interface EnrichCache {
   save(asOf: ISODate, value: EnrichCacheFile): Promise<void>;
 }
 
-/** Changes whenever the stock's filings change. */
+/** Changes whenever the stock's filings or its latest results figures change. */
 export function enrichKey(i: EnrichItem): string {
   let h = 0;
-  for (const ch of JSON.stringify(i.filings)) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  for (const ch of JSON.stringify([i.filings, i.results ? [i.results.qe, i.results.now] : null])) h = (h * 31 + ch.charCodeAt(0)) | 0;
   return String(h);
 }
 
@@ -49,7 +49,7 @@ export async function enrich(
       for (let k = 0; k < list.length; k += size) batches.push(list.slice(k, k + size));
       // The prompt reads only the row fields EnrichItem carries.
       const res = await Promise.allSettled(
-        batches.map((b) => verdicts(b.map((i) => ({ row: i as unknown as ScreenRow, filings: i.filings, headlines: heads[i.symbol] ?? [] })), gemini)),
+        batches.map((b) => verdicts(b.map((i) => ({ row: i as unknown as ScreenRow, filings: i.filings, headlines: heads[i.symbol] ?? [], results: i.results ?? null })), gemini)),
       );
       for (const r of res) if (r.status === "fulfilled") Object.assign(ai, r.value);
     };

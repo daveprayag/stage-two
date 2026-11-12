@@ -17,6 +17,7 @@ import {
 } from "./nse";
 import { analyseStock, BENCHMARK, rankWork, screenFromWork, withSector, type Sectors, type Work } from "./screen";
 import { starCandidate } from "./star";
+import { chooseFilings, integratedResultsUrl, needsCheck, parseFilingList, parseResultsXbrl, stockResults, type FinancialsFile, type StockResults } from "./financials";
 import { attachSince, previousMembers, updateSince, type SinceFile } from "./since";
 import { P, type Storage } from "./storage";
 import { readStocks, StocksWriter, type StoreHeadFile } from "./storefile";
@@ -67,6 +68,8 @@ export interface EnrichItem {
   pctFromHigh: number;
   stage: number;
   breakout: boolean;
+  /** Latest quarter's figures from the NSE filing (src/engine/financials.ts), when we have them. */
+  results?: StockResults | null;
 }
 
 const ago = (iso: string | null | undefined) => (iso ? Date.now() - Date.parse(iso) : Number.POSITIVE_INFINITY);
@@ -377,10 +380,59 @@ export function newsShortlist(rows: ScreenRow[], max = NEWS_MAX, watched: Readon
   return [...rows].sort((a, b) => rank(b) - rank(a) || (b.rs ?? 0) - (a.rs ?? 0) || b.score - a.score).slice(0, max);
 }
 
-const itemFor = (r: ScreenRow, filings: Filing[]): EnrichItem => ({
+const itemFor = (r: ScreenRow, filings: Filing[], results: StockResults | null = null): EnrichItem => ({
   symbol: r.symbol, name: r.name, industry: r.industry, filings: filings.slice(0, 6),
-  chgPct: r.chgPct, ret1m: r.ret1m, pctFromHigh: r.pctFromHigh, stage: r.stage, breakout: r.breakout,
+  chgPct: r.chgPct, ret1m: r.ret1m, pctFromHigh: r.pctFromHigh, stage: r.stage, breakout: r.breakout, results,
 });
+
+/** Most stocks the news job looks up results filings for in one run (each costs 1–3 NSE requests). */
+export const FINANCIALS_MAX_PER_RUN = 40;
+
+/**
+ * Keep P.financials current for these symbols (in priority order): the latest quarter's revenue and profit, and the
+ * same quarter a year earlier, from NSE's integrated-filing XBRL. Looks only at stocks with no figures yet, a results
+ * meeting since their last filing, or figures older than 30 days; at most FINANCIALS_MAX_PER_RUN per run.
+ */
+export async function refreshFinancials(st: Storage, symbols: string[], meetings: Record<string, ISODate[]>, log: string[], today = istNow().date, max = FINANCIALS_MAX_PER_RUN): Promise<FinancialsFile> {
+  const file = (await st.getJson<FinancialsFile>(P.financials)) ?? { version: 1, bySymbol: {}, parsed: {} };
+  file.missing ??= {};
+  const todo = symbols.filter((s) => needsCheck(file.bySymbol[s], meetings[s], today, file.missing?.[s])).slice(0, max);
+  if (!todo.length) return file;
+  const dec = new TextDecoder();
+  let ok = 0;
+  const failed: string[] = [];
+  for (const sym of todo) {
+    try {
+      const raw = await politeGet(integratedResultsUrl(sym), "application/json");
+      const pick = raw ? chooseFilings(parseFilingList(JSON.parse(dec.decode(raw)))) : null;
+      if (!pick) {
+        file.missing[sym] = new Date().toISOString();
+        continue;
+      }
+      // Cached per URL and period length (a half-year filer's year-ago figures are read as a half-year too).
+      const figures = async (url: string, qe: ISODate, months?: 3 | 6) => {
+        const key = months === 6 ? `${url}#6` : url;
+        if (!file.parsed[key]) {
+          const xml = await politeGet(url, "application/xml");
+          if (!xml) return null;
+          file.parsed[key] = parseResultsXbrl(dec.decode(xml), qe, months);
+        }
+        return file.parsed[key] ?? null;
+      };
+      const now = await figures(pick.now.xbrl, pick.now.qe);
+      if (!now) throw new Error("no XBRL");
+      const before = pick.yearAgo ? await figures(pick.yearAgo.xbrl, pick.yearAgo.qe, now.months === 6 ? 6 : 3) : null;
+      file.bySymbol[sym] = { ...stockResults(pick.now, now, before), checked: new Date().toISOString() };
+      delete file.missing[sym];
+      ok++;
+    } catch (e) {
+      failed.push(`${sym} (${String(e instanceof Error ? e.message : e).slice(0, 60)})`);
+    }
+  }
+  await st.putJson(P.financials, file);
+  log.push(`results filings: ${ok} of ${todo.length} updated${failed.length ? `; failed ${failed.slice(0, 5).join(", ")}` : ""}`);
+  return file;
+}
 
 /** Makes the AI picks for a screen (the Worker supplies it when it has an AI key). */
 export type Picker = (screen: ScreenFile) => Promise<AiPicks | null>;
@@ -404,7 +456,7 @@ async function addAiPicks(screen: ScreenFile, picker: Picker | undefined, log: s
   return true;
 }
 
-export async function runNews(st: Storage, enrich: Enricher, opts: JobOptions & { max?: number; picker?: Picker; repick?: boolean } = {}): Promise<RunRecord> {
+export async function runNews(st: Storage, enrich: Enricher, opts: JobOptions & { max?: number; picker?: Picker; repick?: boolean; financialsMax?: number } = {}): Promise<RunRecord> {
   const startedAt = new Date().toISOString();
   const base = { job: "news" as const, startedAt, ...(opts.source ? { source: opts.source } : {}) };
   const log: string[] = [];
@@ -426,7 +478,17 @@ export async function runNews(st: Storage, enrich: Enricher, opts: JobOptions & 
     const { ann } = await refreshFilings(st, addDays(screen.asOf, -back), screen.asOf, log);
     const watch = await st.getJson<{ items: { symbol: string }[] }>(P.watchlist).catch(() => null);
     const shortlist = newsShortlist(screen.rows, opts.max ?? NEWS_MAX, new Set((watch?.items ?? []).map((w) => w.symbol)));
-    const got = await enrich(screen.asOf, shortlist.map((r) => itemFor(r, ann.bySymbol[r.symbol] ?? [])));
+    const meetings = (await st.getJson<ResultsFile>(P.results))?.bySymbol ?? {};
+    const fin = await refreshFinancials(st, shortlist.map((r) => r.symbol), meetings, log, istNow().date, opts.financialsMax ?? FINANCIALS_MAX_PER_RUN).catch((e) => {
+      log.push(`results filings unavailable: ${String(e)}`);
+      return null;
+    });
+    // Results figures go to the summary only when filed in the same 3 weeks as the filings it reads.
+    const recent = (sym: string) => {
+      const f = fin?.bySymbol[sym];
+      return f && f.filed >= addDays(screen.asOf, -21) ? f : null;
+    };
+    const got = await enrich(screen.asOf, shortlist.map((r) => itemFor(r, ann.bySymbol[r.symbol] ?? [], recent(r.symbol))));
     const news: Record<string, NewsBundle> = {};
     let n = 0;
     for (const r of shortlist) {

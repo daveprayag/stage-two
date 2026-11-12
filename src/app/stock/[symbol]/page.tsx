@@ -10,7 +10,8 @@ import { PriceChart } from "@/components/PriceChart";
 import { LivePrice } from "@/components/LivePrice";
 import { isStar, marketNote, starChecks } from "@/engine/star";
 import { Checklists } from "@/components/Checklists";
-import { crore, price, titleCase } from "@/lib/format";
+import { crore, day, price, titleCase } from "@/lib/format";
+import { quarterLabel, type StockResults } from "@/engine/financials";
 import { getQuote, getStock } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,32 @@ function Fact({ label, children, hint, note }: { label: string; children: React.
       <dd className="num mt-1 text-[15px] text-ink">{children}</dd>
       {note && <dd className="mt-0.5 text-[11px] leading-snug text-ink-3">{note}</dd>}
     </div>
+  );
+}
+
+/** The latest quarter from the company's own NSE filing (revenue and profit against the same quarter a year earlier). */
+function LatestResults({ r }: { r: StockResults }) {
+  const cr = (x: number) => `₹${x.toLocaleString("en-IN", { maximumFractionDigits: Math.abs(x) >= 100 ? 0 : 1 })} Cr`;
+  const item = (label: string, now: number | null, before: number | null, g: number | null) =>
+    now === null ? null : (
+      <span>
+        {label} <span className="num text-ink-2">{cr(now)}</span>
+        {g !== null ? (
+          <span className={`num ${g >= 0 ? "text-up" : "text-down"}`}> {g >= 0 ? "+" : "−"}{Math.abs(g).toFixed(0)}%</span>
+        ) : before !== null ? (
+          <span> (from {cr(before)})</span>
+        ) : null}
+      </span>
+    );
+  const rev = item(r.now.revenueKind === "interest" ? "Interest earned" : r.now.revenueKind === "income" ? "Total income" : "Revenue", r.now.revenueCr, r.yearAgo?.revenueCr ?? null, r.revenueYoY);
+  const pat = item("net profit", r.now.profitCr, r.yearAgo?.profitCr ?? null, r.profitYoY);
+  return (
+    <p className="text-xs leading-relaxed text-ink-3" title="From the company's results filing on NSE; growth is against the same quarter a year earlier">
+      <span className="text-ink-2">Latest results · {quarterLabel(r.qe, r.now.months)}</span> ({r.basis.toLowerCase()}, filed {day(r.filed)}): {rev}
+      {rev && pat ? " · " : ""}
+      {pat}
+      {r.yearAgo ? ` vs the same ${r.now.months === 6 ? "half-year" : "quarter"} a year earlier.` : "."}
+    </p>
   );
 }
 
@@ -71,6 +98,7 @@ async function StockBody({ symbol }: { symbol: string }) {
         ) : (
           <p className="text-sm text-ink-3">Outside the liquid universe the screener ranks (under ₹2 Cr a day, ₹30 or less, or in a 2% / 5% band).</p>
         )}
+        {data.results && <LatestResults r={data.results} />}
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
