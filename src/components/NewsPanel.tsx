@@ -43,7 +43,7 @@ export function AiSummary({ ai }: { ai: NewsVerdict | null }) {
             <p className="text-xs text-ink-3">Summarised by AI from the filings and headlines below. Check the sources.</p>
           </>
         ) : (
-          <p className="text-sm leading-relaxed text-ink-2">The nightly news job summarises the top 60 stocks on the screener. This one isn&apos;t among them today; its filings and headlines are below.</p>
+          <p className="text-sm leading-relaxed text-ink-2">The nightly news job summarises up to 90 stocks: every momentum leader one check from a star, your watchlist, the other momentum leaders, then Strongest and Resuming. This one isn&apos;t among them today; its filings and headlines are below.</p>
         )}
       </div>
     </Card>

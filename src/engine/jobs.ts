@@ -16,6 +16,7 @@ import {
   ALL_INDICES_URL, parseAllIndices, parseStocksTraded, STOCKS_TRADED_URL, type CorpAction, type LiveIndex, type LiveQuote,
 } from "./nse";
 import { analyseStock, BENCHMARK, rankWork, screenFromWork, withSector, type Sectors, type Work } from "./screen";
+import { starCandidate } from "./star";
 import { attachSince, previousMembers, updateSince, type SinceFile } from "./since";
 import { P, type Storage } from "./storage";
 import { readStocks, StocksWriter, type StoreHeadFile } from "./storefile";
@@ -359,12 +360,21 @@ async function refreshFilings(st: Storage, from: ISODate, asOf: ISODate, log: st
   return { ann, changed };
 }
 
-/** Shortlist for news: top-setup candidates, momentum leaders, breakouts and setups, then by score; at most `max`. */
-export function newsShortlist(rows: ScreenRow[], max = 60): ScreenRow[] {
+/** Stocks that get headlines and AI summaries each evening (the enrich endpoint allows the same set). */
+export const NEWS_MAX = 90;
+
+/**
+ * Shortlist for news, in order of need: star candidates first (a Momentum leader passing every other check it needs,
+ * so the news check decides the star), then the other Momentum leaders, then Strongest and Resuming; the lists
+ * removed from the screener (Top setups, Breaking out, Tight near highs, New uptrends) only fill what is left. Ties go
+ * to the higher RS. Stocks on the user's watchlist come right after the star candidates. Before 2026-11-12 the
+ * removed lists ranked first and 8 of 24 star candidates went without news.
+ */
+export function newsShortlist(rows: ScreenRow[], max = NEWS_MAX, watched: ReadonlySet<string> = new Set()): ScreenRow[] {
   const rank = (r: ScreenRow) =>
-    (r.tags.includes("qualified") ? 8 : 0) + (r.tags.includes("momentum") ? 6 : 0) +
-    (r.tags.includes("breakout") ? 4 : 0) + (r.tags.includes("setup") ? 3 : 0) + (r.tags.includes("fresh2") ? 2 : 0) + (r.tags.includes("leader") ? 1 : 0);
-  return [...rows].sort((a, b) => rank(b) - rank(a) || b.score - a.score).slice(0, max);
+    (starCandidate(r) ? 1000 : 0) + (watched.has(r.symbol) ? 500 : 0) + (r.tags.includes("momentum") ? 100 : 0) + (r.tags.includes("leader") ? 20 : 0) + (r.tags.includes("resuming") ? 10 : 0) +
+    (["qualified", "breakout", "setup", "fresh2"] as const).filter((t) => r.tags.includes(t)).length;
+  return [...rows].sort((a, b) => rank(b) - rank(a) || (b.rs ?? 0) - (a.rs ?? 0) || b.score - a.score).slice(0, max);
 }
 
 const itemFor = (r: ScreenRow, filings: Filing[]): EnrichItem => ({
@@ -414,7 +424,8 @@ export async function runNews(st: Storage, enrich: Enricher, opts: JobOptions & 
     const existing = await st.getJson<AnnouncementStore>(P.announcements);
     const back = existing && Object.keys(existing.bySymbol).length ? 3 : 21;
     const { ann } = await refreshFilings(st, addDays(screen.asOf, -back), screen.asOf, log);
-    const shortlist = newsShortlist(screen.rows, opts.max ?? 60);
+    const watch = await st.getJson<{ items: { symbol: string }[] }>(P.watchlist).catch(() => null);
+    const shortlist = newsShortlist(screen.rows, opts.max ?? NEWS_MAX, new Set((watch?.items ?? []).map((w) => w.symbol)));
     const got = await enrich(screen.asOf, shortlist.map((r) => itemFor(r, ann.bySymbol[r.symbol] ?? [])));
     const news: Record<string, NewsBundle> = {};
     let n = 0;

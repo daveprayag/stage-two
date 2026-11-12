@@ -55,6 +55,9 @@ export function starCount(r: ScreenRow, n: NewsBundle | undefined): number {
 
 export const isStar = (r: ScreenRow, n: NewsBundle | undefined) => (r.tags ?? []).includes("momentum") && starCount(r, n) >= STAR_MIN;
 
+/** A Momentum leader one check short of a star without news: positive news would star it (or it already is). */
+export const starCandidate = (r: ScreenRow) => (r.tags ?? []).includes("momentum") && starCount(r, undefined) >= STAR_MIN - 1;
+
 export function marketNote(m: MarketSnapshot | null | undefined): Check | null {
   if (!m) return null;
   return {

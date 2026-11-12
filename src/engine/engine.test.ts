@@ -165,9 +165,13 @@ describe("news helpers", () => {
       { title: "Q2 profit up", source: "Mint", url: "https://www.livemint.com/12", date: "2026-11-05" },
     ]);
   });
-  it("puts breakouts and setups first in the news shortlist", () => {
-    const r = (symbol: string, tags: ScreenRow["tags"], score: number) => ({ symbol, tags, score }) as ScreenRow;
-    expect(newsShortlist([r("A", ["leader"], 99), r("B", ["breakout"], 50), r("C", ["setup"], 60)], 2).map((x) => x.symbol)).toEqual(["B", "C"]);
+  it("gives news to star candidates first, then Momentum leaders, then the shown lists, removed lists last", () => {
+    const r = (symbol: string, tags: ScreenRow["tags"], rs: number, more: Partial<ScreenRow> = {}) =>
+      ({ symbol, tags, rs, score: 0, phase: "late", sectorLeaders: 0, resume: null, ...more }) as unknown as ScreenRow;
+    const cand = r("STAR", ["momentum", "leader"], 92, { phase: "early", sectorLeaders: 5 });
+    const rows = [r("HIDDEN", ["breakout", "setup", "qualified"], 99), r("STRONG", ["leader"], 95), r("MOM", ["momentum"], 85), cand];
+    expect(newsShortlist(rows, 3).map((x) => x.symbol)).toEqual(["STAR", "MOM", "STRONG"]);
+    expect(newsShortlist(rows, 2, new Set(["HIDDEN"])).map((x) => x.symbol)).toEqual(["STAR", "HIDDEN"]);
   });
 });
 
