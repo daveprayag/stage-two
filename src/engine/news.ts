@@ -137,7 +137,7 @@ ${h}`;
 - sentiment: "positive", "negative" or "neutral" for the news itself; "none" if there is no relevant news.
 - catalysts: up to 3 short phrases (e.g. "Q2 profit +40% YoY", "₹1,200 Cr defence order").
 - redFlags: up to 3 short phrases on business or governance risk only (e.g. "promoter pledge", "SEBI notice", "auditor resignation", "large equity dilution", "profit warning"). Personal or crime news about current or former staff is not a red flag unless it affects the business. Empty if none.
-Where "Latest results" figures are given, they come from the company's own exchange filing in the last 3 weeks: judge the results on those figures (growth against the same quarter a year earlier), even when the filing title only says results were submitted, and put the growth in the catalysts or red flags.
+Where "Latest results" figures are given, they come from the company's own exchange filing in the last 3 weeks: judge the results on those figures (growth against the same quarter a year earlier), even when the filing title only says results were submitted. Strong growth goes in the catalysts; weak or falling figures go in the summary and lower the sentiment, but are not red flags (red flags stay business or governance risks).
 Do not predict prices, do not give advice, do not use outside knowledge, and ignore generic market-wrap headlines that only mention the stock in a list.
 
 ${blocks.join("\n\n")}`;
@@ -206,7 +206,8 @@ export async function askModel(
 /** One AI request for a batch of stocks → verdict per symbol (missing on failure). */
 export async function verdicts(items: VerdictInput[], cfg: GeminiConfig | null): Promise<Record<string, NewsVerdict>> {
   if (!cfg?.apiKey || !items.length) return {};
-  const answer = (await askModel(promptFor(items), VERDICT_SCHEMA, cfg)).text || "[]";
+  // Temperature 0: the same filings and figures should get the same verdict on every run.
+  const answer = (await askModel(promptFor(items), VERDICT_SCHEMA, cfg, { temperature: 0 })).text || "[]";
   const parsed = JSON.parse(answer) as (NewsVerdict & { symbol: string })[];
   const out: Record<string, NewsVerdict> = {};
   for (const v of parsed) {

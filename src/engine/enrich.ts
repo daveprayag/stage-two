@@ -22,7 +22,8 @@ export interface EnrichCache {
 /** Changes whenever the stock's filings or its latest results figures change. */
 export function enrichKey(i: EnrichItem): string {
   let h = 0;
-  for (const ch of JSON.stringify([i.filings, i.results ? [i.results.qe, i.results.now] : null])) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  // "v2": the prompt changed (results figures, temperature 0); bump to make every stock's verdict recompute once.
+  for (const ch of JSON.stringify(["v2", i.filings, i.results ? [i.results.qe, i.results.now] : null])) h = (h * 31 + ch.charCodeAt(0)) | 0;
   return String(h);
 }
 
