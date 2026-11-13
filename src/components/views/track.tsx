@@ -78,7 +78,13 @@ async function TrackData() {
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-sm text-ink">{day(d.date)}</span>
                     <span className="text-xs text-ink-3">
-                      {d.sessionsSince} {d.sessionsSince === 1 ? "session" : "sessions"} ago · NIFTY 500 <Change value={d.nifty} />
+                      {d.sessionsSince === 0 ? (
+                        "Saved at this close · first result after the next session's close"
+                      ) : (
+                        <>
+                          {d.sessionsSince} {d.sessionsSince === 1 ? "session" : "sessions"} ago · NIFTY 500 <Change value={d.nifty} />
+                        </>
+                      )}
                     </span>
                   </div>
                   <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2 lg:grid-cols-4">
@@ -88,8 +94,8 @@ async function TrackData() {
                         <dd className="shrink-0">
                           {(d.lists[key]?.n ?? 0) === 0 ? <span className="text-ink-3">none</span> : (
                             <>
-                              <span className="num text-ink-3">{d.lists[key]?.n} · </span>
-                              <Change value={d.lists[key]?.avg ?? null} />
+                              <span className="num text-ink-3">{d.lists[key]?.n}{d.sessionsSince === 0 ? " picks" : " · "}</span>
+                              {d.sessionsSince > 0 && <Change value={d.lists[key]?.avg ?? null} />}
                             </>
                           )}
                         </dd>
