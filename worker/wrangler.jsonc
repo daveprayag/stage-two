@@ -15,7 +15,7 @@
       // 06:45 IST: catch-up in case the evening runs missed the session.
       "15 1 * * *",
       // 08:30–16:29 IST every minute, Mon–Fri: live prices for every stock and index (09:15–15:45); NSE filings every 30 min.
-      "* 3-10 * * 1-5"
+      "* 3-10 * * mon-fri"
     ]
   },
   "observability": { "enabled": true }

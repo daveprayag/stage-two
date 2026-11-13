@@ -126,8 +126,8 @@ async function daytime(env: Env, scheduledTime: number, source: string): Promise
   return out;
 }
 
-/** Must match the weekday cron in wrangler.jsonc. */
-const DAYTIME_CRON = "* 3-10 * * 1-5";
+/** Must match the weekday cron in wrangler.jsonc. Day names, not numbers: Cloudflare counts 1 = Sunday. */
+const DAYTIME_CRON = "* 3-10 * * mon-fri";
 
 const CORS = {
   "access-control-allow-origin": "*",
