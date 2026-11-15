@@ -5,5 +5,5 @@ export const size = OG_SIZE;
 export const contentType = "image/png";
 
 export default function Image() {
-  return ogImage({ eyebrow: "How it works", title: "Guide", subtitle: "Stages, phases, relative strength and the star checks, in plain words." });
+  return ogImage({ eyebrow: "How it works", title: "Guide", subtitle: "Stages, phases, relative strength and how to hold, in plain words." });
 }

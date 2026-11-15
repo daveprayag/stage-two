@@ -20,7 +20,7 @@ import type { FinancialsFile } from "../../src/engine/financials";
 import { fetchQuote, istNow, liveWindow, marketOpen, noTradingToday, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile, type Picker } from "../../src/engine/jobs";
 import { AI_PICKS_MODELS, makeAiPicks } from "../../src/engine/aipicks";
 import { liveIsFresh } from "../../src/engine/clock";
-import { isStar, marketNote, starChecks, starCount } from "../../src/engine/star";
+import { isStar, marketNote, starChecks } from "../../src/engine/star";
 import { P, type Storage } from "../../src/engine/storage";
 import { readStocks, type StoreHeadFile } from "../../src/engine/storefile";
 import { isTopSetup, topSetupChecks } from "../../src/engine/topsetup";
@@ -260,14 +260,13 @@ async function watchlistGet(env: Env, ctx: Ctx): Promise<Response> {
   const bySymbol = new Map((rows ?? []).map((r) => [r.symbol, r]));
   const out = items.map((it) => {
     const row = bySymbol.get(it.symbol);
-    const news = screen.news[it.symbol];
     const q = fresh ? live?.q[it.symbol] : undefined;
     return watchRow(
       it,
       hist[it.isin] ?? { sessions: 0, high: null, low: null, close: null },
       { price: q ? q[0] : null, live: !!q },
       niftyNow,
-      { starred: row ? isStar(row, news) : false, count: row?.tags.includes("momentum") ? starCount(row, news) : null },
+      !!row?.tags.includes("momentum"),
     );
   });
   return json({ asOf: head.asOf, liveAt: fresh ? live?.at ?? null : null, liveFresh: fresh, marketLive: fresh && !!live?.marketOpen, items: out, summary: watchSummary(out), canEdit: !!env.WATCHLIST_KEY }, 0);
@@ -296,15 +295,12 @@ async function watchlistAdd(req: Request, env: Env): Promise<Response> {
   const fresh = liveIsFresh(live, head.asOf);
   const q = fresh ? live?.q[symbol] : undefined;
   const niftyClose = [...(head.indices["NIFTY 500"] ?? [])].reverse().find((x) => x !== null) ?? null;
-  const news = screen.news[symbol];
   const item: WatchItem = {
     symbol, isin, name: name ?? symbol,
     addedAt: new Date().toISOString(),
     session: head.asOf,
     price: q ? q[0] : close,
     nifty: fresh ? (live?.indices["NIFTY 500"]?.last ?? niftyClose) : niftyClose,
-    starred: row ? isStar(row, news) : false,
-    starCount: row?.tags.includes("momentum") ? starCount(row, news) : null,
     momentum: !!row?.tags.includes("momentum"),
     rs: row?.rs ?? null,
     stage: row?.stage ?? null,

@@ -5,7 +5,7 @@ import { Loader2, Plus, X } from "lucide-react";
 import { marketOpen } from "@/engine/clock";
 import type { WatchRow, WatchSummary } from "@/engine/watchlist";
 import { day, istTime, price, titleCase } from "@/lib/format";
-import { Change, StarMark } from "./Badges";
+import { Change } from "./Badges";
 import { Bone } from "./Skeleton";
 import { PasscodeForm } from "./WatchButton";
 import { addToWatchlist, loadWatchlist, removeFromWatchlist, savedPasscode, savePasscode, WatchError, type WatchData } from "./watch";
@@ -15,12 +15,9 @@ const pctOf = (x: number | null) => (x === null ? "—" : `${Math.round(x)}%`);
 function SummaryCard({ s }: { s: WatchSummary }) {
   const empty = s.n === 0;
   return (
-    <div className={`rounded-2xl border bg-surface p-4 ${s.key === "starred" ? "border-amber/50" : "border-line"}`}>
+    <div className="rounded-2xl border border-line bg-surface p-4">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
-          {s.key === "starred" && <StarMark count={5} />}
-          {s.label}
-        </span>
+        <span className="text-sm font-medium text-ink">{s.label}</span>
         <span className="num text-xs text-ink-3">{s.n} {s.n === 1 ? "stock" : "stocks"}</span>
       </div>
       {empty ? (
@@ -57,14 +54,12 @@ function SummaryCard({ s }: { s: WatchSummary }) {
   );
 }
 
-function StarThen({ r }: { r: WatchRow }) {
-  if (r.starred) return <span title="Starred when added" className="inline-flex align-middle"><StarMark count={r.starCount ?? 5} /></span>;
-  return <span className="text-ink-3">{r.momentum ? `momentum leader, ${r.starCount ?? 0}/6 checks` : "not starred"}</span>;
+function LeaderThen({ r }: { r: WatchRow }) {
+  return r.momentum ? <span className="text-ink-2">Momentum leader</span> : <span className="text-ink-3">not a leader</span>;
 }
 
-function StarNow({ r }: { r: WatchRow }) {
-  if (r.starredNow) return <span title="Starred today" className="inline-flex md:justify-end"><StarMark count={r.starCountNow ?? 5} /></span>;
-  return <span className="text-ink-3">{r.starCountNow !== null ? `${r.starCountNow}/6 checks` : "not a momentum leader"}</span>;
+function LeaderNow({ r }: { r: WatchRow }) {
+  return r.momentumNow ? <span className="text-ink">Yes</span> : <span className="text-ink-3">No</span>;
 }
 
 export function WatchlistView() {
@@ -181,13 +176,10 @@ export function WatchlistView() {
       <div className="grid gap-3 md:grid-cols-3">
         {data
           ? data.summary.map((s) => <SummaryCard key={s.key} s={s} />)
-          : ["Starred when added", "Not starred when added", "All watched"].map((l, i) => (
-              <div key={l} className={`rounded-2xl border bg-surface p-4 ${i === 0 ? "border-amber/50" : "border-line"}`} aria-hidden="true">
+          : ["Momentum leaders when added", "Not leaders when added", "All watched"].map((l) => (
+              <div key={l} className="rounded-2xl border border-line bg-surface p-4" aria-hidden="true">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
-                    {i === 0 && <StarMark count={5} />}
-                    {l}
-                  </span>
+                  <span className="text-sm font-medium text-ink">{l}</span>
                   <Bone className="h-3 w-12" />
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-x-3 gap-y-3">
@@ -248,7 +240,7 @@ export function WatchlistView() {
             <span className="text-right">Return</span>
             <span className="text-right">Best / worst</span>
             <span className="text-right">vs NIFTY 500</span>
-            <span className="text-right">Star now</span>
+            <span className="text-right">Leader now</span>
             <span className="w-7" />
           </div>
           <ul className="divide-y divide-line">
@@ -262,7 +254,7 @@ export function WatchlistView() {
                     </Link>
                     <div className="truncate text-xs text-ink-3">{titleCase(r.name)}</div>
                     <div className="mt-1 text-xs">
-                      Added {day(r.addedAt.slice(0, 10))} · <StarThen r={r} />
+                      Added {day(r.addedAt.slice(0, 10))} · <LeaderThen r={r} />
                     </div>
                   </div>
                   <div className="text-right md:order-last">
@@ -285,8 +277,8 @@ export function WatchlistView() {
                     <Change value={r.best} /> <span className="text-ink-3">/</span> <Change value={r.worst} />
                   </Fact>
                   <Fact label="vs NIFTY 500">{hide ? <Change value={null} /> : <Change value={r.vsNifty} />}</Fact>
-                  <Fact label="Star now">
-                    <span className="text-xs"><StarNow r={r} /></span>
+                  <Fact label="Leader now">
+                    <span className="text-xs"><LeaderNow r={r} /></span>
                   </Fact>
                 </li>
               );

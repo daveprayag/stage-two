@@ -1,7 +1,7 @@
 /**
- * Watchlist: stocks the user adds by hand, with a snapshot of how the screener saw them at that moment (starred or not,
- * price, NIFTY 500), and how they have done since. The point is to check, on stocks the user actually looked at,
- * whether starred stocks really rally more than the rest. Pure helpers; the Worker stores the file and serves the API.
+ * Watchlist: stocks the user adds by hand, with a snapshot of how the screener saw them at that moment (Momentum leader
+ * or not, price, NIFTY 500), and how they have done since: on stocks the user actually looked at, do the leaders do
+ * better than the rest? Pure helpers; the Worker stores the file and serves the API.
  */
 import type { ISODate } from "./types";
 
@@ -18,9 +18,10 @@ export interface WatchItem {
   /** NIFTY 500 when added, same rule. */
   nifty: number | null;
   /** How the screener saw it when added. */
-  starred: boolean;
-  starCount: number | null;
   momentum: boolean;
+  /** Recorded for stocks added before the star was removed (2026-11-15); no longer shown. */
+  starred?: boolean;
+  starCount?: number | null;
   rs: number | null;
   stage: number | null;
   phase: string | null;
@@ -51,13 +52,12 @@ export interface WatchRow extends WatchItem {
   /** Return minus the NIFTY 500's over the same time, percentage points. */
   vsNifty: number | null;
   sessions: number;
-  /** How the screener sees it today. */
-  starredNow: boolean;
-  starCountNow: number | null;
+  /** A Momentum leader today. */
+  momentumNow: boolean;
 }
 
 export interface WatchSummary {
-  key: "starred" | "other" | "all";
+  key: "leader" | "other" | "all";
   label: string;
   n: number;
   avgRet: number | null;
@@ -100,7 +100,7 @@ export function watchRow(
   hist: WatchHistory,
   latest: { price: number | null; live: boolean },
   niftyNow: number | null,
-  nowStar: { starred: boolean; count: number | null },
+  momentumNow: boolean,
 ): WatchRow {
   const now = latest.price ?? hist.close;
   const pts = [hist.high, hist.low, now].filter((x): x is number => x !== null);
@@ -115,8 +115,7 @@ export function watchRow(
     worst: pts.length ? pct(Math.min(...pts), item.price) : null,
     vsNifty: ret !== null && niftyRet !== null ? ret - niftyRet : null,
     sessions: hist.sessions,
-    starredNow: nowStar.starred,
-    starCountNow: nowStar.count,
+    momentumNow,
   };
 }
 
@@ -139,11 +138,11 @@ function summarise(key: WatchSummary["key"], label: string, rows: WatchRow[]): W
   };
 }
 
-/** Starred-when-added vs the rest vs all: the comparison the watchlist exists for. */
+/** Momentum leaders when added vs the rest vs all. */
 export function watchSummary(rows: WatchRow[]): WatchSummary[] {
   return [
-    summarise("starred", "Starred when added", rows.filter((r) => r.starred)),
-    summarise("other", "Not starred when added", rows.filter((r) => !r.starred)),
+    summarise("leader", "Momentum leaders when added", rows.filter((r) => r.momentum)),
+    summarise("other", "Not leaders when added", rows.filter((r) => !r.momentum)),
     summarise("all", "All watched", rows),
   ];
 }

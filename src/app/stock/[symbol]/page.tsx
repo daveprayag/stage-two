@@ -80,7 +80,6 @@ async function StockBody({ symbol }: { symbol: string }) {
       <div className="flex flex-col gap-4">
         <StockHeader
           symbol={d.symbol}
-          stars={null}
           name={titleCase(d.name)}
           industry={`${d.industry ?? "Industry not classified"}${d.band !== null ? ` · ${d.band}% price band` : ""}`}
           price={<LivePrice symbol={d.symbol} close={last.close} chg={chg} date={last.time} initial={quote} />}

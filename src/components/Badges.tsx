@@ -1,4 +1,3 @@
-import { Star } from "lucide-react";
 
 /** Small typographic indicators. Colour is carried by a dot or the text itself, not by filled badges. */
 import type { NewsBundle, NewsVerdict, ScreenRow, ScreenTag, Stage } from "@/engine/types";
@@ -136,15 +135,6 @@ export function Change({ value, digits = 1, className = "" }: { value: number | 
     <span className={`num ${value > 0 ? "text-up" : value < 0 ? "text-down" : "text-ink-2"} ${className}`}>
       {value > 0 ? "+" : value < 0 ? "−" : ""}
       {Math.abs(value).toFixed(digits)}%
-    </span>
-  );
-}
-
-/** ★ for stocks that pass the star checks (src/engine/star.ts). */
-export function StarMark({ count, className = "h-3.5 w-3.5" }: { count: number; className?: string }) {
-  return (
-    <span title={`Star: passes ${count} of 6 checks`} aria-label={`Starred, ${count} of 6 checks`} className="inline-flex shrink-0 text-amber">
-      <Star className={className} fill="currentColor" strokeWidth={1.5} />
     </span>
   );
 }

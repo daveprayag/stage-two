@@ -7,22 +7,19 @@ import { ChevronLeft } from "lucide-react";
 import type { AiPick } from "@/engine/aipicks";
 import type { ScreenRow, Stage } from "@/engine/types";
 import { day, price } from "@/lib/format";
-import { daysUntil, isFirstLeg, PhaseLabel, phaseDetail, shortDay, sinceText, SHOWN_TAGS, StageLabel, StarMark, stopPct, TAG_LABEL } from "./Badges";
+import { daysUntil, isFirstLeg, PhaseLabel, phaseDetail, shortDay, sinceText, SHOWN_TAGS, StageLabel, stopPct, TAG_LABEL } from "./Badges";
 import { Card } from "./Page";
 import { Bone } from "./Skeleton";
 import { WatchButton } from "./WatchButton";
 
-/** Symbol, star, name, live price and the save button. */
+/** Symbol, name, live price and the save button. */
 export function StockHeader({
   symbol,
-  stars,
   name,
   industry,
   price,
 }: {
   symbol: string;
-  /** Star checks passed if starred, else null. */
-  stars: number | null;
   name: React.ReactNode;
   industry: React.ReactNode;
   price: React.ReactNode;
@@ -37,7 +34,6 @@ export function StockHeader({
         <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-2.5 font-display text-[2.5rem] leading-none tracking-tight sm:text-6xl">
             <span className="truncate">{symbol}</span>
-            {stars !== null && <StarMark count={stars} className="h-6 w-6 shrink-0 sm:h-8 sm:w-8" />}
           </h1>
           <div className="mt-2 text-sm text-ink-2">{name}</div>
           <div className="mt-0.5 text-xs text-ink-3">{industry}</div>
@@ -234,7 +230,7 @@ export function StockBodySkeleton() {
         </div>
         <Card>
           <div className="flex items-center justify-between border-b border-line px-4 py-3 sm:px-5">
-            <span className="text-sm text-ink">Star checks</span>
+            <span className="text-sm text-ink">Checks</span>
             <Bone className="h-3 w-8" />
           </div>
           <ul className="space-y-4 px-4 py-4 sm:px-5">
@@ -281,7 +277,7 @@ function ResultsGlance({ row }: { row: ScreenRow }) {
           x.kind === "breakout"
             ? "Up 5%+ on 3× volume with a strong close. In our tests these drifted up on average, but only about half beat the index."
             : x.kind === "breakdown"
-              ? "Down 5%+ on 3× volume. In our tests these kept lagging the index; treated as a red flag for the star."
+              ? "Down 5%+ on 3× volume. In our tests these kept lagging the index; shown as a warning."
               : "No strong reaction either way."
         }
       />
@@ -312,7 +308,6 @@ export function StockLoading({ symbol }: { symbol: string }) {
       <div className="flex flex-col gap-4">
         <StockHeader
           symbol={symbol}
-          stars={null}
           name={<Bone className="mt-1 h-4 w-48" />}
           industry={<Bone className="mt-1.5 h-3 w-32" />}
           price={

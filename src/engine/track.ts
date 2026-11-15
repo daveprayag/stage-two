@@ -8,13 +8,13 @@ import { isTopSetup } from "./topsetup";
 import type { ISODate, PriceStore, ScreenFile, ScreenRow } from "./types";
 
 export const TRACK_LISTS = [
-  { key: "star", label: "Starred", shown: true },
   { key: "leader", label: "Strongest", shown: true },
   { key: "momentum", label: "Momentum leaders", shown: true },
   { key: "momentumEarly", label: "Momentum leaders, early phase", shown: true },
   { key: "resuming", label: "Resuming after a pause", shown: true },
   { key: "ai", label: "AI picks (experiment)", shown: true },
   // Removed from the screener (2026-11-10) but still recorded, so the forward record can show whether that was right.
+  { key: "star", label: "Starred", shown: false }, // star removed 2026-11-15
   { key: "top", label: "Top setups", shown: false },
   { key: "breakout", label: "Breaking out", shown: false },
   { key: "setup", label: "Tight near highs", shown: false },

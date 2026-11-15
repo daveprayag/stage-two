@@ -9,8 +9,8 @@ export default function WatchlistPage() {
     <Page>
       <PageTitle title="Watchlist">
         <p>
-          Stocks you chose to follow, each measured from the moment you added it, with whether it was starred then. The point: check on stocks you actually
-          looked at whether starred ones really rally more than the rest.
+          Stocks you chose to follow, each measured from the moment you added it, with whether it was a Momentum leader then. On stocks you actually
+          looked at: do the leaders do better than the rest?
         </p>
       </PageTitle>
       <WatchlistView />
