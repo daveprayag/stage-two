@@ -1,12 +1,12 @@
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import type { AiPicks } from "@/engine/aipicks";
 import type { ScreenRow } from "@/engine/types";
 import { InfoTip } from "./InfoTip";
 import { Card } from "./Page";
-import { Bone } from "./Skeleton";
 
 const ABOUT =
-  "Each evening an AI model reads the Strongest and Momentum leaders lists (trend, returns, volatility, volume, sector, news and results) and picks the 5 it judges most likely to beat the NIFTY 500 over the next 3 months. It's an experiment: it changes no star or check, and the Track record page compares its picks with the lists. Keep it only if it beats them over 3–6 months.";
+  "Each evening an AI model reads the strongest stocks and the Momentum leaders (trend, returns, volatility, volume, sector, news and results) and picks the 5 it judges most likely to beat the NIFTY 500 over the next 3 months. It's an experiment: it changes nothing on the list, and the Track record page compares its picks with Momentum leaders. An AI can't be backtested fairly, so it stays out of the main list unless that forward record beats the list over 3–6 months.";
 
 function Header() {
   return (
@@ -52,19 +52,21 @@ export function AiPicksCard({ picks, rows, asOf }: { picks: AiPicks | null | und
   );
 }
 
-export function AiPicksSkeleton() {
+/** The AI picks folded away below the list: an untested experiment, not part of the main view. */
+export function AiPicksExperiment(props: { picks: AiPicks | null | undefined; rows: ScreenRow[]; asOf: string }) {
+  const { picks, asOf } = props;
+  if (!picks || picks.asOf !== asOf || !picks.picks.length) return null;
   return (
-    <Card>
-      <Header />
-      <ol className="mt-3 grid grid-cols-1 gap-px border-t border-line bg-line sm:grid-cols-2 lg:grid-cols-5" aria-hidden="true">
-        {Array.from({ length: 5 }, (_, k) => (
-          <li key={k} className="flex flex-col gap-2 bg-surface px-4 py-3.5 sm:px-5">
-            <Bone className="h-4 w-24" />
-            <Bone className="h-3 w-full" />
-            <Bone className="h-3 w-2/3" />
-          </li>
-        ))}
-      </ol>
-    </Card>
+    <details className="group rounded-xl border border-line">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm text-ink-2 [&::-webkit-details-marker]:hidden">
+        <span>
+          Experiment: AI picks <span className="text-ink-3">· untested, tracked on the Track record page</span>
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-ink-3 transition-transform group-open:rotate-180" aria-hidden="true" />
+      </summary>
+      <div className="border-t border-line p-2 sm:p-3">
+        <AiPicksCard {...props} />
+      </div>
+    </details>
   );
 }

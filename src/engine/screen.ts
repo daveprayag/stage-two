@@ -161,7 +161,8 @@ export function analyseStock(store: StoreHead, s: StockSeries, bench: (number | 
   const v50 = avg(i - 49, i);
   const dryUp = v50 > 0 ? avg(i - 4, i) / v50 : 1;
   const rvol = v50 > 0 ? ((vol[i] as number) / v50) * 100 : 0;
-  const tight10 = ((maxIn(cp.high, i - 9, i) - minIn(cp.low, i - 9, i)) / c) * 100;
+  const low10 = minIn(cp.low, i - 9, i);
+  const tight10 = ((maxIn(cp.high, i - 9, i) - low10) / c) * 100;
   let upV = 0;
   let downV = 0;
   for (let j = Math.max(1, i - 49); j <= i; j++) {
@@ -208,7 +209,7 @@ export function analyseStock(store: StoreHead, s: StockSeries, bench: (number | 
       pctFromHigh: (1 - c / hi52) * 100, pctAboveLow: (c / lo52 - 1) * 100,
       ema50: m50, ema150: m150, ema200: has200 ? m200 : null, stage, stageAge,
       templateBase: crit.filter(Boolean).length,
-      tight10, dryUp, rvol, adr: f.adr20[i] as number, turnoverCr, band: s.band,
+      tight10, low10, dryUp, rvol, adr: f.adr20[i] as number, turnoverCr, band: s.band,
       resistance: nearest, pctToResistance: nearest !== null ? (nearest / c - 1) * 100 : null,
       breakout, scans, setup,
       rsi14: Number.isFinite(rsi14v) ? rsi14v : null,

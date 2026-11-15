@@ -1,7 +1,6 @@
 "use client";
 import { Check, ChevronDown, X } from "lucide-react";
 import type { Check as CheckItem } from "@/engine/topsetup";
-import { StarMark } from "./Badges";
 
 function CheckIcon({ pass }: { pass: boolean }) {
   return pass ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-up" aria-label="Pass" /> : <X className="mt-0.5 h-4 w-4 shrink-0 text-down" aria-label="Fail" />;
@@ -50,29 +49,27 @@ function Rows({ items, template }: { items: CheckItem[]; template: { label: stri
   );
 }
 
-/** Right-hand checklist card: the star checks. */
+/**
+ * Right-hand checklist card: the Guide's checks, for reference. No star: in the 2011–26 replay, Momentum leaders passing
+ * more of them did no better than the rest (livermore EXPERIMENTS "STAGE TWO REPLAY", T2).
+ */
 export function Checklists(props: {
   star: CheckItem[];
-  starred: boolean;
   market: CheckItem | null;
   template: { label: string; pass: boolean; value: string }[];
 }) {
   const starPassed = props.star.filter((c) => c.pass).length;
   return (
-    <section className={`overflow-hidden rounded-2xl border bg-surface ${props.starred ? "border-amber" : "border-line"}`}>
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface">
       <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3 sm:px-5">
-        <span className="flex items-center gap-1.5 text-sm text-ink">
-          {props.starred && <StarMark count={starPassed} />}
-          Star checks
-        </span>
-        <span className={`num text-xs ${props.starred ? "text-amber" : "text-ink-3"}`}>
+        <span className="text-sm text-ink">Checks</span>
+        <span className="num text-xs text-ink-3">
           {starPassed}/{props.star.length}
         </span>
       </div>
       <p className="px-4 pt-3 text-xs leading-relaxed text-ink-3 sm:px-5">
-        {props.starred
-          ? "Starred: a momentum leader passing at least 5 of these 6. Not a guarantee; own several and set your stop before buying."
-          : "A star needs the momentum-leader profile and at least 5 of these 6."}
+        For reference. The first one, being a Momentum leader, is the one that mattered: replayed over 2012–26, leaders passing more of the others did no
+        better than the rest. A red flag in the news check is still a reason to skip.
       </p>
       <div className="mt-1">
         <Rows items={props.star} template={props.template} />

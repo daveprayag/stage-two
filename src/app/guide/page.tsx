@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Card, Page, PageTitle } from "@/components/Page";
 
-export const metadata: Metadata = { title: "Guide", description: "Stages, phases, relative strength and the star checks, in plain words." };
+export const metadata: Metadata = { title: "Guide", description: "Stages, phases, relative strength, the list and its checks, in plain words." };
 
 function StagesDiagram() {
   // Schematic price path through the four stages, with its 150-day EMA lagging behind.
@@ -104,16 +104,24 @@ export default function GuidePage() {
       </Section>
 
       <Section title="The lists">
-        <ul className="list-disc pl-5">
-          <li><strong className="text-ink">Strongest:</strong> RS 90 or more with the uptrend intact. The list most likely to hold the big gainers.</li>
-          <li><strong className="text-ink">Momentum leaders:</strong> RS 80+, volatility in the top 40%, a top-40% sector, in stage 2 (see below). Once on the list, a stock stays while its sector is in the top 50%, so one sector slipping a single place doesn&apos;t empty the list overnight (tested: a third less daily churn, the same returns). The stars come from here.</li>
-          <li><strong className="text-ink">Resuming after a pause:</strong> rallied, paused, and moving again. Not a reason to buy on its own, but it gives a close, clear stop.</li>
-        </ul>
         <p>
-          <strong className="text-ink">AI picks (experiment):</strong> each evening an AI model reads the Strongest and Momentum leaders lists, with their
-          news and results, and picks the 5 it judges most likely to beat the NIFTY 500 over three months, with a reason for each. It changes no list, check
-          or star. Its picks are tracked on the Track record page next to the lists; it stays only if it beats them over 3–6 months. An AI&apos;s past
-          knowledge can&apos;t be backtested fairly, so only that forward record counts.
+          <strong className="text-ink">One list: Momentum leaders.</strong> RS 80+, volatility in the top 40%, a top-40% sector, in stage 2 (see below).
+          Once on the list, a stock stays while its sector is in the top 50%, so one sector slipping a single place doesn&apos;t empty the list overnight
+          (tested: a third less daily churn, the same returns).
+        </p>
+        <p>
+          Why only one: we replayed this screener on every trading day from 2011 to November 2026 and compared the lists. Momentum leaders had the best or equal
+          edge over the average stock in every period (+10, +6 and +4 points over 6 months in 2012–15, 2016–24 and 2025–26). Strongest and Resuming added
+          little beyond it: their stocks that were not Momentum leaders did worse. First-leg stocks were too rare to judge. And nothing ranked the winners within
+          the list: not the old Best match order, not RS, not how many checks a stock passed, and not buying at the moment it resumed after a pause (those
+          trades were stopped out more often). So the list has no star and no &quot;buy now&quot; mark; it is grouped by sector, strongest first, to make it
+          easy to spread your buys.
+        </p>
+        <p>
+          <strong className="text-ink">AI picks (experiment, folded away below the list):</strong> each evening an AI model reads the strongest stocks, with
+          their news and results, and picks the 5 it judges most likely to beat the NIFTY 500 over three months, with a reason for each. It changes nothing on
+          the list. Its picks are tracked on the Track record page; an AI&apos;s past knowledge can&apos;t be backtested fairly, so only that forward record
+          counts.
         </p>
         <p>
           Earlier versions had more lists (Top setups, Breaking out, Tight near highs, New uptrends, Ankur&apos;s scans). They were dropped because, in our
@@ -135,20 +143,19 @@ export default function GuidePage() {
           are from the original run on simple averages.)
         </p>
         <ol className="list-decimal space-y-2 pl-5">
-          <li><strong className="text-ink">Start from Strongest or Momentum leaders</strong>, with the phase filter on Early or Early + mid. In 2021–24 early-phase picks had fewer 20%+ losers than the rest (5% vs 7%); in 2025–26 the difference was small.</li>
-          <li><strong className="text-ink">Know how far it has already run.</strong> Every list here flags stocks after they have moved: strength only shows once a stock has risen. In 2012–26 the typical big winner was already 40–55% above its low when it first appeared, and early signals that fire sooner (Ankur&apos;s volume scan, base breakouts) did no better than an average stock as entries. So each momentum leader shows when its current stretch on the list began and how far it has moved since (&quot;On list since&quot;; a break of up to two weeks off the list doesn&apos;t reset it). An &quot;Extended&quot; tag marks stocks up 70%+ in 3 months: such momentum leaders ended the next 6 months 20%+ lower more often than the rest (20% vs 13% in 2012–15, 17% vs 14% in 2016–24, 34% vs 23% in 2025–26). Their average return was as good or better before 2025 (lower in 2025–26), so it is a reason for a wider stop and a smaller position, not to skip the stock. The phase restarts at every new base, so &quot;Early&quot; can mean early in a new leg after a doubling; the table says how far it already is above its 52-week low (&quot;after +105%&quot;) or &quot;first leg&quot; when it is still under 50%. The &quot;First leg only&quot; filter shows just those. They are rare (2–6% of momentum leaders) and, in our tests, not better on their own: stocks starting a new leg after a doubling reached +50% more often (35% vs 18% in 2016–24, 33% vs 9% in 2012–15); first-leg stocks did better only right after market bottoms.</li>
-          <li><strong className="text-ink">Prefer the strongest of them:</strong> RS 90+, and sectors with several leaders at once (check the Sectors page): a group moving together is sturdier than one stock alone.</li>
-          <li><strong className="text-ink">Check the news:</strong> a real catalyst (results, orders, guidance) and no red flags. Skip anything with a governance or pledge problem, however good the chart.</li>
-          <li><strong className="text-ink">Mind the results calendar.</strong> An amber &quot;Results&quot; tag means quarterly results are due within a week; buying just before is a coin toss with a big gap either way. Don&apos;t chase the results-day jump either: in 2020–24, stocks that opened 3%+ higher on results day closed below that open two times in three. A red &quot;Results ▼&quot; (down 5%+ on 3× volume) is a warning: those kept lagging the index for months, and it takes away the star&apos;s news check. A green &quot;Results ▲&quot; is useful context, not a buy signal on its own.</li>
+          <li><strong className="text-ink">Start from Momentum leaders</strong>; the phase filter on Early or Early + mid is optional. In 2021–24 early-phase picks had fewer 20%+ losers than the rest (5% vs 7%); in 2025–26 the difference was small.</li>
+          <li><strong className="text-ink">Know how far it has already run.</strong> Every list here flags stocks after they have moved: strength only shows once a stock has risen. In 2012–26 the typical big winner was already 40–55% above its low when it first appeared, and early signals that fire sooner (Ankur&apos;s volume scan, base breakouts) did no better than an average stock as entries. So each momentum leader shows when its current stretch on the list began and how far it has moved since (&quot;On list since&quot;; a break of up to two weeks off the list doesn&apos;t reset it). An &quot;Extended&quot; tag marks stocks up 70%+ in 3 months: such momentum leaders ended the next 6 months 20%+ lower more often than the rest (20% vs 13% in 2012–15, 17% vs 14% in 2016–24, 34% vs 23% in 2025–26). Their average return was as good or better before 2025 (lower in 2025–26), so it is a reason for a wider stop and a smaller position, not to skip the stock. The phase restarts at every new base, so &quot;Early&quot; can mean early in a new leg after a doubling; the table says how far it already is above its 52-week low (&quot;after +105%&quot;) or &quot;first leg&quot; when it is still under 50%. They are rare (2–6% of momentum leaders) and, in our tests, not better on their own: stocks starting a new leg after a doubling reached +50% more often (35% vs 18% in 2016–24, 33% vs 9% in 2012–15); first-leg stocks did better only right after market bottoms.</li>
+          <li><strong className="text-ink">Treat them as equals and spread out.</strong> In the 2011–26 replay, higher RS, more checks passed and the old Best match order did not pick the winners within the list. What you can control is spread: different sectors, so one sector&apos;s fall doesn&apos;t sink you.</li>
+          <li><strong className="text-ink">Check the warnings:</strong> a red &quot;Red flag&quot; means the news summary is negative or found a governance, pledge or similar problem. Skip those, however good the chart.</li>
+          <li><strong className="text-ink">Mind the results calendar.</strong> An amber &quot;Results&quot; tag means quarterly results are due within a week; buying just before is a coin toss with a big gap either way. Don&apos;t chase the results-day jump either: in 2020–24, stocks that opened 3%+ higher on results day closed below that open two times in three. A red &quot;Results ▼&quot; (down 5%+ on 3× volume) is a warning: those kept lagging the index for months. A green &quot;Results ▲&quot; is useful context, not a buy signal on its own.</li>
           <li><strong className="text-ink">Own several, not one.</strong> Even in 2021–24 only about 4 in 10 of these picks reached +50%, and in 2025–26 fewer than 2 in 10; the rest go nowhere or fall, and you cannot tell which in advance. Five to ten positions across different sectors is what turns those odds into a result.</li>
-          <li><strong className="text-ink">Size by the stop.</strong> These stocks move 4–6% a day, and winners typically dipped 6% (a quarter of them 11%+) before running, so very tight stops shake you out. Decide the stop first, then buy only as many shares as that loss allows. The &quot;Resuming after a pause&quot; list helps: a stock that rallied, paused and is moving again has a natural stop at the pause low, and the stock page shows how far away it is.</li>
+          <li><strong className="text-ink">Size by the stop.</strong> These stocks move 4–6% a day, and winners typically dipped 6% (a quarter of them 11%+) before running, so very tight stops shake you out. Decide the stop first, then buy only as many shares as that loss allows. The list shows the stop our tests used, the lowest low of the last 10 sessions, and how far below the price it is.</li>
           <li><strong className="text-ink">Give winners time.</strong> The edge was measured over six months, not days. Exits for this list have not been tested yet; check the Track record page as it builds.</li>
           <li><strong className="text-ink">Respect the market.</strong> In 2021–22 the same profile still lost money, just less than other stocks. When the NIFTY 500 is below its 200-day EMA, buy less.</li>
         </ol>
         <p>
-          The <span className="text-amber">★</span> star marks momentum leaders that pass at least 5 of these checks at once: early or mid phase, RS 90+, a sector
-          moving as a group, positive news without red flags, and resuming after a pause with a stop within 12%. Each stock page lists the checks it passes. The
-          star is a summary of the steps above, not a separately tested signal; the Track record page follows how starred stocks do.
+          There is no star any more. It marked leaders passing 5 of the 6 checks above, and in the replay those did no better than other leaders; it made the
+          list shorter, not better. The stock page still lists the checks for reference.
         </p>
       </Section>
 

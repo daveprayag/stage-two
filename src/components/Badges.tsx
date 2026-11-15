@@ -1,7 +1,7 @@
 import { Star } from "lucide-react";
 
 /** Small typographic indicators. Colour is carried by a dot or the text itself, not by filled badges. */
-import type { NewsVerdict, ScreenRow, ScreenTag, Stage } from "@/engine/types";
+import type { NewsBundle, NewsVerdict, ScreenRow, ScreenTag, Stage } from "@/engine/types";
 import { price } from "@/lib/format";
 
 const STAGE: Record<Stage, { dot: string; text: string; title: string }> = {
@@ -191,6 +191,39 @@ export function ResultsBadge({ r }: { r: { resultsOn?: string | null; resultsRea
     );
   }
   return null;
+}
+
+/** Red pill after a symbol when the AI news summary is negative or found a red flag; nothing otherwise. */
+export function NewsWarning({ n }: { n: NewsBundle | undefined }) {
+  const ai = n?.ai;
+  if (!ai || (ai.sentiment !== "negative" && !ai.redFlags.length)) return null;
+  return (
+    <span
+      title={ai.redFlags.length ? `Red flag: ${ai.redFlags.join("; ")}` : "Negative news in the AI summary"}
+      className="shrink-0 rounded-full border border-down/40 px-1.5 py-px text-[10px] leading-4 text-down"
+    >
+      Red flag
+    </span>
+  );
+}
+
+/** % from the price down to the 10-session low (the tested initial stop); null if the row predates the field. */
+export function stopPct(r: Pick<ScreenRow, "low10" | "close">, last?: number | null): number | null {
+  const px = last ?? r.close;
+  return r.low10 === undefined || !(px > 0) ? null : Math.max(0, (1 - r.low10 / px) * 100);
+}
+
+/** "₹412.50 · −8.1%" (short) or "Stop ₹412.50, the 10-day low, 8.1% below" (long); "—" before the field exists. */
+export function StopText({ r, last, long = false }: { r: Pick<ScreenRow, "low10" | "close">; last?: number | null; long?: boolean }) {
+  const pct = stopPct(r, last);
+  if (pct === null || r.low10 === undefined) return long ? null : <span className="text-ink-3" title="Shown from the next evening update">—</span>;
+  if (long) return <>Stop ₹{price(r.low10)}, the 10-day low, {pct.toFixed(1)}% below</>;
+  return (
+    <span title="Lowest low of the last 10 sessions: the tested initial stop" className="inline-flex flex-col items-end">
+      <span>{price(r.low10)}</span>
+      <span className="text-xs text-ink-3">−{pct.toFixed(1)}%</span>
+    </span>
+  );
 }
 
 /** 3-month return (%) from which a stock is marked "Extended" (the 2016–24 top fifth of Momentum leaders; display only). */

@@ -99,6 +99,8 @@ export interface ScreenRow {
   template: number;
   /** 10-session high-low range as % of close. */
   tight10: number;
+  /** Lowest low of the last 10 sessions, today included: the initial stop used in the 2011–26 replay tests (missing in screens built before it). */
+  low10?: number;
   /** 5-day average volume / 50-day average volume. */
   dryUp: number;
   /** Today's volume as % of its 50-day average. */

@@ -8,7 +8,7 @@ import { AiSummary, Sources } from "@/components/NewsPanel";
 import { Card, CardHeader, Page } from "@/components/Page";
 import { PriceChart } from "@/components/PriceChart";
 import { LivePrice } from "@/components/LivePrice";
-import { isStar, marketNote, starChecks } from "@/engine/star";
+import { marketNote, starChecks } from "@/engine/star";
 import { Checklists } from "@/components/Checklists";
 import { crore, day, price, titleCase } from "@/lib/format";
 import { quarterLabel, type StockResults } from "@/engine/financials";
@@ -73,7 +73,6 @@ async function StockBody({ symbol }: { symbol: string }) {
   const headlines = data.headlines ?? shortlisted?.headlines ?? [];
   const passed = d.checklist.filter((c) => c.pass).length;
   const star = row ? starChecks(row, shortlisted) : [];
-  const starred = row ? isStar(row, shortlisted) : false;
   const fromHigh = (1 - last.close / d.hi52) * 100;
 
   return (
@@ -81,7 +80,7 @@ async function StockBody({ symbol }: { symbol: string }) {
       <div className="flex flex-col gap-4">
         <StockHeader
           symbol={d.symbol}
-          stars={starred ? star.filter((c) => c.pass).length : null}
+          stars={null}
           name={titleCase(d.name)}
           industry={`${d.industry ?? "Industry not classified"}${d.band !== null ? ` · ${d.band}% price band` : ""}`}
           price={<LivePrice symbol={d.symbol} close={last.close} chg={chg} date={last.time} initial={quote} />}
@@ -124,7 +123,7 @@ async function StockBody({ symbol }: { symbol: string }) {
         </div>
 
         {row ? (
-          <Checklists star={star} starred={starred} market={marketNote(market)} template={d.checklist} />
+          <Checklists star={star} market={marketNote(market)} template={d.checklist} />
         ) : (
           <Card>
             <CardHeader title="Trend template" aside={<span className="num text-sm text-ink-2">{passed} of 8</span>} />

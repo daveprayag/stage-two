@@ -1,11 +1,10 @@
 "use client";
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Search, Star } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import type { NewsBundle, ScreenRow } from "@/engine/types";
 import { price, titleCase } from "@/lib/format";
-import { baseShort, Change, ExtendedBadge, FirstLine, isFirstLeg, ResultsBadge, sinceText, resultsSoon, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StarMark } from "./Badges";
-import { isStar, starCount } from "@/engine/star";
+import { baseShort, Change, ExtendedBadge, FirstLine, NewsWarning, ResultsBadge, sinceText, resultsSoon, PhaseLabel, phaseDetail, phaseNote, RsMeter, SentimentDot, StageLabel, StopText, stopPct } from "./Badges";
 import { Select } from "./Select";
 import { Bone } from "./Skeleton";
 import { InfoTip } from "./InfoTip";
@@ -15,51 +14,22 @@ import { liveLabel, useLivePrices } from "./live";
 /** A stock's latest NSE price during or after today's session. */
 type Px = { last: number; pChange: number };
 
-type TabKey = "leader" | "momentum" | "resuming";
-type SortKey = "score" | "sector" | "rs" | "high" | "tight" | "move";
+type SortKey = "sector" | "rs" | "high" | "stop" | "move";
 
 /**
- * The three lists that earned their place in livermore's research (2021–26, liquid NSE stocks, 6-month outcomes): strength
- * is what found big gainers; tight ranges, breakouts and the all-checks list found them less often than a random stock in
- * 2025–26. The engine still tags and tracks the removed lists (track.ts), it just doesn't show them.
+ * One list: Momentum leaders. In the 2011–26 replay of this engine (livermore EXPERIMENTS "STAGE TWO REPLAY") it had the
+ * best or equal edge of every list, and nothing tested ranked the winners within it (Best match score, RS, the star
+ * checks, the buy point). Strongest, Resuming and the AI picks are still computed and tracked, just not listed here.
  */
-export const SCREENS: { key: TabKey; label: string; mobile: string; short: string; blurb: string }[] = [
-  {
-    key: "leader",
-    label: "Strongest",
-    mobile: "Strongest",
-    short: "Top 10% performers, uptrend intact",
-    blurb:
-      "RS 90+ (beat 90% of NSE stocks over the past year) with the uptrend intact. Tested on 2016–21, years it was never tuned on: 29% rose 50%+ within 6 months (vs 20% of all stocks) and it beat the average stock in 45 of 64 months. It also helped in 2021–24, but not in 2025–26. About 1 in 5 fell 20%+, so use a stop and own several.",
-  },
-  {
-    key: "momentum",
-    label: "Momentum leaders",
-    mobile: "Momentum",
-    short: "Strong, volatile, in a strong sector",
-    blurb:
-      "RS 80+, bigger daily swings than most stocks (top 40%), industry in the top 40% by 3-month return (once on the list, it stays while the industry is in the top 50%), in stage 2. On 2016–21, data it was never built on, 31% rose 50%+ within 6 months (vs 20% of all stocks) and it beat the average stock in 49 of 64 months; the edge held in 2021–24 and faded in 2025–26. The stars come from this list. A shortlist to research, not a buy list.",
-  },
-  {
-    key: "resuming",
-    label: "Resuming after a pause",
-    mobile: "Resuming",
-    short: "Rallied, paused, now moving again",
-    blurb:
-      "Rallied 20%+, paused for 5+ sessions without falling more than 25%, and closed back above the top of the pause in the last 5 sessions (now no more than 8% above it). The when, not the what: on average no better than any uptrend day, but the low of the pause is a natural, close stop. Best used on stocks that are also Strongest or Momentum leaders.",
-  },
-];
-
-const FIRST_LEG_HINT =
-  "Stocks in an uptrend still less than 50% above their 52-week low: the first leg of their rise. Rare: 2–6% of Momentum leaders. Earlier is not better on its own: in 2016–24 they reached +50% within 6 months less often than leaders that had already doubled (18% vs 35%), and did better only in the months right after a market bottom.";
+const LIST_BLURB =
+  "RS 80+, bigger daily swings than most stocks (top 40%), industry in the top 40% by 3-month return (once on the list, it stays while the industry is in the top 50%), in stage 2. Replayed on every trading day since 2012, these stocks beat the average NSE stock over the next 6 months by about 10 points in 2012–15, 6 in 2016–24 and 4 in 2025–26, ahead in about 3 of every 4 months. Nothing we tested picks the winners within the list (not RS, not the checks, not the entry day), so treat them as equals and spread your buys across sectors. A shortlist to research, not a buy list.";
 
 const SORTS: { key: SortKey; label: string; fn: (a: ScreenRow, b: ScreenRow) => number }[] = [
-  { key: "score", label: "Best match", fn: (a, b) => b.score - a.score },
   // Placeholder order; the real one needs the sector ranking (see `shown`).
-  { key: "sector", label: "Strongest sector first", fn: (a, b) => b.score - a.score },
+  { key: "sector", label: "By sector, strongest first", fn: (a, b) => b.rs - a.rs },
   { key: "rs", label: "Relative strength", fn: (a, b) => b.rs - a.rs },
   { key: "high", label: "Closest to 52-week high", fn: (a, b) => a.pctFromHigh - b.pctFromHigh },
-  { key: "tight", label: "Tightest range", fn: (a, b) => a.tight10 - b.tight10 },
+  { key: "stop", label: "Closest stop", fn: (a, b) => (stopPct(a) ?? 999) - (stopPct(b) ?? 999) },
   { key: "move", label: "Today's move", fn: (a, b) => b.chgPct - a.chgPct },
 ];
 
@@ -83,9 +53,9 @@ function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: P
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="truncate text-[15px] font-medium text-ink">{r.symbol}</span>
-              {isStar(r, n) && <StarMark count={starCount(r, n)} />}
+              <NewsWarning n={n} />
               <ResultsBadge r={r} />
-                    <ExtendedBadge r={r} />
+              <ExtendedBadge r={r} />
             </div>
             <div className="mt-0.5 truncate text-xs text-ink-3">{r.industry ?? titleCase(r.name)}</div>
           </div>
@@ -101,6 +71,7 @@ function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: P
           <MiniStat label="From high"><span className="num">{fromHigh(r)}</span></MiniStat>
         </dl>
         {r.momentumSince && <p className="mt-2 text-xs text-ink-3">{sinceText(r, true, q?.last)}</p>}
+        <p className="mt-1 text-xs text-ink-3"><StopText r={r} last={q?.last} long /></p>
         {n?.ai && n.ai.sentiment !== "none" && (
           <p className="mt-3 flex items-start gap-2.5 text-xs leading-relaxed text-ink-2">
             <FirstLine>
@@ -159,12 +130,12 @@ const td = "px-3 py-3.5 first:pl-5 last:pr-5";
 
 /** Table columns, each with what it means (shown from the ⓘ next to its name). */
 const COLUMNS: { label: string; right?: boolean; info: string }[] = [
-  { label: "Stock", info: "NSE symbol and sector. ★ = a momentum leader passing at least 5 of the 6 star checks. Tags: amber “Results” = quarterly results due within a week; green ▲ / red ▼ = broke out / broke down on its latest results." },
+  { label: "Stock", info: "NSE symbol and sector. Warnings in red: “Red flag” = negative news or a red flag in the AI news summary; “Results ▼” = fell 5%+ on 3× volume after its latest results. Amber “Results” = quarterly results due within a week; green “Results ▲” = broke out on its latest results." },
   { label: "Close", right: true, info: "Latest price. Live from NSE during market hours (refreshed every minute); outside them, the last price of the day. Below it, today’s change." },
   { label: "RS", info: "Relative strength, 1–99: how the stock’s 3- to 12-month return ranks against every liquid NSE stock (latest quarter counts double). 90 = it beat 90% of them." },
   { label: "Stage · phase", info: "Stage from the 150-day EMA: 1 basing, 2 uptrend, 3 topping, 4 downtrend. For stage 2, the phase: early = in or just out of its base, or the first rally; mid = second rally; late = third or later, or after an 80%+ run. For Momentum leaders, when its current stretch on the list began and the move since (breaks of up to two weeks off the list don't reset it)." },
   { label: "From high", right: true, info: "How far below its 52-week high the stock closed. Leaders usually trade within 15–25% of their high." },
-  { label: "10d range", right: true, info: "High-to-low range of the last 10 sessions as a % of price. Small = quiet and tight (green at 8% or less)." },
+  { label: "Stop", right: true, info: "The lowest low of the last 10 sessions and how far below the price it is: the initial stop used in our 2011–26 tests. Decide the stop before buying and size the position so hitting it costs what you can afford." },
   { label: "Vol 5/50", right: true, info: "Average volume of the last 5 sessions ÷ the last 50. Below 1 = trading is drying up (green at 0.8 or less); above 1 = busier than usual." },
   { label: "News", info: "AI summary of the latest NSE filings and headlines for the 60 strongest candidates. Dot: green positive, red negative, grey neutral." },
 ];
@@ -228,7 +199,7 @@ function DesktopTable({ rows, news, live, heads, loading = false }: { rows: Scre
                 <Link href={href(r)} className="block after:absolute after:inset-0">
                   <span className="flex items-center gap-1.5">
                     <span className="truncate font-medium text-ink">{r.symbol}</span>
-                    {isStar(r, n) && <StarMark count={starCount(r, n)} />}
+                    <NewsWarning n={n} />
                     <ResultsBadge r={r} />
                     <ExtendedBadge r={r} />
                   </span>
@@ -259,7 +230,7 @@ function DesktopTable({ rows, news, live, heads, loading = false }: { rows: Scre
                 )}
               </td>
               <td className={`${td} num text-right text-ink`}>{fromHigh(r)}</td>
-              <td className={`${td} num text-right ${r.tight10 <= 8 ? "text-up" : "text-ink"}`}>{r.tight10.toFixed(1)}%</td>
+              <td className={`${td} num text-right text-ink`}><StopText r={r} last={live?.[r.symbol]?.last} /></td>
               <td className={`${td} num text-right ${r.dryUp <= 0.8 ? "text-up" : "text-ink"}`}>{r.dryUp.toFixed(2)}</td>
               <td className={td}>
                 {n?.ai && n.ai.sentiment !== "none" ? (
@@ -288,11 +259,11 @@ const TERMS: [string, string][] = [
   ["Stage", "Where the stock is in its cycle, from its 150-day EMA: 1 sideways base, 2 uptrend, 3 topping, 4 downtrend."],
   ["Phase", "How far into its uptrend a stage 2 stock is, counted from when it left its latest base (8+ weeks sideways within a 35% range). A rally is a rise of 20%+ without a 10% pullback. Early = still in the base, just out of it, or in the first rally (Ankur's best buy: the first pause after the base); mid = second rally; late = third or later, any 80%+ rally, or no sideways base in the last 14 months. \u201cAbove base\u201d = how far the price is above the top of that base."],
   ["From high", "How far below its 52-week high it closed."],
-  ["10d range", "Gap between the highest and lowest price of the last 10 sessions, as % of price. Small = quiet, tight."],
+  ["Stop", "The lowest low of the last 10 sessions, and how far below the price it is. Every 2011–26 test used it as the initial stop (sell if the price trades below it). A far stop means a smaller position for the same risk."],
   ["Vol 5/50", "Average volume of the last 5 days ÷ last 50 days. Below 1 = volume drying up; well above 1 = heavy buying or selling."],
   ["On list since", "Momentum leaders only: the session its current stretch on the list began, and how far it has moved since. A stock that drops off for up to 10 sessions and comes back keeps its date. Our lists flag stocks after they have moved: in 2012–26 the typical big winner was already 40–55% above its low when it first appeared, and catching it earlier did not pay."],
   ["Extended", "Up 70%+ in 3 months. Momentum leaders this extended ended the next 6 months 20%+ lower more often than the rest (about 1 in 5 vs 1 in 7 in 2012–24; 1 in 3 vs 1 in 4 in 2025–26), though their average return was as good or better before 2025. A caution about risk, not a sell signal."],
-  ["\u2605 Star", "A momentum leader that passes at least 5 of the 6 checks from the Guide: momentum profile, early or mid phase, RS 90+, sector moving as a group (3+ strong stocks), positive news without red flags, and resuming after a pause with a stop within 12%. The stock page lists each check."],
+  ["Warnings", "Red “Red flag”: the AI news summary is negative or found a red flag (governance, pledges, a downgrade). Red “Results ▼”: fell 5%+ on 3× volume after its latest results; such stocks kept lagging the index for months. Reasons to skip or wait. There is no star any more: in the 2011–26 replay, leaders passing more checks did no better than the rest."],
   ["News dot", "Green positive, red negative, grey neutral, from an AI summary of NSE filings and headlines."],
 ];
 
@@ -364,27 +335,15 @@ export function ScreenerTable({
     [liveFile, unavailable],
   );
   const [phase, setPhase] = useState<PhaseFilter>("all");
-  const [firstLeg, setFirstLeg] = useState(false);
-  // The list counts follow the "which stocks" filters (phase, first leg), so an empty list never surprises.
-  const counts = useMemo(() => {
-    const c: Record<string, number> = {};
-    for (const r of list) {
-      if (!phaseOk(r, phase) || (firstLeg && !isFirstLeg(r))) continue;
-      for (const t of r.tags) c[t] = (c[t] ?? 0) + 1;
-    }
-    return c;
-  }, [list, phase, firstLeg]);
-  const [tab, setTab] = useState<TabKey>("leader");
+  // The list count follows the phase filter, so an empty list never surprises.
+  const count = useMemo(() => list.filter((r) => r.tags.includes("momentum") && phaseOk(r, phase)).length, [list, phase]);
   const [q, setQ] = useState("");
   const [sector, setSector] = useState("");
-  const [sort, setSort] = useState<SortKey>("score");
+  const [sort, setSort] = useState<SortKey>("sector");
   const [positive, setPositive] = useState(false);
-  const [starred, setStarred] = useState(false);
   const [noResults, setNoResults] = useState(false);
-  // The open tab lives in the URL (?tab=setup) so a view can be shared or bookmarked.
+  // The phase lives in the URL (?phase=early) so a view can be shared or bookmarked.
   useEffect(() => {
-    const t = new URLSearchParams(window.location.search).get("tab");
-    if (t && SCREENS.some((x) => x.key === t)) setTab(t as TabKey);
     const p = new URLSearchParams(window.location.search).get("phase");
     if (p && PHASES.some((x) => x.key === p)) setPhase(p as PhaseFilter);
   }, []);
@@ -393,12 +352,6 @@ export function ScreenerTable({
     const url = new URL(window.location.href);
     if (p === "all") url.searchParams.delete("phase");
     else url.searchParams.set("phase", p);
-    window.history.replaceState(null, "", url);
-  };
-  const choose = (t: TabKey) => {
-    setTab(t);
-    const url = new URL(window.location.href);
-    url.searchParams.set("tab", t);
     window.history.replaceState(null, "", url);
   };
   const sectors = useMemo(() => [...new Set(list.map((r) => r.industry).filter((x): x is string => !!x))].sort(), [list]);
@@ -410,34 +363,26 @@ export function ScreenerTable({
   const shown = useMemo(() => {
     const needle = q.trim().toUpperCase();
     const base = SORTS.find((s) => s.key === sort)?.fn ?? SORTS[0]!.fn;
-    const fn = sort === "sector" ? (a: ScreenRow, b: ScreenRow) => pos(a) - pos(b) || b.score - a.score : base;
+    const fn = sort === "sector" ? (a: ScreenRow, b: ScreenRow) => pos(a) - pos(b) || b.rs - a.rs : base;
     return list
       .filter(
         (r) =>
           // A search looks through every screened stock, not just the open list.
-          (!!needle || r.tags.includes(tab)) &&
+          (!!needle || r.tags.includes("momentum")) &&
           phaseOk(r, phase) &&
           (!sector || r.industry === sector) &&
           (!positive || news[r.symbol]?.ai?.sentiment === "positive") &&
-          (!starred || isStar(r, news[r.symbol])) &&
           (!noResults || !resultsSoon(r)) &&
-          (!firstLeg || isFirstLeg(r)) &&
           (!needle || r.symbol.includes(needle) || r.name.toUpperCase().includes(needle)),
       )
       .sort(fn);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pos depends only on sectorPos
-  }, [list, tab, q, sector, sort, positive, starred, noResults, firstLeg, news, phase, sectorPos]);
+  }, [list, q, sector, sort, positive, noResults, news, phase, sectorPos]);
 
-  const emptyNote = useMemo(() => {
-    const label = (k: TabKey) => SCREENS.find((x) => x.key === k)?.label ?? k;
-    if (firstLeg) {
-      const others = SCREENS.filter((x) => x.key !== tab && (counts[x.key] ?? 0) > 0).map((x) => `${x.label} (${counts[x.key]})`);
-      const why = tab === "leader" ? ": Strongest needs RS 90+, which a stock rarely reaches while still in its first leg" : "";
-      return `No first-leg stocks on ${label(tab)} today${why}.${others.length ? ` Try ${others.join(" or ")}.` : ""}`;
-    }
-    if (starred || positive || noResults || phase !== "all" || sector) return "No stock on this list passes the filters switched on. Clear one to see more.";
-    return "Nothing matches today. Lists like this are often empty when the market is weak.";
-  }, [firstLeg, tab, counts, starred, positive, noResults, phase, sector]);
+  const emptyNote =
+    positive || noResults || phase !== "all" || sector
+      ? "No Momentum leader passes the filters switched on. Clear one to see more."
+      : "No Momentum leaders today. The list is often short or empty when the market is weak.";
 
   // Sorting by sector: a heading above the first stock of each sector, with its rank on the Sectors page.
   const heads = useMemo<Heads | null>(() => {
@@ -472,32 +417,15 @@ export function ScreenerTable({
         </div>
         <p className="text-xs leading-relaxed text-ink-3">{PHASES.find((p) => p.key === phase)?.hint}</p>
       </div>
-      <div role="radiogroup" aria-label="Screens" className="grid grid-cols-3 gap-2">
-        {SCREENS.map((t) => {
-          const on = tab === t.key;
-          return (
-            <button
-              key={t.key}
-              role="radio"
-              aria-checked={on}
-              onClick={() => choose(t.key)}
-              className={`flex min-w-0 flex-col gap-1 rounded-xl border px-3 py-2.5 text-left transition-colors sm:py-3 ${on ? "border-ink bg-surface" : "border-line hover:border-line-strong"}`}
-            >
-              <span className={`truncate text-sm font-medium ${on ? "text-ink" : "text-ink-2"}`}>
-                <span className="sm:hidden">{t.mobile}</span>
-                <span className="hidden sm:inline">{t.label}</span>
-              </span>
-              <span className="flex items-center gap-1 text-xs text-ink-3">
-                {loading ? <Bone className="h-3 w-8" /> : <span className="num">{counts[t.key] ?? 0}</span>}
-                <span>stocks</span>
-                <span className="hidden truncate sm:inline">· {t.short.toLowerCase()}</span>
-              </span>
-            </button>
-          );
-        })}
+      <div className="flex flex-col gap-1.5">
+        <h2 className="flex items-baseline gap-2 text-base font-medium text-ink">
+          Momentum leaders
+          <span className="text-sm font-normal text-ink-3">
+            {loading ? <Bone className="inline-block h-3 w-8" /> : <span className="num">{count}</span>} stocks
+          </span>
+        </h2>
+        <p className="text-sm leading-relaxed text-ink-2">{LIST_BLURB}</p>
       </div>
-
-      <p className="text-sm leading-relaxed text-ink-2">{SCREENS.find((t) => t.key === tab)?.blurb}</p>
 
       <div className="grid grid-cols-2 gap-2 md:flex md:items-center">
         <label className={`${control} col-span-2 flex items-center gap-2 md:w-72`}>
@@ -531,14 +459,8 @@ export function ScreenerTable({
             )}
           </span>
           <div className="flex flex-wrap items-center gap-2">
-            <Chip on={starred} set={setStarred}>
-              <Star className="h-3 w-3" fill="currentColor" aria-hidden="true" /> Starred only
-            </Chip>
             <Chip on={positive} set={setPositive}>
               <span className="h-1.5 w-1.5 rounded-full bg-up" aria-hidden="true" /> Positive news
-            </Chip>
-            <Chip on={firstLeg} set={setFirstLeg} title={FIRST_LEG_HINT}>
-              First leg only
             </Chip>
             <Chip on={noResults} set={setNoResults}>
               <span className="hidden sm:inline">Hide results this week</span>

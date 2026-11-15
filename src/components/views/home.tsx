@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { AiPicksCard, AiPicksSkeleton } from "@/components/AiPicksCard";
+import { AiPicksExperiment } from "@/components/AiPicksCard";
 import { MarketStrip, MarketStripSkeleton } from "@/components/MarketStrip";
 import { Page, PageTitle } from "@/components/Page";
 import { ScreenerTable } from "@/components/ScreenerTable";
@@ -18,7 +18,6 @@ async function Screen() {
         {screen.newsAt ? ` · news ${istTime(screen.newsAt)}` : " · news pending"}
       </p>
       {screen.market && <MarketStrip m={screen.market} asOf={screen.asOf} initialLive={live} />}
-      <AiPicksCard picks={screen.aiPicks} rows={screen.rows} asOf={screen.asOf} />
       <ScreenerTable
         rows={screen.rows}
         news={screen.news}
@@ -26,6 +25,7 @@ async function Screen() {
         initialLive={live}
         sectorOrder={screen.sectors.map((x) => ({ industry: x.industry, rs: x.rs }))}
       />
+      <AiPicksExperiment picks={screen.aiPicks} rows={screen.rows} asOf={screen.asOf} />
     </>
   );
 }
@@ -35,7 +35,6 @@ function ScreenLoading() {
     <>
       <Bone className="-mt-4 h-3 w-72 max-w-full" />
       <MarketStripSkeleton />
-      <AiPicksSkeleton />
       <ScreenerTable rows={null} />
     </>
   );
@@ -46,7 +45,7 @@ export function Home({ loading = false }: { loading?: boolean }) {
   return (
     <Page>
       <PageTitle title="Momentum screener">
-        <p>NSE stocks entering or leading an uptrend, rebuilt every evening after the close.</p>
+        <p>NSE Momentum leaders: strong stocks in strong sectors, rebuilt every evening after the close.</p>
       </PageTitle>
       {loading ? (
         <ScreenLoading />
