@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Check, X } from "lucide-react";
 import { Change, EXTENDED_NOTE, isExtended, RsMeter } from "@/components/Badges";
-import { StockGlance, StockHeader, StockLoading } from "@/components/StockParts";
+import { StockGlance, TradePlan, StockHeader, StockLoading } from "@/components/StockParts";
 import { AiSummary, Sources } from "@/components/NewsPanel";
 import { Card, CardHeader, Page } from "@/components/Page";
 import { PriceChart } from "@/components/PriceChart";
@@ -88,6 +88,7 @@ async function StockBody({ symbol }: { symbol: string }) {
         {row ? (
           <>
             <StockGlance row={row} aiPick={data.aiPick ?? null} />
+            <TradePlan row={row} asOf={last.time} />
             {isExtended(row) && (
               <p className="text-xs leading-relaxed text-ink-3">
                 <span className="text-ink-2">Extended: up {row.ret3m?.toFixed(0)}% in 3 months.</span> {EXTENDED_NOTE.replace(/^Up 70%\+ in 3 months\. /, "")}

@@ -6,8 +6,8 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import type { AiPick } from "@/engine/aipicks";
 import type { ScreenRow, Stage } from "@/engine/types";
-import { day } from "@/lib/format";
-import { daysUntil, isFirstLeg, PhaseLabel, phaseDetail, shortDay, sinceText, SHOWN_TAGS, StageLabel, StarMark, TAG_LABEL } from "./Badges";
+import { day, price } from "@/lib/format";
+import { daysUntil, isFirstLeg, PhaseLabel, phaseDetail, shortDay, sinceText, SHOWN_TAGS, StageLabel, StarMark, stopPct, TAG_LABEL } from "./Badges";
 import { Card } from "./Page";
 import { Bone } from "./Skeleton";
 import { WatchButton } from "./WatchButton";
@@ -151,11 +151,57 @@ export function StockGlance({ row, aiPick }: { row: ScreenRow | null | undefined
               ? `AI pick (experiment): ${aiPick.reason}`
               : lists.length
                 ? !row.momentumSince && "The screener lists it's on after the last close"
-                : "Not on Strongest, Momentum leaders or Resuming"}
+                : "Not a Momentum leader today"}
           </>
         }
       />
     </dl>
+  );
+}
+
+/** Six calendar months after an ISO date (the 120-session hold, near enough), as an ISO date. */
+export function holdUntil(from: string): string {
+  const t = new Date(`${from.slice(0, 10)}T00:00:00Z`);
+  const d = t.getUTCDate();
+  t.setUTCMonth(t.getUTCMonth() + 6, 1);
+  const last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate();
+  t.setUTCDate(Math.min(d, last));
+  return t.toISOString().slice(0, 10);
+}
+
+/**
+ * The tested plan (livermore EXPERIMENTS "EXIT RULES", 2011–26): stop at the 10-session low, fixed; otherwise hold
+ * 6 months (120 sessions). It beat selling on a close below the 21-day EMA in every period and 13 of 15 years.
+ */
+export function TradePlan({ row, asOf }: { row: ScreenRow; asOf: string }) {
+  const pct = stopPct(row);
+  if (row.low10 === undefined || pct === null) return null;
+  const leader = row.tags.includes("momentum");
+  return (
+    <section className="rounded-2xl border border-line bg-surface px-4 py-3.5 sm:px-5">
+      <h2 className="text-sm font-medium text-ink">If you buy: the tested plan</h2>
+      <dl className="mt-2 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-xs text-ink-3">Stop (set once, don&apos;t move it)</dt>
+          <dd className="num text-ink">
+            ₹{price(row.low10)} <span className="text-ink-3">· the 10-day low, {pct.toFixed(1)}% below the last close</span>
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-3">Hold until</dt>
+          <dd className="text-ink">
+            around {day(holdUntil(asOf))} <span className="text-ink-3">· 6 months (120 sessions) from buying, unless the stop is hit first</span>
+          </dd>
+        </div>
+      </dl>
+      <p className="mt-2.5 text-xs leading-relaxed text-ink-3">
+        {leader ? "" : "Not a Momentum leader today: the plan was tested only on Momentum leaders. "}
+        Sell if the price trades below the stop (at the open if it gaps below), otherwise after 6 months; don&apos;t sell on dips below the 21- or 50-day
+        EMA. On Momentum leaders 2011–26 this beat selling on a close below the 21-day EMA in 13 of 15 years. About 2 in 3 such trades hit the stop and a
+        few big winners carried the result, so own several and size each so the stop costs only what you can afford. Bought on a later day? Hold 6 months
+        from your own buy date, with the 10-day low on that day as the stop.
+      </p>
+    </section>
   );
 }
 

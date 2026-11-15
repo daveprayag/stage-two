@@ -86,7 +86,7 @@ export function baseShort(r: { riseFromBase?: number | null; inBase?: boolean })
 }
 
 /** The lists the screener shows; other tags are still computed and tracked but not shown. */
-export const SHOWN_TAGS: readonly ScreenTag[] = ["leader", "momentum", "resuming"];
+export const SHOWN_TAGS: readonly ScreenTag[] = ["momentum"];
 
 export const TAG_LABEL: Record<ScreenTag, string> = {
   breakout: "Breaking out",
