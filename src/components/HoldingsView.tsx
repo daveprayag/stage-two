@@ -103,6 +103,16 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
+/** Amount on top, its % underneath (right-aligned in the table; side by side on phones). */
+function Stack({ top, bottom }: { top: React.ReactNode; bottom: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-baseline gap-x-2 md:flex md:flex-col md:items-end md:gap-0.5">
+      {top}
+      {bottom && <span className="text-xs">{bottom}</span>}
+    </span>
+  );
+}
+
 const COLS = "md:grid-cols-[minmax(0,1.5fr)_repeat(6,minmax(0,1fr))_minmax(0,1.3fr)]";
 
 function Table({ rows }: { rows: HoldingRow[] }) {
@@ -139,14 +149,10 @@ function Table({ rows }: { rows: HoldingRow[] }) {
               </span>
             </Fact>
             <Fact label="Value">
-              <span className="num">{rupees(r.value)}</span>
-              {r.weight !== null && <span className="num ml-1.5 text-xs text-ink-3">{r.weight.toFixed(1)}%</span>}
+              <Stack top={<span className="num">{rupees(r.value)}</span>} bottom={r.weight !== null ? <span className="num text-ink-3">{r.weight.toFixed(1)}% of total</span> : null} />
             </Fact>
             <Fact label="Gain">
-              <span className="inline-flex flex-wrap items-baseline gap-x-1.5 md:justify-end">
-                <Money value={r.pnl} />
-                <Change value={r.pnlPct} className="text-xs" />
-              </span>
+              <Stack top={<Money value={r.pnl} />} bottom={<Change value={r.pnlPct} />} />
             </Fact>
             <Fact label="Today">
               <Change value={r.dayPct} digits={2} />
@@ -156,7 +162,7 @@ function Table({ rows }: { rows: HoldingRow[] }) {
                 <ScreenNote r={r} />
               </span>
             </Fact>
-            {!r.etf && r.lots.length > 0 && (
+            {!r.etf && r.lots.some((l) => l.date) && (
               <div className="col-span-2 mt-1 border-t border-dashed border-line pt-2 md:col-span-8 md:mt-0.5">
                 <PlanLines lots={r.lots} etf={r.etf} />
               </div>
@@ -165,6 +171,18 @@ function Table({ rows }: { rows: HoldingRow[] }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/** One note for every holding bought before tracking began, instead of a line under each. */
+function UndatedNote({ rows }: { rows: HoldingRow[] }) {
+  const n = rows.filter((r) => !r.etf && r.lots.length > 0 && r.lots.every((l) => !l.date)).length;
+  if (!n) return null;
+  return (
+    <p className="-mt-1 px-1 text-xs leading-relaxed text-ink-3">
+      {n} {n === 1 ? "holding was" : "holdings were"} bought before tracking began, so {n === 1 ? "it has" : "they have"} no stop or hold-until date yet. Buys from now on get them
+      automatically.
+    </p>
   );
 }
 
@@ -342,6 +360,7 @@ export function HoldingsView() {
                 </button>
               </div>
               <Table rows={data.rows} />
+              <UndatedNote rows={data.rows} />
             </>
           )}
           {data.fetchedAt && data.rows.length === 0 && <p className="px-1 text-sm text-ink-3">Paytm Money shows no stocks or ETFs in your demat account.</p>}
