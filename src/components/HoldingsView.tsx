@@ -1,32 +1,19 @@
 "use client";
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, LogIn, RefreshCw } from "lucide-react";
 import { marketOpen } from "@/engine/clock";
-import type { HoldingRow, HoldingsSummary } from "@/engine/holdings";
-import { int, istTime, price, titleCase } from "@/lib/format";
+import { SECTOR_LIMIT, type HoldingsSummary } from "@/engine/holdings";
+import { int, istTime } from "@/lib/format";
 import { Change, shortDay } from "./Badges";
 import { disconnectPaytm, loadHoldings, startPaytmLogin, type HoldingsData } from "./holdings";
 import { Card } from "./Page";
-import { HoldingsReview } from "./HoldingsReview";
-import { PlanLines } from "./PlanLines";
+import { HoldingsList, Money } from "./HoldingsList";
 import { Bone } from "./Skeleton";
 import { PasscodeForm } from "./WatchButton";
 import { savedPasscode, savePasscode, WatchError } from "./watch";
 
 /** ₹ amount, whole rupees. */
 const rupees = (x: number | null | undefined) => (x === null || x === undefined || !Number.isFinite(x) ? "—" : `₹${int(Math.round(x))}`);
-
-/** Signed, coloured ₹ amount. */
-function Money({ value, className = "" }: { value: number | null | undefined; className?: string }) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return <span className={`num text-ink-3 ${className}`}>—</span>;
-  const r = Math.round(value);
-  return (
-    <span className={`num ${r > 0 ? "text-up" : r < 0 ? "text-down" : "text-ink-2"} ${className}`}>
-      {r > 0 ? "+" : r < 0 ? "−" : ""}₹{int(Math.abs(r))}
-    </span>
-  );
-}
 
 /** "11:02 am" today, else "15 Nov, 6:10 pm". */
 function when(iso: string): string {
@@ -38,6 +25,7 @@ function when(iso: string): string {
 function Summary({ s, d }: { s: HoldingsSummary; d: HoldingsData }) {
   const n50 = d.indices["NIFTY 50"];
   const n500 = d.indices["NIFTY 500"];
+  const sectors = s.review.sectors.filter((x) => x.sector !== "ETFs").slice(0, 4);
   return (
     <Card>
       <dl className="grid grid-cols-2 gap-px bg-line lg:grid-cols-4">
@@ -69,121 +57,20 @@ function Summary({ s, d }: { s: HoldingsSummary; d: HoldingsData }) {
           )}
         </div>
       </dl>
-      <p className="border-t border-line px-4 py-2.5 text-xs text-ink-3 sm:px-5">
-        {s.n} {s.n === 1 ? "holding" : "holdings"} · {s.leaders} {s.leaders === 1 ? "is a Momentum leader" : "are Momentum leaders"} today
-      </p>
-    </Card>
-  );
-}
-
-/** How the screener sees it: leader, else stage and RS; plus warnings. */
-function ScreenNote({ r }: { r: HoldingRow }) {
-  return (
-    <span className="inline-flex flex-wrap items-center gap-1.5 md:justify-end">
-      {r.momentum ? (
-        <span className="text-ink">Momentum leader</span>
-      ) : r.inScreen ? (
-        <span className="text-ink-3">
-          Stage {r.stage} · RS {r.rs}
+      <div className="flex flex-col gap-1 border-t border-line px-4 py-3 text-xs text-ink-3 sm:px-5 lg:flex-row lg:items-baseline lg:justify-between lg:gap-6">
+        <span>
+          {s.n} {s.n === 1 ? "holding" : "holdings"} · {s.leaders} {s.leaders === 1 ? "is a Momentum leader" : "are Momentum leaders"} today
         </span>
-      ) : (
-        <span className="text-ink-3">{r.etf ? "ETF" : "not screened"}</span>
-      )}
-      {r.redFlag && <span className="rounded-full border border-down/40 px-1.5 py-px text-[10px] leading-4 text-down">Red flag</span>}
-      {r.resultsDrop && <span className="rounded-full border border-down/40 px-1.5 py-px text-[10px] leading-4 text-down">Results ▼</span>}
-    </span>
-  );
-}
-
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="col-span-2 flex items-baseline justify-between gap-3 text-sm md:col-span-1 md:block">
-      <div className="text-xs text-ink-3 md:hidden">{label}</div>
-      <div className="md:text-right">{children}</div>
-    </div>
-  );
-}
-
-/** Amount on top, its % underneath (right-aligned in the table; side by side on phones). */
-function Stack({ top, bottom }: { top: React.ReactNode; bottom: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-baseline gap-x-2 md:flex md:flex-col md:items-end md:gap-0.5">
-      {top}
-      {bottom && <span className="text-xs">{bottom}</span>}
-    </span>
-  );
-}
-
-const COLS = "md:grid-cols-[minmax(0,1.5fr)_repeat(6,minmax(0,1fr))_minmax(0,1.3fr)]";
-
-function Table({ rows }: { rows: HoldingRow[] }) {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-      <div className={`hidden gap-x-4 border-b border-line px-5 py-2.5 text-xs text-ink-3 md:grid ${COLS}`}>
-        <span>Stock</span>
-        <span className="text-right">Qty</span>
-        <span className="text-right">Avg cost</span>
-        <span className="text-right">Price</span>
-        <span className="text-right">Value</span>
-        <span className="text-right">Gain</span>
-        <span className="text-right">Today</span>
-        <span className="text-right">Screener</span>
+        <span className="flex flex-wrap gap-x-3 gap-y-0.5">
+          <span>Biggest sectors</span>
+          {sectors.map((x) => (
+            <span key={x.sector} className={x.weight > SECTOR_LIMIT ? "text-amber" : "text-ink-2"} title={x.weight > SECTOR_LIMIT ? `Over ${SECTOR_LIMIT}% of the money in one sector` : undefined}>
+              {x.sector} <span className="num">{x.weight.toFixed(0)}%</span>
+            </span>
+          ))}
+        </span>
       </div>
-      <ul className="divide-y divide-line">
-        {rows.map((r) => (
-          <li key={r.isin} className={`grid grid-cols-2 gap-x-4 gap-y-1.5 px-4 py-4 md:items-center md:px-5 ${COLS}`}>
-            <div className="col-span-2 mb-1 min-w-0 md:col-span-1 md:mb-0">
-              <Link href={`/stock/${encodeURIComponent(r.symbol)}`} className="text-[15px] font-medium text-ink hover:underline">
-                {r.symbol}
-              </Link>
-              <div className="truncate text-xs text-ink-3">{titleCase(r.name)}</div>
-            </div>
-            <Fact label="Qty">
-              <span className="num">{int(r.qty)}</span>
-            </Fact>
-            <Fact label="Avg cost">
-              <span className="num">{price(r.avg)}</span>
-            </Fact>
-            <Fact label="Price">
-              <span className="num" title={r.priceFrom === "nse" ? "Live NSE price" : r.priceFrom === "paytm" ? "Paytm Money's price at the last sync" : "Last close"}>
-                {price(r.price)}
-              </span>
-            </Fact>
-            <Fact label="Value">
-              <Stack top={<span className="num">{rupees(r.value)}</span>} bottom={r.weight !== null ? <span className="num text-ink-3">{r.weight.toFixed(1)}% of total</span> : null} />
-            </Fact>
-            <Fact label="Gain">
-              <Stack top={<Money value={r.pnl} />} bottom={<Change value={r.pnlPct} />} />
-            </Fact>
-            <Fact label="Today">
-              <Change value={r.dayPct} digits={2} />
-            </Fact>
-            <Fact label="Screener">
-              <span className="text-xs">
-                <ScreenNote r={r} />
-              </span>
-            </Fact>
-            {!r.etf && r.lots.some((l) => l.date) && (
-              <div className="col-span-2 mt-1 border-t border-dashed border-line pt-2 md:col-span-8 md:mt-0.5">
-                <PlanLines lots={r.lots} etf={r.etf} />
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/** One note for every holding bought before tracking began, instead of a line under each. */
-function UndatedNote({ rows }: { rows: HoldingRow[] }) {
-  const n = rows.filter((r) => !r.etf && r.lots.length > 0 && r.lots.every((l) => !l.date)).length;
-  if (!n) return null;
-  return (
-    <p className="-mt-1 px-1 text-xs leading-relaxed text-ink-3">
-      {n} {n === 1 ? "holding was" : "holdings were"} bought before tracking began, so {n === 1 ? "it has" : "they have"} no stop or hold-until date yet. Buys from now on get them
-      automatically.
-    </p>
+    </Card>
   );
 }
 
@@ -352,17 +239,19 @@ export function HoldingsView() {
           {data.summary && data.rows.length > 0 && (
             <>
               <Summary s={data.summary} d={data} />
-              <div className="flex items-center justify-between gap-2 text-xs text-ink-3">
-                <span>
-                  Prices {data.liveAt ? `${data.marketLive ? "live" : "as of"} ${when(data.liveAt)}` : "from the last close"} · lists from the {data.asOf ? shortDay(data.asOf) : "last"} close
-                </span>
-                <button onClick={() => void load(pass)} disabled={loading} aria-label="Refresh" className="rounded-md p-1.5 hover:bg-surface-2 hover:text-ink disabled:opacity-50">
-                  <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-                </button>
-              </div>
-              <Table rows={data.rows} />
-              <UndatedNote rows={data.rows} />
-              <HoldingsReview s={data.summary} rows={data.rows} />
+              <HoldingsList
+                rows={data.rows}
+                toolbar={
+                  <div className="flex items-center gap-1 text-xs text-ink-3">
+                    <span>
+                      Prices {data.liveAt ? `${data.marketLive ? "live" : "as of"} ${when(data.liveAt)}` : "from the last close"} · lists from the {data.asOf ? shortDay(data.asOf) : "last"} close
+                    </span>
+                    <button onClick={() => void load(pass)} disabled={loading} aria-label="Refresh" className="rounded-md p-1.5 hover:bg-surface-2 hover:text-ink disabled:opacity-50">
+                      <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+                    </button>
+                  </div>
+                }
+              />
             </>
           )}
           {data.fetchedAt && data.rows.length === 0 && <p className="px-1 text-sm text-ink-3">Paytm Money shows no stocks or ETFs in your demat account.</p>}
