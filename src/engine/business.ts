@@ -7,8 +7,8 @@
  * at least as many of the last 8 quarters as standalone. Revisions replace the original (the page shows the latest
  * figures). Pure helpers; the Worker fetches and stores them in private/business.json.
  *
- * The "Growing / Mixed / Shrinking" label uses the definition fixed in livermore's DECISIONS.md (2026-11-16) for the
- * fundamentals test; until that test reports, it is shown as untested.
+ * The "Growing / Mixed / Shrinking" label uses the definition fixed in livermore's DECISIONS.md (2026-11-16). That
+ * fundamentals test was shelved (results are fetched for held stocks only), so the label is shown as untested.
  */
 import { growth, nseDay, parseFilingList, quarterLabel, type Basis, type QuarterFigures, type ResultsFiling } from "./financials";
 import type { ISODate } from "./types";

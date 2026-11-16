@@ -2,7 +2,7 @@
 /**
  * Holdings review: facts to decide what to keep, with each one marked tested or untested. No buy or sell calls.
  * Price picture: the laggard test (livermore DECISIONS.md / EXPERIMENTS "HOLDINGS", 2026-11-16). Business trend: NSE
- * results filings; its own test ("weak price but a growing business") waits for the 15-year results history.
+ * results filings, for held stocks only; it is not tested (no results history for a market-wide test).
  */
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
@@ -15,7 +15,7 @@ import { Card } from "./Page";
 /** Results of the laggard test, next 6 months vs the average liquid stock (EXPERIMENTS "HOLDINGS"). */
 const TESTED_WEAK = "Tested over 2011–26: stocks in a falling trend with RS under 30 trailed the average stock by about 5–6 points over the next 6 months in 2012–24 (behind in about 4 of every 5 months), and by about 2 points in 2025–26. They were not certain losers: the gap to other stocks was the cost.";
 const TESTED_DEEP = "Tested over 2011–26: stocks in a falling trend and 30%+ below their high did not bounce back on average. They trailed the average stock by about 7–8 points over the next 6 months in 2012–24, and by about 2 points in 2025–26.";
-const UNTESTED_BIZ = "Not tested yet. Whether a growing business makes a weak stock worth holding is being tested on 15 years of NSE results; until then, read this as context, not evidence.";
+const UNTESTED_BIZ = "Not tested: whether a growing business makes a weak stock worth holding has not been checked on past data, so read this as context, not evidence.";
 
 const TREND: Record<BizTrend, { label: string; tone: string }> = {
   growing: { label: "Growing", tone: "border-up/40 text-up" },
