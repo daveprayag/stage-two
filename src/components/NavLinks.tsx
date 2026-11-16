@@ -1,18 +1,19 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Eye, History, LayoutGrid, ListFilter, TrendingUp } from "lucide-react";
+import { BookOpen, Eye, History, LayoutGrid, ListFilter, TrendingUp, Wallet } from "lucide-react";
 
 const LINKS = [
   { href: "/", label: "Screener", icon: ListFilter },
-  { href: "/sectors", label: "Sectors", icon: LayoutGrid },
+  { href: "/holdings", label: "Holdings", icon: Wallet },
   { href: "/watchlist", label: "Watchlist", icon: Eye },
+  { href: "/sectors", label: "Sectors", icon: LayoutGrid },
   { href: "/track", label: "Track", icon: TrendingUp },
   { href: "/guide", label: "Guide", icon: BookOpen },
   { href: "/runs", label: "Runs", icon: History },
 ];
 
-/** Phones fit five tabs; Runs stays reachable from the session date in the header. */
+/** Phones get six tabs; Runs stays reachable from the session date in the header. */
 const PHONE_LINKS = LINKS.filter((l) => l.href !== "/runs");
 
 function useActive() {
@@ -44,7 +45,7 @@ export function BottomNav() {
   const active = useActive();
   return (
     <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-      <div className="mx-auto grid max-w-lg grid-cols-5">
+      <div className="mx-auto grid max-w-lg grid-cols-6">
         {PHONE_LINKS.map(({ href, label, icon: Icon }) => {
           const on = active(href);
           return (

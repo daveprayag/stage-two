@@ -35,6 +35,13 @@ export const P = {
   /** When each stock's current stretch on Momentum leaders began (src/engine/since.ts). */
   since: "meta/momentum-since.json",
   live: "live/latest.json",
+  /** Never served as is: only the passcode-protected /api/holdings reads these (worker/src/index.ts). */
+  /** Paytm Money read-only token (the full-access token is never stored). */
+  paytmToken: "private/paytm-token.json",
+  /** A login started from the Holdings page: its state, valid for 10 minutes. */
+  paytmLogin: "private/paytm-login.json",
+  /** Last demat holdings Paytm Money returned (src/engine/holdings.ts). */
+  holdings: "private/holdings.json",
 } as const;
 
 export class MemoryStorage implements Storage {

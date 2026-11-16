@@ -9,6 +9,8 @@
  *   /api/screen  /api/stock/:symbol  /api/live  /api/live/:symbol  /api/track  /api/runs
  *   /api/run/:job  (eod | news | filings | live) — manual trigger; the jobs throttle themselves
  *   /api/run/eod?rebuild=1 — rebuild the screen from stored prices (new sector labels), then refresh news
+ *   /api/holdings (passcode) — demat holdings from Paytm Money's read-only API, with live prices and the screener
+ *   /api/paytm/login (POST, passcode) · /api/paytm/callback (Paytm Money's redirect) · /api/paytm (DELETE, passcode)
  *   /api/watchlist  GET (public) · POST {symbol} · DELETE /api/watchlist/:symbol · GET /api/watchlist/check
  *                   writes need the x-watch-key header to equal the WATCHLIST_KEY secret
  * Data lives in the R2 bucket bound as DATA (see src/engine/storage.ts P for the keys).
@@ -27,6 +29,8 @@ import { isTopSetup, topSetupChecks } from "../../src/engine/topsetup";
 import { closesLookup, trackPerformance, type TrackEntry } from "../../src/engine/track";
 import type { Filing, RunRecord, ScreenFile, ScreenRow } from "../../src/engine/types";
 import { addItem, historyFor, removeItem, watchRow, watchSummary, type WatchFile, type WatchHistory, type WatchItem } from "../../src/engine/watchlist";
+import { holdingsView, parsePaytmHoldings, type HoldingsFile } from "../../src/engine/holdings";
+import { exchangeToken, fetchHoldings, loginUrl, PaytmAuthError } from "./paytm";
 
 interface R2ObjectBody {
   body: ReadableStream<Uint8Array>;
@@ -46,8 +50,11 @@ interface Env {
   GEMINI_MODEL?: string;
   /** Optional model order for the daily AI picks. */
   AI_PICKS_MODEL?: string;
-  /** Secret: the passcode for changing the watchlist. Without it the watchlist is read-only. */
+  /** Secret: the passcode for changing the watchlist, and for seeing holdings. */
   WATCHLIST_KEY?: string;
+  /** Secrets: the Paytm Money API app's key and secret (developer.paytmmoney.com), for the read-only holdings. */
+  PAYTM_API_KEY?: string;
+  PAYTM_API_SECRET?: string;
 }
 interface Ctx {
   waitUntil(p: Promise<unknown>): void;
@@ -311,6 +318,116 @@ async function watchlistAdd(req: Request, env: Env): Promise<Response> {
   return json({ ok: true, item: next.items.find((x) => x.symbol === symbol) }, 0);
 }
 
+// ---------------------------------------------------------------- holdings (Paytm Money, read-only)
+
+/** A login must come back within this long of being started from the Holdings page. */
+const PAYTM_LOGIN_WINDOW_MS = 10 * 60_000;
+/** Holdings are re-read from Paytm Money at most this often. */
+const HOLDINGS_MAX_AGE_MS = 60_000;
+
+interface PaytmToken {
+  /** The read-only token: it can read holdings, not place orders. */
+  read: string;
+  connectedAt: string;
+  expiresAt: string | null;
+}
+
+const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const paytmReady = (env: Env) => !!(env.PAYTM_API_KEY && env.PAYTM_API_SECRET);
+
+/** Start a login (passcode needed): a one-time state, then Paytm Money's login page. */
+async function paytmLoginStart(req: Request, env: Env, st: R2Storage): Promise<Response> {
+  if (!authed(req, env)) return denied(env);
+  if (!env.PAYTM_API_KEY || !env.PAYTM_API_SECRET) {
+    return json({ error: "Paytm Money isn't set up yet: add the PAYTM_API_KEY and PAYTM_API_SECRET secrets to the stage-two-engine Worker in Cloudflare." }, 0, 503);
+  }
+  const state = crypto.randomUUID();
+  await st.putJson(P.paytmLogin, { state, startedAt: new Date().toISOString() });
+  return json({ url: loginUrl(env.PAYTM_API_KEY, state) }, 0);
+}
+
+/** Paytm Money's redirect after the login: keep the read-only token, read holdings once, back to the site. */
+async function paytmCallback(url: URL, env: Env, st: R2Storage): Promise<Response> {
+  const back = (q: string) => Response.redirect(`${env.APP_URL}/holdings?${q}`, 302);
+  const fail = (why: string) => back(`paytm=error&why=${encodeURIComponent(why.slice(0, 240))}`);
+  if (!env.PAYTM_API_KEY || !env.PAYTM_API_SECRET) return fail("Paytm Money isn't set up on the engine yet.");
+  const requestToken = url.searchParams.get("requestToken") ?? url.searchParams.get("request_token");
+  const state = url.searchParams.get("state");
+  const pending = await st.getJson<{ state: string; startedAt: string }>(P.paytmLogin);
+  if (!pending || Date.now() - Date.parse(pending.startedAt) > PAYTM_LOGIN_WINDOW_MS) {
+    return fail("This login wasn't started from the Holdings page in the last 10 minutes. Start it again there.");
+  }
+  // Paytm Money echoes the state we sent; if it ever doesn't, the 10-minute window above still applies.
+  if (state && state !== pending.state) return fail("This login doesn't match the one started from the Holdings page. Start it again there.");
+  if (!requestToken) return fail("Paytm Money didn't send a login token back.");
+  await env.DATA.delete(P.paytmLogin); // one use only
+  try {
+    const { read, expiresAt } = await exchangeToken(env.PAYTM_API_KEY, env.PAYTM_API_SECRET, requestToken);
+    await st.putJson(P.paytmToken, { read, connectedAt: new Date().toISOString(), expiresAt } satisfies PaytmToken);
+    await syncHoldings(st, read).catch(() => null); // the Holdings page retries if this first read fails
+    return back("paytm=connected");
+  } catch (e) {
+    return fail(errText(e));
+  }
+}
+
+async function syncHoldings(st: R2Storage, read: string): Promise<HoldingsFile> {
+  const file: HoldingsFile = { version: 1, fetchedAt: new Date().toISOString(), holdings: parsePaytmHoldings(await fetchHoldings(read)) };
+  await st.putJson(P.holdings, file);
+  return file;
+}
+
+/** Holdings (passcode needed): re-read from Paytm Money when the session is live, else the last copy; live NSE prices. */
+async function holdingsGet(req: Request, env: Env, st: R2Storage): Promise<Response> {
+  if (!authed(req, env)) return denied(env);
+  const [tokenFile, saved, rows, screen, live, head, closes] = await Promise.all([
+    st.getJson<PaytmToken>(P.paytmToken), st.getJson<HoldingsFile>(P.holdings), st.getJson<ScreenRow[]>(P.rows), st.getJson<ScreenFile>(P.screen),
+    st.getJson<LiveFile>(P.live), st.getJson<StoreHeadFile>(P.head), st.getJson<Record<string, [string, number]>>(P.closes),
+  ]);
+  let token = tokenFile;
+  if (token?.expiresAt && Date.parse(token.expiresAt) <= Date.now()) {
+    await env.DATA.delete(P.paytmToken);
+    token = null;
+  }
+  let file = saved;
+  let syncError: string | null = null;
+  if (token && (!saved || Date.now() - Date.parse(saved.fetchedAt) > HOLDINGS_MAX_AGE_MS)) {
+    try {
+      file = await syncHoldings(st, token.read);
+    } catch (e) {
+      if (e instanceof PaytmAuthError) {
+        await env.DATA.delete(P.paytmToken);
+        token = null;
+      } else syncError = errText(e);
+    }
+  }
+  const fresh = !!head && liveIsFresh(live, head.asOf);
+  const view = file
+    ? holdingsView(file, {
+        rows: rows ?? [],
+        news: screen?.news ?? {},
+        live: fresh ? live : null,
+        closes,
+        syncedToday: istNow(Date.parse(file.fetchedAt)).date === istNow().date,
+      })
+    : null;
+  const idx = fresh ? live?.indices ?? {} : {};
+  return json({
+    configured: paytmReady(env),
+    connected: !!token,
+    connectedAt: token?.connectedAt ?? null,
+    expiresAt: token?.expiresAt ?? null,
+    fetchedAt: file?.fetchedAt ?? null,
+    syncError,
+    asOf: head?.asOf ?? null,
+    liveAt: fresh ? live?.at ?? null : null,
+    marketLive: fresh && !!live?.marketOpen,
+    indices: { "NIFTY 50": idx["NIFTY 50"]?.pChange ?? null, "NIFTY 500": idx["NIFTY 500"]?.pChange ?? null },
+    rows: view?.rows ?? [],
+    summary: view?.summary ?? null,
+  }, 0);
+}
+
 async function watchlistRemove(req: Request, env: Env, symbol: string): Promise<Response> {
   if (!authed(req, env)) return denied(env);
   const st = new R2Storage(env.DATA);
@@ -336,6 +453,19 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
       if (req.method === "GET" && !sub) return watchlistGet(env, ctx);
       if (req.method === "POST" && !sub) return watchlistAdd(req, env);
       if (req.method === "DELETE" && sub) return watchlistRemove(req, env, sub);
+      return json({ error: "not found" }, 0, 404);
+    }
+    case "holdings":
+      return req.method === "GET" ? holdingsGet(req, env, st) : json({ error: "not found" }, 0, 404);
+    case "paytm": {
+      const sub = parts[2] ?? "";
+      if (req.method === "POST" && sub === "login") return paytmLoginStart(req, env, st);
+      if (req.method === "GET" && sub === "callback") return paytmCallback(url, env, st);
+      if (req.method === "DELETE" && !sub) {
+        if (!authed(req, env)) return denied(env);
+        await env.DATA.delete(P.paytmToken);
+        return json({ ok: true }, 0);
+      }
       return json({ error: "not found" }, 0, 404);
     }
     case "health":
