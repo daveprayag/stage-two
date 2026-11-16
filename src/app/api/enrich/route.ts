@@ -14,6 +14,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function POST(req: Request) {
+  const engineKey = process.env.ENGINE_KEY;
+  if (engineKey && req.headers.get("x-engine-key") !== engineKey) return NextResponse.json({ error: "not allowed" }, { status: 401 });
   const body = (await req.json().catch(() => null)) as { asOf?: string; items?: EnrichItem[] } | null;
   if (!body?.asOf || !Array.isArray(body.items)) return NextResponse.json({ error: "asOf and items required" }, { status: 400 });
   const screen = await engine<ScreenFile>("/api/screen");

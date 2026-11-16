@@ -12,7 +12,7 @@ function nextPoll(every: number): number {
   const wait = msUntilLiveWindow();
   return wait === 0 ? every : Math.min(wait + 5_000, 2 * 3600_000);
 }
-import { ENGINE_URL } from "@/lib/engine";
+import { BROWSER_ENGINE } from "@/lib/engine";
 
 export interface LiveState {
   quote: LiveQuote | null;
@@ -33,7 +33,7 @@ export function useLiveQuote(symbol: string, initial: LiveState | null = null): 
     const load = async () => {
       if (document.visibilityState === "visible") {
         try {
-          const r = await fetch(`${ENGINE_URL}/api/live/${encodeURIComponent(symbol)}`, { cache: "no-store" });
+          const r = await fetch(`${BROWSER_ENGINE}/live/${encodeURIComponent(symbol)}`, { cache: "no-store" });
           if (r.ok) {
             const j = (await r.json()) as LiveState;
             if (!stop) {
@@ -80,7 +80,7 @@ const newer = (a: LiveFile | null, b: LiveFile | null) => (!a ? b : !b ? a : a.a
 async function pollLive(): Promise<void> {
   if (document.visibilityState === "visible") {
     try {
-      const r = await fetch(`${ENGINE_URL}/api/live`, { cache: "no-store" });
+      const r = await fetch(`${BROWSER_ENGINE}/live`, { cache: "no-store" });
       if (r.ok) {
         const j = (await r.json()) as LiveFile;
         // Older files (before every-stock live prices) have no q.

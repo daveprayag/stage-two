@@ -39,7 +39,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <footer className="border-t border-line">
           <div className="mx-auto flex max-w-7xl flex-col gap-1.5 px-4 py-6 text-xs leading-relaxed text-ink-3 sm:px-6 md:flex-row md:justify-between lg:px-8">
             <span>Stage Two · NSE end-of-day data, updated every evening.</span>
-            <span>A screener, not advice. Shortlists are for your own review, not tested buy signals.</span>
+            <span>
+              A screener, not advice. Shortlists are for your own review, not tested buy signals. ·{" "}
+              <a href="/api/logout" className="underline-offset-2 hover:text-ink hover:underline">
+                Log out
+              </a>
+            </span>
           </div>
         </footer>
         <BottomNav />

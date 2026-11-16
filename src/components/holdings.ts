@@ -5,7 +5,7 @@
  */
 import type { HoldingRow, HoldingsSummary } from "@/engine/holdings";
 import { useEffect, useState } from "react";
-import { ENGINE_URL } from "@/lib/engine";
+import { BROWSER_ENGINE } from "@/lib/engine";
 import { savedPasscode, WatchError } from "./watch";
 
 export interface HoldingsData {
@@ -30,7 +30,7 @@ export interface HoldingsData {
 async function call<T>(path: string, passcode: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${ENGINE_URL}${path}`, { ...init, cache: "no-store", headers: { "x-watch-key": passcode } });
+    res = await fetch(`${BROWSER_ENGINE}${path.replace(/^\/api/, "")}`, { ...init, cache: "no-store", headers: { "x-watch-key": passcode } });
   } catch {
     throw new WatchError("Couldn't reach the Stage Two engine.", false);
   }

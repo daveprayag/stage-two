@@ -4,7 +4,7 @@
  * which is remembered in this browser after the first successful use.
  */
 import type { WatchRow, WatchSummary } from "@/engine/watchlist";
-import { ENGINE_URL } from "@/lib/engine";
+import { BROWSER_ENGINE } from "@/lib/engine";
 
 export interface WatchData {
   asOf: string;
@@ -47,7 +47,7 @@ export class WatchError extends Error {
 async function call<T>(path: string, init: RequestInit = {}, passcode?: string): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${ENGINE_URL}/api/watchlist${path}`, {
+    res = await fetch(`${BROWSER_ENGINE}/watchlist${path}`, {
       ...init,
       cache: "no-store",
       headers: { ...(init.body ? { "content-type": "application/json" } : {}), ...(passcode ? { "x-watch-key": passcode } : {}) },

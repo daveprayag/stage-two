@@ -55,6 +55,8 @@ interface Env {
   /** Secrets: the Paytm Money API app's key and secret (developer.paytmmoney.com), for the read-only holdings. */
   PAYTM_API_KEY?: string;
   PAYTM_API_SECRET?: string;
+  /** Secret shared with the site (Vercel ENGINE_KEY): once set, every API call needs it (x-engine-key). */
+  ENGINE_KEY?: string;
 }
 interface Ctx {
   waitUntil(p: Promise<unknown>): void;
@@ -104,7 +106,7 @@ const picker = (env: Env): Picker | undefined =>
 const vercelEnricher = (env: Env): Enricher => async (asOf, items) => {
   const res = await fetch(`${env.APP_URL}/api/enrich`, {
     method: "POST",
-    headers: { "content-type": "application/json", "user-agent": "stage-two-engine" },
+    headers: { "content-type": "application/json", "user-agent": "stage-two-engine", ...(env.ENGINE_KEY ? { "x-engine-key": env.ENGINE_KEY } : {}) },
     body: JSON.stringify({ asOf, items }),
   });
   if (!res.ok) throw new Error(`enrich → HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
@@ -149,14 +151,14 @@ const CORS = {
 function json(value: unknown, maxAge = 60, status = 200): Response {
   return new Response(JSON.stringify(value), {
     status,
-    headers: { "content-type": "application/json", "cache-control": maxAge > 0 ? `public, max-age=${maxAge}` : "no-store", ...CORS },
+    headers: { "content-type": "application/json", "cache-control": maxAge > 0 ? `private, max-age=${maxAge}` : "no-store", ...CORS },
   });
 }
 
 /** A stored JSON file streamed straight from R2. */
 function rawJson(body: ReadableStream<Uint8Array>, maxAge: number): Response {
   return new Response(body, {
-    headers: { "content-type": "application/json", "cache-control": maxAge > 0 ? `public, max-age=${maxAge}` : "no-store", ...CORS },
+    headers: { "content-type": "application/json", "cache-control": maxAge > 0 ? `private, max-age=${maxAge}` : "no-store", ...CORS },
   });
 }
 
@@ -220,14 +222,19 @@ async function stockApi(env: Env, symbol: string): Promise<Response> {
 const EMPTY_WATCH: WatchFile = { version: 1, items: [] };
 
 /** Constant-time comparison of the passcode header with the secret. */
-function authed(req: Request, env: Env): boolean {
-  const want = env.WATCHLIST_KEY ?? "";
-  const got = req.headers.get("x-watch-key") ?? "";
+function same(want: string, got: string): boolean {
   if (!want || got.length !== want.length) return false;
   let d = 0;
   for (let i = 0; i < want.length; i++) d |= want.charCodeAt(i) ^ got.charCodeAt(i);
   return d === 0;
 }
+
+function authed(req: Request, env: Env): boolean {
+  return same(env.WATCHLIST_KEY ?? "", req.headers.get("x-watch-key") ?? "");
+}
+
+/** The site's key: required on every API call once ENGINE_KEY is set (the site is private). */
+const siteKeyOk = (req: Request, env: Env) => !env.ENGINE_KEY || same(env.ENGINE_KEY, req.headers.get("x-engine-key") ?? "");
 
 async function denied(env: Env): Promise<Response> {
   if (!env.WATCHLIST_KEY) return json({ error: "The watchlist passcode is not set up yet (WATCHLIST_KEY secret)." }, 0, 503);
@@ -473,6 +480,12 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
   const st = new R2Storage(env.DATA);
   const route = parts[1] ?? "";
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+  // Open without the site key: Paytm Money's login redirect (guarded by its one-time state) and the health check.
+  const open = (route === "paytm" && parts[2] === "callback") || route === "health";
+  if (!open && !siteKeyOk(req, env)) {
+    await new Promise((r) => setTimeout(r, 300));
+    return json({ error: "This engine is private." }, 0, 401);
+  }
   switch (route) {
     case "watchlist": {
       const sub = parts[2] ? decodeURIComponent(parts[2]) : "";
