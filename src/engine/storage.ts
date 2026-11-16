@@ -46,6 +46,8 @@ export const P = {
   lots: "private/lots.json",
   /** Last 12 quarters' results for held stocks, from NSE filings (src/engine/business.ts). */
   business: "private/business.json",
+  /** Daily closes of the held stocks and NIFTY 500 for the holdings charts (portfolio.ts), rebuilt each session. */
+  holdingsHistory: "private/holdings-history.json",
 } as const;
 
 export class MemoryStorage implements Storage {

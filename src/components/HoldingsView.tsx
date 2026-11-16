@@ -1,13 +1,18 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, LogIn, RefreshCw } from "lucide-react";
 import { marketOpen } from "@/engine/clock";
-import { SECTOR_LIMIT, type HoldingsSummary } from "@/engine/holdings";
+import type { HoldingsSummary } from "@/engine/holdings";
+import type { HoldingsHistory } from "@/engine/portfolio";
 import { int, istTime } from "@/lib/format";
 import { Change, shortDay } from "./Badges";
-import { disconnectPaytm, loadHoldings, startPaytmLogin, type HoldingsData } from "./holdings";
+import { disconnectPaytm, loadHoldings, loadHoldingsHistory, startPaytmLogin, type HoldingsData } from "./holdings";
 import { Card } from "./Page";
 import { HoldingsList, Money } from "./HoldingsList";
+import { ChartCard } from "./charts/base";
+import { AllocationMap } from "./charts/AllocationMap";
+import { GainBars, SectorBars, TrendMatrix } from "./charts/Breakdown";
+import { PerformanceChart } from "./charts/PerformanceChart";
 import { Bone } from "./Skeleton";
 import { PasscodeForm } from "./WatchButton";
 import { savedPasscode, savePasscode, WatchError } from "./watch";
@@ -22,57 +27,76 @@ function when(iso: string): string {
   return today ? t.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }) : istTime(iso).replace(" IST", "");
 }
 
-function Summary({ s, d }: { s: HoldingsSummary; d: HoldingsData }) {
-  const n50 = d.indices["NIFTY 50"];
+function Hero({ s, d, history, histError }: { s: HoldingsSummary; d: HoldingsData; history: HoldingsHistory | null; histError: string | null }) {
   const n500 = d.indices["NIFTY 500"];
-  const sectors = s.review.sectors.filter((x) => x.sector !== "ETFs").slice(0, 4);
+  const qty = useMemo(() => Object.fromEntries(d.rows.map((r) => [r.symbol, r.qty])), [d.rows]);
+  // A live point at the end of the line, when today's prices are newer than the last close.
+  const live = useMemo(() => {
+    if (!history || !d.liveAt || istDay(d.liveAt) <= history.asOf) return null;
+    const lastNifty = [...history.nifty500].reverse().find((x) => x !== null) ?? null;
+    return {
+      closes: Object.fromEntries(d.rows.map((r) => [r.symbol, r.priceFrom === "nse" ? r.price : null])),
+      nifty: lastNifty !== null && n500 !== null ? lastNifty * (1 + n500 / 100) : null,
+    };
+  }, [history, d.liveAt, d.rows, n500]);
   return (
-    <Card>
-      <dl className="grid grid-cols-2 gap-px bg-line lg:grid-cols-4">
-        <div className="bg-surface px-4 py-3.5 sm:px-5">
-          <dt className="text-xs text-ink-3">Current value</dt>
-          <dd className="num mt-1 text-lg text-ink">{rupees(s.value)}</dd>
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface">
+      <div className="grid grid-cols-1 lg:grid-cols-[19rem_minmax(0,1fr)]">
+        <div className="flex flex-col gap-6 border-b border-line p-5 sm:p-6 lg:border-r lg:border-b-0">
+          <div>
+            <div className="text-xs text-ink-3">Portfolio value</div>
+            <div className="mt-1.5 text-[2.75rem] leading-none font-medium tracking-tight text-ink sm:text-5xl">{rupees(s.value)}</div>
+            <div className="mt-3 flex flex-wrap items-baseline gap-x-2 text-sm">
+              <Money value={s.pnl} />
+              <Change value={s.pnlPct} />
+              <span className="text-xs text-ink-3">since you bought</span>
+            </div>
+          </div>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
+            <div>
+              <dt className="text-xs text-ink-3">Today</dt>
+              <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5">
+                <Money value={s.dayPnl} />
+                <Change value={s.dayPct} digits={2} className="text-xs" />
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink-3">NIFTY 500 today</dt>
+              <dd className="mt-0.5">
+                <Change value={n500} digits={2} />
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink-3">Invested</dt>
+              <dd className="num mt-0.5 text-ink">{rupees(s.invested)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink-3">Holdings</dt>
+              <dd className="mt-0.5 text-ink">
+                {s.n} <span className="text-xs text-ink-3">· {s.leaders} Momentum {s.leaders === 1 ? "leader" : "leaders"}</span>
+              </dd>
+            </div>
+          </dl>
         </div>
-        <div className="bg-surface px-4 py-3.5 sm:px-5">
-          <dt className="text-xs text-ink-3">Invested</dt>
-          <dd className="num mt-1 text-lg text-ink">{rupees(s.invested)}</dd>
-        </div>
-        <div className="bg-surface px-4 py-3.5 sm:px-5">
-          <dt className="text-xs text-ink-3">Total gain</dt>
-          <dd className="mt-1 flex flex-wrap items-baseline gap-x-2 text-lg">
-            <Money value={s.pnl} />
-            <Change value={s.pnlPct} className="text-sm" />
-          </dd>
-        </div>
-        <div className="bg-surface px-4 py-3.5 sm:px-5">
-          <dt className="text-xs text-ink-3">Today</dt>
-          <dd className="mt-1 flex flex-wrap items-baseline gap-x-2 text-lg">
-            <Money value={s.dayPnl} />
-            <Change value={s.dayPct} digits={2} className="text-sm" />
-          </dd>
-          {(n50 !== null || n500 !== null) && (
-            <dd className="mt-0.5 text-xs text-ink-3">
-              NIFTY 50 <Change value={n50} digits={2} /> · 500 <Change value={n500} digits={2} />
-            </dd>
+        <div className="min-w-0 p-5 sm:p-6">
+          <h2 className="mb-3 text-sm font-medium text-ink">Today&apos;s holdings against NIFTY 500</h2>
+          {history ? (
+            <PerformanceChart history={history} qty={qty} live={live} />
+          ) : histError ? (
+            <p className="py-16 text-center text-xs text-ink-3">Price history isn&apos;t available right now ({histError}).</p>
+          ) : (
+            <Bone className="h-[17rem] w-full" />
           )}
+          <p className="mt-3 text-[11px] leading-relaxed text-ink-3">
+            Today&apos;s holdings at today&apos;s quantities, priced back over the range. It is not your actual past return: your buys and sells are not in it.
+          </p>
         </div>
-      </dl>
-      <div className="flex flex-col gap-1 border-t border-line px-4 py-3 text-xs text-ink-3 sm:px-5 lg:flex-row lg:items-baseline lg:justify-between lg:gap-6">
-        <span>
-          {s.n} {s.n === 1 ? "holding" : "holdings"} · {s.leaders} {s.leaders === 1 ? "is a Momentum leader" : "are Momentum leaders"} today
-        </span>
-        <span className="flex flex-wrap gap-x-3 gap-y-0.5">
-          <span>Biggest sectors</span>
-          {sectors.map((x) => (
-            <span key={x.sector} className={x.weight > SECTOR_LIMIT ? "text-amber" : "text-ink-2"} title={x.weight > SECTOR_LIMIT ? `Over ${SECTOR_LIMIT}% of the money in one sector` : undefined}>
-              {x.sector} <span className="num">{x.weight.toFixed(0)}%</span>
-            </span>
-          ))}
-        </span>
       </div>
-    </Card>
+    </section>
   );
 }
+
+const istDay = (iso: string) => new Date(Date.parse(iso) + 330 * 60_000).toISOString().slice(0, 10);
 
 function Status({ d, busy, onConnect, onDisconnect }: { d: HoldingsData; busy: boolean; onConnect: () => void; onDisconnect: () => void }) {
   if (!d.configured) {
@@ -137,6 +161,10 @@ export function HoldingsView() {
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<HoldingsHistory | null>(null);
+  const [histError, setHistError] = useState<string | null>(null);
+  const [focus, setFocus] = useState<{ isin: string; n: number } | null>(null);
+  const pick = useCallback((isin: string) => setFocus((f) => ({ isin, n: (f?.n ?? 0) + 1 })), []);
 
   useEffect(() => {
     setPass(savedPasscode());
@@ -178,6 +206,26 @@ export function HoldingsView() {
     tick();
     return () => clearTimeout(timer);
   }, [pass, load]);
+
+  // Price history for the charts: once per session's close and set of holdings (the engine caches it too).
+  const histKey = data?.asOf && data.rows.length ? `${data.asOf}|${data.rows.map((r) => r.symbol).sort().join(",")}` : null;
+  useEffect(() => {
+    if (!pass || !histKey) return;
+    let gone = false;
+    loadHoldingsHistory(pass)
+      .then((h) => {
+        if (!gone) {
+          setHistory(h);
+          setHistError(null);
+        }
+      })
+      .catch((e) => {
+        if (!gone) setHistError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      gone = true;
+    };
+  }, [pass, histKey]);
 
   const connect = async () => {
     if (!pass) return;
@@ -238,8 +286,30 @@ export function HoldingsView() {
           <Status d={data} busy={busy} onConnect={() => void connect()} onDisconnect={() => void disconnect()} />
           {data.summary && data.rows.length > 0 && (
             <>
-              <Summary s={data.summary} d={data} />
+              <Hero s={data.summary} d={data} history={history} histError={histError} />
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <ChartCard className="lg:col-span-2" title="Where your money is" sub="Each tile is a holding, sized by its value and grouped by sector. Tap one to open it in the list.">
+                  <AllocationMap rows={data.rows} onPick={pick} />
+                </ChartCard>
+                <ChartCard title="Concentration" sub="How much sits in each sector, against a 25% limit for any one sector.">
+                  <SectorBars rows={data.rows} />
+                </ChartCard>
+                <ChartCard
+                  className="lg:col-span-2"
+                  title="Price trend and business"
+                  sub="Each stock by its price trend (rows) and its latest quarter against a year earlier (columns). Dot size is its share of the money."
+                  foot="Price rows are tested: weak or deep stocks trailed the average stock over the next 6 months in 2012–24 and 2025–26. Business columns are not tested, so read them as context. ETFs are left out."
+                >
+                  <TrendMatrix rows={data.rows} onPick={pick} />
+                </ChartCard>
+                <ChartCard title="Gain and loss" sub="Each holding since you bought it. Tap one to open it in the list.">
+                  <GainBars rows={data.rows} onPick={pick} />
+                </ChartCard>
+              </div>
+              <h2 className="mt-4 px-1 text-base font-medium text-ink">All holdings</h2>
               <HoldingsList
+                history={history}
+                focus={focus}
                 rows={data.rows}
                 toolbar={
                   <div className="flex items-center gap-1 text-xs text-ink-3">

@@ -20,6 +20,7 @@ import { enrich, type EnrichCacheFile } from "../../src/engine/enrich";
 import { fetchHeadlines, genericAi } from "../../src/engine/news";
 import type { FinancialsFile } from "../../src/engine/financials";
 import type { BusinessFile } from "../../src/engine/business";
+import { buildHoldingsHistory, historyKey, type HoldingsHistory } from "../../src/engine/portfolio";
 import { fetchQuote, istNow, liveWindow, marketOpen, noTradingToday, refreshBusiness, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile, type Picker } from "../../src/engine/jobs";
 import { AI_PICKS_MODELS, makeAiPicks } from "../../src/engine/aipicks";
 import { liveIsFresh } from "../../src/engine/clock";
@@ -488,6 +489,27 @@ async function holdingsGet(req: Request, env: Env, st: R2Storage): Promise<Respo
   }, 0);
 }
 
+/** Daily closes of the held stocks and NIFTY 500 (passcode needed), rebuilt when the session or the holdings change. */
+async function holdingsHistoryGet(req: Request, env: Env, st: R2Storage): Promise<Response> {
+  if (!authed(req, env)) return denied(env);
+  const [held, head, saved] = await Promise.all([st.getJson<HoldingsFile>(P.holdings), st.getJson<StoreHeadFile>(P.head), st.getJson<HoldingsHistory & { key: string }>(P.holdingsHistory)]);
+  if (!head || !held?.holdings.length) return json({ error: "no holdings or prices yet" }, 0, 404);
+  const key = historyKey(head.asOf, held.holdings.map((h) => h.symbol));
+  if (saved?.key === key) return json(saved, 0);
+  const body = await st.get(P.stocks);
+  if (!body) return json({ error: "no prices" }, 0, 503);
+  const isins = new Set(held.holdings.map((h) => h.isin));
+  const symbols = new Set(held.holdings.map((h) => h.symbol));
+  const found = [];
+  for await (const s of readStocks(body)) {
+    if (isins.has(s.isin) || symbols.has(s.symbol)) found.push(s);
+    if (found.length >= held.holdings.length) break;
+  }
+  const file = { ...buildHoldingsHistory(head, found, held.holdings), key };
+  await st.putJson(P.holdingsHistory, file);
+  return json(file, 0);
+}
+
 async function watchlistRemove(req: Request, env: Env, symbol: string): Promise<Response> {
   if (!authed(req, env)) return denied(env);
   const st = new R2Storage(env.DATA);
@@ -529,6 +551,7 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
         const f = await st.getJson<HoldingsFile>(P.holdings);
         return json({ symbols: (f?.holdings ?? []).map((h) => h.symbol) }, 0);
       }
+      if (parts[2] === "history") return holdingsHistoryGet(req, env, st);
       return holdingsGet(req, env, st);
     }
     case "paytm": {

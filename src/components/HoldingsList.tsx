@@ -7,14 +7,18 @@
  * filings for held stocks only; not tested. No buy or sell calls: the user decides and places every order.
  */
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, ChevronDown } from "lucide-react";
 import type { BizTrend, BizView } from "@/engine/business";
 import { SMALL_WEIGHT, type HoldingRow } from "@/engine/holdings";
-import { int, price, titleCase } from "@/lib/format";
+import { int, price } from "@/lib/format";
 import { Change, RsMeter, shortDay } from "./Badges";
 import { PlanLines } from "./PlanLines";
 import { Select } from "./Select";
+import { displayName } from "./names";
+import { changeOver, PriceCostChart, QuarterBars, Sparkline } from "./charts/StockCharts";
+import type { HoldingsHistory } from "@/engine/portfolio";
+import { signedPct } from "./charts/base";
 
 /** Results of the laggard test, next 6 months vs the average liquid stock (EXPERIMENTS "HOLDINGS"). */
 const TESTED_WEAK =
@@ -24,10 +28,6 @@ const TESTED_DEEP =
 const BIZ_RULE = "Latest quarter against the same quarter a year earlier. Growing = revenue and net profit both up 10%+ with a profit; shrinking = revenue down, profit down 10%+, or a loss.";
 const UNTESTED_BIZ = "Whether a growing business makes a weak stock worth holding has not been checked on past data, so read it as context, not evidence.";
 
-/** Names Paytm Money gives some ETFs are codes; everything else is the company name without "Ltd". */
-const ETF_NAMES: Record<string, string> = { SILVERBEES: "Nippon India Silver ETF", GOLDBEES: "Nippon India Gold ETF", NIFTYBEES: "Nippon India Nifty 50 ETF" };
-export const displayName = (r: Pick<HoldingRow, "symbol" | "name">) =>
-  ETF_NAMES[r.symbol] ?? (titleCase(r.name).replace(/[\s,]+(ltd\.?|limited)$/i, "").trim() || r.symbol);
 
 const rupees = (x: number | null | undefined) => (x === null || x === undefined || !Number.isFinite(x) ? "—" : `₹${int(Math.round(x))}`);
 
@@ -196,17 +196,20 @@ function trendLine(r: HoldingRow): React.ReactNode {
   );
 }
 
-const COLS = "md:grid-cols-[minmax(0,2.3fr)_minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1.5fr)_1rem]";
+const COLS =
+  "md:grid-cols-[minmax(0,2.3fr)_minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1.5fr)_1rem] xl:grid-cols-[minmax(0,2.2fr)_minmax(0,0.95fr)_7.5rem_minmax(0,1.1fr)_minmax(0,0.95fr)_minmax(0,1.25fr)_minmax(0,1.45fr)_1rem]";
 
-function Row({ r, open, onToggle }: { r: HoldingRow; open: boolean; onToggle: () => void }) {
+function Row({ r, open, onToggle, history }: { r: HoldingRow; open: boolean; onToggle: () => void; history: HoldingsHistory | null }) {
   const name = displayName(r);
   const t = trendOf(r);
   const b = bizOf(r);
   const alerts = alertsOf(r);
   const id = `h-${r.isin}`;
+  const closes = history?.closes[r.symbol];
+  const m3 = changeOver(closes);
   const sub = `${r.symbol} · ${r.sectorName}`;
   return (
-    <li className={open ? "bg-surface-2/40" : ""}>
+    <li id={`row-${r.isin}`} className={`scroll-mt-24 ${open ? "bg-surface-2/40" : ""}`}>
       <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={id} className="block w-full text-left transition-colors hover:bg-surface-2/60 focus-visible:bg-surface-2/60 focus-visible:outline-none">
         {/* Phones */}
         <div className="flex flex-col gap-2 px-4 py-3.5 md:hidden">
@@ -256,6 +259,10 @@ function Row({ r, open, onToggle }: { r: HoldingRow; open: boolean; onToggle: ()
               <Change value={r.dayPct} digits={2} />
             </div>
           </div>
+          <div className="hidden items-center justify-end gap-2 xl:flex" title="Last 3 months">
+            <Sparkline closes={closes} />
+            <span className={`num w-10 text-right text-[11px] ${m3 === null ? "text-ink-3" : m3 >= 0 ? "text-up" : "text-down"}`}>{m3 === null ? "" : signedPct(m3, 0)}</span>
+          </div>
           <div className="text-right">
             <div className="num text-sm text-ink">{rupees(r.value)}</div>
             <div className="flex items-center justify-end gap-1.5 text-xs text-ink-3">
@@ -284,7 +291,7 @@ function Row({ r, open, onToggle }: { r: HoldingRow; open: boolean; onToggle: ()
           <ChevronDown className={`h-4 w-4 text-ink-3 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
         </div>
       </button>
-      {open && <Detail id={id} r={r} />}
+      {open && <Detail id={id} r={r} history={history} />}
     </li>
   );
 }
@@ -413,6 +420,14 @@ function Business({ r }: { r: HoldingRow }) {
         )}
         {b.pe !== null && <span className="text-xs text-ink-3">P/E {b.pe.toFixed(0)}</span>}
       </p>
+      <div className="mt-3">
+        <QuarterBars b={b} />
+      </div>
+      <details className="group mt-3">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-xs text-ink-3 hover:text-ink [&::-webkit-details-marker]:hidden">
+          <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" aria-hidden="true" />
+          The numbers, with growth and margin
+        </summary>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full min-w-[20rem] text-xs whitespace-nowrap">
           <thead className="text-ink-3">
@@ -446,6 +461,7 @@ function Business({ r }: { r: HoldingRow }) {
           </tbody>
         </table>
       </div>
+      </details>
       <p className="mt-2 text-[11px] leading-relaxed text-ink-3">
         {b.basis} results from NSE filings, latest filed {shortDay(b.latestFiled)} {b.latestFiled.slice(0, 4)}. {BIZ_RULE} Not tested: {UNTESTED_BIZ}
       </p>
@@ -453,27 +469,32 @@ function Business({ r }: { r: HoldingRow }) {
   );
 }
 
-function Detail({ id, r }: { id: string; r: HoldingRow }) {
+function Detail({ id, r, history }: { id: string; r: HoldingRow; history: HoldingsHistory | null }) {
+  const closes = history?.closes[r.symbol];
+  const chart =
+    history && closes && r.avg > 0 ? (
+      <Panel title="Price against your cost">
+        <PriceCostChart dates={history.dates} closes={closes} avg={r.avg} stop={r.lots.find((l) => l.stop !== null)?.stop ?? null} now={r.priceFrom === "nse" ? r.price : null} />
+      </Panel>
+    ) : null;
   return (
-    <div id={id} className="border-t border-dashed border-line px-4 pt-4 pb-5 md:px-5">
+    <div id={id} className="flex flex-col gap-7 border-t border-dashed border-line px-4 pt-5 pb-5 md:px-5">
+      <div className={`grid grid-cols-1 gap-7 ${chart ? "lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]" : "md:grid-cols-2"}`}>
+        {chart}
+        <Position r={r} />
+      </div>
       {r.etf ? (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <Position r={r} />
-          <Panel title="ETF">
-            <p className="text-sm text-ink-3">An ETF holds many companies or a commodity, so there is no single business or trend reading to review.</p>
-          </Panel>
-        </div>
+        <p className="text-sm text-ink-3">An ETF holds many companies or a commodity, so there is no single business or trend reading to review.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.7fr)]">
-          <Position r={r} />
+        <div className="grid grid-cols-1 gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)]">
           <Trend r={r} />
-          <div className="min-w-0 md:col-span-2 xl:col-span-1">
+          <div className="min-w-0">
             <Business r={r} />
           </div>
         </div>
       )}
-      <Link href={`/stock/${encodeURIComponent(r.symbol)}`} className="mt-4 inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink hover:underline">
-        Chart, news and filings for {displayName(r)}
+      <Link href={`/stock/${encodeURIComponent(r.symbol)}`} className="inline-flex items-center gap-1 self-start text-xs text-ink-2 hover:text-ink hover:underline">
+        Full chart, news and filings for {displayName(r)}
         <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
       </Link>
     </div>
@@ -482,7 +503,7 @@ function Detail({ id, r }: { id: string; r: HoldingRow }) {
 
 // ---------------------------------------------------------------- the list
 
-export function HoldingsList({ rows, toolbar }: { rows: HoldingRow[]; toolbar?: React.ReactNode }) {
+export function HoldingsList({ rows, toolbar, history, focus }: { rows: HoldingRow[]; toolbar?: React.ReactNode; history: HoldingsHistory | null; focus: { isin: string; n: number } | null }) {
   const [check, setCheck] = useState<CheckKey>("all");
   const [sort, setSort] = useState("size");
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -507,6 +528,13 @@ export function HoldingsList({ rows, toolbar }: { rows: HoldingRow[]; toolbar?: 
       else n.add(isin);
       return n;
     });
+  // A tap on a chart opens that holding here and scrolls to it.
+  useEffect(() => {
+    if (!focus) return;
+    setCheck((c) => (CHECKS.find((x) => x.key === c)?.test(rows.find((r) => r.isin === focus.isin) as HoldingRow) ? c : "all"));
+    setOpen((s) => new Set(s).add(focus.isin));
+    requestAnimationFrame(() => document.getElementById(`row-${focus.isin}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [focus, rows]);
   const undated = rows.filter((r) => !r.etf && r.lots.length > 0 && r.lots.every((l) => !l.date)).length;
 
   return (
@@ -560,6 +588,7 @@ export function HoldingsList({ rows, toolbar }: { rows: HoldingRow[]; toolbar?: 
         <div className={`hidden gap-x-4 border-b border-line px-5 py-2.5 text-xs text-ink-3 md:grid ${COLS}`}>
           <span>Holding</span>
           <span className="text-right">Price · today</span>
+          <span className="hidden text-right xl:block">3 months</span>
           <span className="text-right">Value · share</span>
           <span className="text-right">Gain</span>
           <span>Price trend</span>
@@ -569,7 +598,7 @@ export function HoldingsList({ rows, toolbar }: { rows: HoldingRow[]; toolbar?: 
         {shown.length ? (
           <ul className="divide-y divide-line">
             {shown.map((r) => (
-              <Row key={r.isin} r={r} open={open.has(r.isin)} onToggle={() => toggle(r.isin)} />
+              <Row key={r.isin} r={r} open={open.has(r.isin)} onToggle={() => toggle(r.isin)} history={history} />
             ))}
           </ul>
         ) : (

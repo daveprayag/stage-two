@@ -4,6 +4,7 @@
  * the watchlist uses), so the public site never shows holdings. The engine keeps only Paytm Money's read-only token.
  */
 import type { HoldingRow, HoldingsSummary } from "@/engine/holdings";
+import type { HoldingsHistory } from "@/engine/portfolio";
 import { useEffect, useState } from "react";
 import { BROWSER_ENGINE } from "@/lib/engine";
 import { savedPasscode, WatchError } from "./watch";
@@ -40,6 +41,8 @@ async function call<T>(path: string, passcode: string, init: RequestInit = {}): 
 }
 
 export const loadHoldings = (p: string) => call<HoldingsData>("/api/holdings", p);
+/** Daily closes of the held stocks and NIFTY 500, for the charts (rebuilt by the engine once per session). */
+export const loadHoldingsHistory = (p: string) => call<HoldingsHistory>("/api/holdings/history", p);
 export const startPaytmLogin = (p: string) => call<{ url: string }>("/api/paytm/login", p, { method: "POST" });
 export const disconnectPaytm = (p: string) => call<{ ok: true }>("/api/paytm", p, { method: "DELETE" });
 
