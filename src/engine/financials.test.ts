@@ -16,10 +16,10 @@ const xml = [
 
 describe("results filings", () => {
   it("reads the quarter's revenue and total profit, ignoring year-to-date and segment figures", () => {
-    expect(parseResultsXbrl(xml, "2026-09-30")).toEqual({ revenueCr: 651.57, revenueKind: "operations", profitCr: 10.04, months: 3 });
+    expect(parseResultsXbrl(xml, "2026-09-30")).toEqual({ revenueCr: 651.57, revenueKind: "operations", profitCr: 10.04, eps: null, months: 3 });
     // The half-year context (FourD) stands in only when there is no quarter at all.
-    expect(parseResultsXbrl(xml.replace("id=\"OneD\"", "id=\"X\""), "2026-09-30")).toEqual({ revenueCr: 1430.82, revenueKind: "operations", profitCr: null, months: 6 });
-    expect(parseResultsXbrl(xml, "2026-12-31")).toEqual({ revenueCr: null, revenueKind: null, profitCr: null });
+    expect(parseResultsXbrl(xml.replace("id=\"OneD\"", "id=\"X\""), "2026-09-30")).toEqual({ revenueCr: 1430.82, revenueKind: "operations", profitCr: null, eps: null, months: 6 });
+    expect(parseResultsXbrl(xml, "2026-12-31")).toEqual({ revenueCr: null, revenueKind: null, profitCr: null, eps: null });
   });
 
   it("treats a 0 as not filled and falls back to the next profit figure", () => {

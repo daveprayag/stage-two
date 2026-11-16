@@ -31,6 +31,8 @@ export interface QuarterFigures {
   profitCr: number | null;
   /** 3 for a quarter; 6 when the company files half-years only (some smaller companies). Missing = 3. */
   months?: 3 | 6;
+  /** Basic EPS for the period, ₹ (continuing and discontinued operations); missing in figures parsed before it was read. */
+  eps?: number | null;
 }
 
 export interface StockResults {
@@ -131,7 +133,7 @@ export function parseResultsXbrl(xml: string, qe: ISODate, months?: 3 | 6): Quar
     const fig = figuresFor(xml, ids);
     if (fig.revenueCr !== null || fig.profitCr !== null) return { ...fig, months: span };
   }
-  return { revenueCr: null, revenueKind: null, profitCr: null };
+  return { revenueCr: null, revenueKind: null, profitCr: null, eps: null };
 }
 
 function figuresFor(xml: string, ids: Set<string>): QuarterFigures {
@@ -160,7 +162,8 @@ function figuresFor(xml: string, ids: Set<string>): QuarterFigures {
       break;
     }
   }
-  return { revenueCr, revenueKind, profitCr };
+  const e = value("BasicEarningsLossPerShareFromContinuingAndDiscontinuedOperations") ?? value("BasicEarningsLossPerShareFromContinuingOperations");
+  return { revenueCr, revenueKind, profitCr, eps: e === null ? null : Math.round(e * 100) / 100 };
 }
 
 /** % change; null unless the base is positive. */
@@ -203,7 +206,7 @@ export function resultsLine(r: StockResults): string {
  * Does this stock's entry need a fresh look? No entry; a results meeting since the last filing we have (looked at for
  * 10 days after the meeting, until a newer filing appears); or not checked for 30 days.
  */
-export function needsCheck(entry: (StockResults & { checked: string }) | undefined, meetings: ISODate[] | undefined, today: ISODate, missingAt?: string): boolean {
+export function needsCheck(entry: { filed: ISODate; checked: string } | undefined, meetings: ISODate[] | undefined, today: ISODate, missingAt?: string): boolean {
   const days = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000;
   const recentMeeting = (meetings ?? []).some((m) => m <= today && days(m, today) <= 10 && (!entry || m > entry.filed));
   if (!entry) return !missingAt || days(missingAt.slice(0, 10), today) >= 7 || recentMeeting;

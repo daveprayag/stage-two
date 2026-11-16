@@ -8,6 +8,7 @@ import { int, istTime, price, titleCase } from "@/lib/format";
 import { Change, shortDay } from "./Badges";
 import { disconnectPaytm, loadHoldings, startPaytmLogin, type HoldingsData } from "./holdings";
 import { Card } from "./Page";
+import { HoldingsReview } from "./HoldingsReview";
 import { PlanLines } from "./PlanLines";
 import { Bone } from "./Skeleton";
 import { PasscodeForm } from "./WatchButton";
@@ -361,6 +362,7 @@ export function HoldingsView() {
               </div>
               <Table rows={data.rows} />
               <UndatedNote rows={data.rows} />
+              <HoldingsReview s={data.summary} rows={data.rows} />
             </>
           )}
           {data.fetchedAt && data.rows.length === 0 && <p className="px-1 text-sm text-ink-3">Paytm Money shows no stocks or ETFs in your demat account.</p>}

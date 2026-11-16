@@ -17,6 +17,7 @@ import {
 } from "./nse";
 import { analyseStock, BENCHMARK, rankWork, screenFromWork, withSector, type Sectors, type Work } from "./screen";
 import { starCandidate } from "./star";
+import { chooseHistory, resultsHistoryUrl, type BizQuarter, type BusinessFile } from "./business";
 import { chooseFilings, integratedResultsUrl, needsCheck, parseFilingList, parseResultsXbrl, stockResults, type FinancialsFile, type StockResults } from "./financials";
 import { attachSince, previousMembers, updateSince, type SinceFile } from "./since";
 import { P, type Storage } from "./storage";
@@ -489,6 +490,68 @@ export async function refreshFinancials(st: Storage, symbols: string[], meetings
   }
   await st.putJson(P.financials, file);
   log.push(`results filings: ${ok} of ${todo.length} updated${failed.length ? `; failed ${failed.slice(0, 5).join(", ")}` : ""}`);
+  return file;
+}
+
+/** Most NSE requests the business-history refresh makes in one run (lists and XBRL files). */
+export const BUSINESS_MAX_REQUESTS = 60;
+
+/**
+ * Keep P.business current for the stocks you hold: the last 12 quarters' revenue, profit and EPS (business.ts). A stock
+ * is re-read when it has no history, a results meeting has passed since its latest filing, or 30 days have gone by.
+ * Each XBRL file is parsed once (cached by URL). Stops after BUSINESS_MAX_REQUESTS; the next run carries on.
+ */
+export async function refreshBusiness(st: Storage, symbols: string[], log: string[], today = istNow().date, maxRequests = BUSINESS_MAX_REQUESTS): Promise<BusinessFile> {
+  const file = (await st.getJson<BusinessFile>(P.business)) ?? { version: 1, bySymbol: {}, missing: {}, parsed: {} };
+  const meetings = (await st.getJson<ResultsFile>(P.results))?.bySymbol ?? {};
+  const todo = symbols.filter((s) => {
+    const h = file.bySymbol[s];
+    const last = h?.quarters[h.quarters.length - 1];
+    return needsCheck(h && last ? { filed: last.filed, checked: h.checked } : undefined, meetings[s], today, file.missing[s]);
+  });
+  if (!todo.length) return file;
+  const dec = new TextDecoder();
+  let requests = 0;
+  let ok = 0;
+  const failed: string[] = [];
+  const get = async (url: string, accept: string) => {
+    requests++;
+    return politeGet(url, accept);
+  };
+  for (const sym of todo) {
+    if (requests >= maxRequests) break;
+    try {
+      const [a, b] = [await get(integratedResultsUrl(sym), "application/json"), await get(resultsHistoryUrl(sym), "application/json")];
+      const pick = chooseHistory(a ? JSON.parse(dec.decode(a)) : null, b ? JSON.parse(dec.decode(b)) : null);
+      if (!pick) {
+        file.missing[sym] = new Date().toISOString();
+        continue;
+      }
+      const quarters: BizQuarter[] = [];
+      let complete = true;
+      for (const f of pick.filings) {
+        if (!file.parsed[f.xbrl]) {
+          if (requests >= maxRequests) {
+            complete = false;
+            break;
+          }
+          const xml = await get(f.xbrl, "application/xml");
+          if (!xml) continue;
+          file.parsed[f.xbrl] = parseResultsXbrl(dec.decode(xml), f.qe);
+        }
+        const fig = file.parsed[f.xbrl]!;
+        if (fig.revenueCr !== null || fig.profitCr !== null) quarters.push({ ...fig, qe: f.qe, filed: f.filed });
+      }
+      if (!complete) break;
+      file.bySymbol[sym] = { basis: pick.basis, quarters: quarters.sort((x, y) => x.qe.localeCompare(y.qe)), checked: new Date().toISOString() };
+      delete file.missing[sym];
+      ok++;
+    } catch (e) {
+      failed.push(`${sym} (${String(e instanceof Error ? e.message : e).slice(0, 60)})`);
+    }
+  }
+  await st.putJson(P.business, file);
+  log.push(`business history: ${ok} of ${todo.length} stocks updated, ${requests} requests${failed.length ? `; failed ${failed.slice(0, 5).join(", ")}` : ""}`);
   return file;
 }
 

@@ -19,7 +19,8 @@ import { stockDetail } from "../../src/engine/detail";
 import { enrich, type EnrichCacheFile } from "../../src/engine/enrich";
 import { fetchHeadlines, genericAi } from "../../src/engine/news";
 import type { FinancialsFile } from "../../src/engine/financials";
-import { fetchQuote, istNow, liveWindow, marketOpen, noTradingToday, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile, type Picker } from "../../src/engine/jobs";
+import type { BusinessFile } from "../../src/engine/business";
+import { fetchQuote, istNow, liveWindow, marketOpen, noTradingToday, refreshBusiness, runEod, runFilings, runLive, runNews, type Enricher, type LiveFile, type Picker } from "../../src/engine/jobs";
 import { AI_PICKS_MODELS, makeAiPicks } from "../../src/engine/aipicks";
 import { liveIsFresh } from "../../src/engine/clock";
 import { isStar, marketNote, starChecks } from "../../src/engine/star";
@@ -122,7 +123,23 @@ async function evening(env: Env, source: string): Promise<string[]> {
   out.push(`news: ${news.skipped ? "skipped, " : ""}${news.detail}`);
   const held = await backgroundSync(env);
   if (held) out.push(held);
+  const biz = await businessRun(st, source);
+  if (biz) out.push(biz);
   return out;
+}
+
+/** Results history for held stocks (src/engine/business.ts); quiet when nothing is due. */
+async function businessRun(st: R2Storage, source: string): Promise<string | null> {
+  const held = await st.getJson<HoldingsFile>(P.holdings);
+  const symbols = (held?.holdings ?? []).filter((h) => !h.etf).map((h) => h.symbol);
+  if (!symbols.length) return null;
+  const log: string[] = [];
+  try {
+    await refreshBusiness(st, symbols, log);
+  } catch (e) {
+    log.push(`business history failed: ${errText(e)}`);
+  }
+  return log.length ? `business (${source}): ${log.join("; ")}` : null;
 }
 
 async function daytime(env: Env, scheduledTime: number, source: string): Promise<string[]> {
@@ -135,6 +152,10 @@ async function daytime(env: Env, scheduledTime: number, source: string): Promise
   if (new Date(scheduledTime).getUTCMinutes() % 30 === 0) {
     const f = await runFilings(st, enricher(env), { source });
     out.push(`filings: ${f.skipped ? "skipped, " : ""}${f.detail}`);
+  }
+  if (new Date(scheduledTime).getUTCMinutes() % 30 === 15) {
+    const biz = await businessRun(st, source);
+    if (biz) out.push(biz);
   }
   return out;
 }
@@ -447,6 +468,7 @@ async function holdingsGet(req: Request, env: Env, st: R2Storage): Promise<Respo
         syncedToday: istNow(Date.parse(file.fetchedAt)).date === istNow().date,
         lots: await st.getJson<LotsFile>(P.lots),
         today: istNow().date,
+        business: await st.getJson<BusinessFile>(P.business),
       })
     : null;
   const idx = fresh ? live?.indices ?? {} : {};
@@ -581,7 +603,8 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
       const rec =
         job === "eod" ? await runEod(st, { source }) : job === "news" ? await runNews(st, enricher(env), { source, picker: picker(env), repick: url.searchParams.get("repick") === "1" })
           : job === "filings" ? await runFilings(st, enricher(env), { source }) : job === "live" ? await runLive(st, { source, anyTime: true }) : null;
-      return rec ? json(rec, 0) : json({ error: "job must be eod, news, filings or live" }, 0, 400);
+      if (job === "business") return json({ detail: (await businessRun(st, source)) ?? "nothing due" }, 0);
+      return rec ? json(rec, 0) : json({ error: "job must be eod, news, filings, live or business" }, 0, 400);
     }
     default:
       return json({ error: "not found" }, 60, 404);

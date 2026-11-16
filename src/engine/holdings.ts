@@ -3,6 +3,7 @@
  * Pure helpers; the Worker fetches them with the read-only token, keeps the last copy under private/ in R2 and serves
  * them only with the passcode. Mutual funds are not in this API.
  */
+import { bizView, type BizView, type BusinessFile } from "./business";
 import type { LiveFile } from "./jobs";
 import type { ISODate, NewsBundle, ScreenRow } from "./types";
 
@@ -164,7 +165,35 @@ export interface HoldingRow extends Holding {
   resultsDrop: boolean;
   /** Buys, oldest first (empty until lots are tracked). */
   lots: LotView[];
+  /** % below the 52-week high (from the last close's lists). */
+  pctFromHigh: number | null;
+  /** Sector, from the screener's labels, else Paytm Money's. */
+  sectorName: string;
+  /**
+   * The price picture the laggard test judged (livermore DECISIONS.md 2026-11-16): weak = falling trend (stage 4) with
+   * RS under 30; deep = falling trend and 30%+ below the 52-week high. Such stocks trailed the average stock over the
+   * next 6 months in 2012–15, 2016–24 and 2025–26.
+   */
+  weak: boolean;
+  deep: boolean;
+  /** Last 8 quarters of the business (NSE results filings); null for ETFs or before the history is read. */
+  business: BizView | null;
 }
+
+export interface ReviewSummary {
+  /** Positions under SMALL_WEIGHT % of the portfolio. */
+  small: { n: number; weight: number; symbols: string[] };
+  /** Sectors by weight, biggest first. */
+  sectors: { sector: string; weight: number; n: number }[];
+  weak: { n: number; weight: number };
+  deep: { n: number; weight: number };
+  business: { growing: number; mixed: number; shrinking: number; unknown: number };
+}
+
+/** A position this small barely moves the portfolio either way. */
+export const SMALL_WEIGHT = 2;
+/** One sector holding more than this share of the money is concentrated. */
+export const SECTOR_LIMIT = 25;
 
 export interface HoldingsSummary {
   n: number;
@@ -176,6 +205,7 @@ export interface HoldingsSummary {
   dayPct: number | null;
   /** Holdings that are Momentum leaders today. */
   leaders: number;
+  review: ReviewSummary;
 }
 
 const num = (x: unknown): number | null => {
@@ -227,6 +257,7 @@ export interface HoldingsContext {
   lots?: LotsFile | null;
   /** Today (IST), for "six months are up". */
   today?: ISODate;
+  business?: BusinessFile | null;
 }
 
 function lotView(l: Lot, price: number | null, today: ISODate): LotView {
@@ -282,6 +313,14 @@ export function holdingsView(file: HoldingsFile, ctx: HoldingsContext): { rows: 
       redFlag: !!ai && (ai.sentiment === "negative" || ai.redFlags.length > 0),
       resultsDrop: row?.resultsReaction?.kind === "breakdown",
       lots: (ctx.lots?.byIsin[h.isin]?.lots ?? []).map((l) => lotView(l, price, ctx.today ?? istDate(new Date().toISOString()))).sort((a, b) => (a.date ?? "").localeCompare(b.date ?? "")),
+      pctFromHigh: row ? Math.round(row.pctFromHigh * 10) / 10 : null,
+      sectorName: h.etf ? "ETFs" : row?.industry ?? h.sector ?? "Other",
+      weak: row?.stage === 4 && row.rs < 30,
+      deep: row?.stage === 4 && row.pctFromHigh >= 30,
+      business: h.etf ? null : (() => {
+        const b = ctx.business?.bySymbol[h.symbol];
+        return b ? bizView(b, price) : null;
+      })(),
     };
   });
   const value = rows.reduce((a, r) => a + (r.value ?? 0), 0);
@@ -303,7 +342,24 @@ export function holdingsView(file: HoldingsFile, ctx: HoldingsContext): { rows: 
       dayPnl,
       dayPct: dayPnl !== null && value - dayPnl > 0 ? (dayPnl / (value - dayPnl)) * 100 : null,
       leaders: rows.filter((r) => r.momentum).length,
+      review: review(rows),
     },
+  };
+}
+
+function review(rows: HoldingRow[]): ReviewSummary {
+  const w = (xs: HoldingRow[]) => Math.round(xs.reduce((a, r) => a + (r.weight ?? 0), 0) * 10) / 10;
+  const small = rows.filter((r) => r.weight !== null && r.weight < SMALL_WEIGHT);
+  const bySector = new Map<string, HoldingRow[]>();
+  for (const r of rows) bySector.set(r.sectorName, [...(bySector.get(r.sectorName) ?? []), r]);
+  const stocks = rows.filter((r) => !r.etf);
+  const count = (t: string | null) => stocks.filter((r) => (r.business?.trend ?? null) === t).length;
+  return {
+    small: { n: small.length, weight: w(small), symbols: small.map((r) => r.symbol) },
+    sectors: [...bySector].map(([sector, xs]) => ({ sector, weight: w(xs), n: xs.length })).sort((a, b) => b.weight - a.weight),
+    weak: { n: rows.filter((r) => r.weak).length, weight: w(rows.filter((r) => r.weak)) },
+    deep: { n: rows.filter((r) => r.deep).length, weight: w(rows.filter((r) => r.deep)) },
+    business: { growing: count("growing"), mixed: count("mixed"), shrinking: count("shrinking"), unknown: count(null) },
   };
 }
 

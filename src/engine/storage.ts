@@ -44,6 +44,8 @@ export const P = {
   holdings: "private/holdings.json",
   /** Buys found by comparing holdings reads, with the plan's stop (src/engine/holdings.ts updateLots). */
   lots: "private/lots.json",
+  /** Last 12 quarters' results for held stocks, from NSE filings (src/engine/business.ts). */
+  business: "private/business.json",
 } as const;
 
 export class MemoryStorage implements Storage {
