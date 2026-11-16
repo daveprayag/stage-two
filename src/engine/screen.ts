@@ -22,7 +22,7 @@ import { technicalPass } from "./topsetup";
 import { basePivot, supportResistance } from "./levels";
 import { nextResults, resultsReaction } from "./results";
 import { compact, countRallies, emaLines, findBase, findResume, maxIn, median, minIn, phaseOf, retPct, stageAt, toBars } from "./series";
-import type { ISODate, MarketSnapshot, PriceStore, ScreenFile, ScreenRow, ScreenTag, SectorRow, Stage, StockSeries } from "./types";
+import type { IndexTrend, ISODate, MarketSnapshot, PriceStore, ScreenFile, ScreenRow, ScreenTag, SectorRow, Stage, StockSeries } from "./types";
 
 export const BENCHMARK = "NIFTY 500";
 
@@ -252,7 +252,8 @@ function scoreFor(r: ScreenRow): number {
   );
 }
 
-function marketSnapshot(store: StoreHead, liquid: Work[], name = BENCHMARK): MarketSnapshot | null {
+/** Close, day change, stage and EMA position of one stored index; null without 200+ closes. */
+export function indexTrend(store: StoreHead, name: string): IndexTrend | null {
   const raw = store.indices[name];
   if (!raw) return null;
   const close = raw.filter((x): x is number => x !== null);
@@ -260,7 +261,6 @@ function marketSnapshot(store: StoreHead, liquid: Work[], name = BENCHMARK): Mar
   if (i < 200) return null;
   const { ma50, ma150, ma200 } = emaLines(close, store.ema0?.[name]);
   const c = close[i] as number;
-  const above = (k: "50" | "200") => liquid.filter((w) => (k === "50" ? w.above50 : w.above200)).length;
   return {
     index: name,
     close: c,
@@ -268,6 +268,16 @@ function marketSnapshot(store: StoreHead, liquid: Work[], name = BENCHMARK): Mar
     stage: (stageAt(close, ma150, i) ?? 1) as Stage,
     aboveEma50: c > (ma50[i] as number),
     aboveEma200: c > (ma200[i] as number),
+  };
+}
+
+function marketSnapshot(store: StoreHead, liquid: Work[], name = BENCHMARK): MarketSnapshot | null {
+  const trend = indexTrend(store, name);
+  if (!trend) return null;
+  const above = (k: "50" | "200") => liquid.filter((w) => (k === "50" ? w.above50 : w.above200)).length;
+  return {
+    ...trend,
+    nifty50: indexTrend(store, "NIFTY 50"),
     pctAbove50: liquid.length ? (above("50") / liquid.length) * 100 : 0,
     pctAbove200: liquid.length ? (above("200") / liquid.length) * 100 : 0,
     newHighs: liquid.filter((w) => w.newHigh).length,

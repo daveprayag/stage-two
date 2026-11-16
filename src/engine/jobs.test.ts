@@ -165,3 +165,17 @@ describe("jobs on storage", () => {
     expect(live.indices["NIFTY 500"]).toMatchObject({ last: 23567, pChange: 0.33, prevClose: 23489.2 });
   }, 30_000);
 });
+
+describe("getWithLateRetry", () => {
+  it("tries once more after the wait when NSE keeps answering 403", async () => {
+    const { getWithLateRetry } = await import("./jobs");
+    let calls = 0;
+    vi.stubGlobal("fetch", async () => (++calls <= 3 ? new Response("", { status: 403 }) : new Response("{}", { status: 200 })));
+    const log: string[] = [];
+    const got = await getWithLateRetry("https://www.nseindia.com/api/allIndices", log, 10);
+    expect(got).not.toBeNull();
+    expect(calls).toBe(4);
+    expect(log[0]).toMatch(/retrying in 0.01s: .*HTTP 403/);
+    vi.unstubAllGlobals();
+  }, 20_000);
+});

@@ -1,4 +1,4 @@
-import type { MarketSnapshot } from "@/engine/types";
+import type { IndexTrend, MarketSnapshot } from "@/engine/types";
 import { int } from "@/lib/format";
 import { StageLabel } from "./Badges";
 import type { LiveFile } from "@/engine/jobs";
@@ -30,32 +30,47 @@ function Stat({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
+/** "above 50 & 200-day EMA", "above 50-day, below 200-day EMA", … */
+function emaText(t: IndexTrend): string {
+  const w = (b: boolean) => (b ? "above" : "below");
+  return t.aboveEma50 === t.aboveEma200 ? `${w(t.aboveEma50)} 50 & 200-day EMA` : `${w(t.aboveEma50)} 50-day, ${w(t.aboveEma200)} 200-day EMA`;
+}
+
+/** One index: live level and day change, then its stage and EMA position from the last close. */
+function IndexBlock({ t, note, asOf, initialLive }: { t: IndexTrend; note?: string; asOf: string; initialLive: LiveFile | null }) {
+  return (
+    <div className="min-w-0 bg-surface p-4 sm:p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-xs text-ink-3">
+        <span className="font-medium text-ink-2">{t.index}</span>
+        {note && <span>{note}</span>}
+      </div>
+      <LiveIndex name={t.index} close={t.close} chgPct={t.chgPct} asOf={asOf} initialLive={initialLive} />
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+        <StageLabel stage={t.stage} />
+        <span className="text-ink-3">{emaText(t)}</span>
+      </div>
+    </div>
+  );
+}
+
 export function MarketStrip({ m, asOf, initialLive }: { m: MarketSnapshot; asOf: string; initialLive: LiveFile | null }) {
   const verdict =
     m.stage === 2 && m.pctAbove50 >= 50
-      ? "Uptrend with broad participation: the backdrop breakouts need."
+      ? "in an uptrend with broad participation: the backdrop breakouts need."
       : m.stage === 2
-        ? "Index in an uptrend, but fewer than half of stocks are above their 50-day EMA. Be selective."
+        ? "in an uptrend, but fewer than half of stocks are above their 50-day EMA. Be selective."
         : m.stage === 4
-          ? "Index in a downtrend. Breakouts fail more often in this backdrop."
-          : "Index moving sideways. Expect breakouts to be hit-and-miss.";
+          ? "in a downtrend. Breakouts fail more often in this backdrop."
+          : "moving sideways. Expect breakouts to be hit-and-miss.";
   return (
     <Card>
-      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <div className="flex items-end justify-between gap-4 sm:justify-start sm:gap-6">
-          <div>
-            <div className="text-xs text-ink-3">{m.index}</div>
-            <LiveIndex name={m.index} close={m.close} chgPct={m.chgPct} asOf={asOf} initialLive={initialLive} />
-          </div>
-          <div className="text-right text-xs sm:text-left">
-            <StageLabel stage={m.stage} className="text-sm" />
-            <div className="mt-1 text-ink-3">
-              {m.aboveEma50 ? "Above" : "Below"} 50-day EMA · {m.aboveEma200 ? "above" : "below"} 200-day EMA
-            </div>
-          </div>
-        </div>
-        <p className="text-sm text-ink-2 sm:max-w-md sm:text-right">{verdict}</p>
+      <div className={`grid gap-px bg-line ${m.nifty50 ? "grid-cols-2" : "grid-cols-1"}`}>
+        {m.nifty50 && <IndexBlock t={m.nifty50} asOf={asOf} initialLive={initialLive} />}
+        <IndexBlock t={m} note="used for RS" asOf={asOf} initialLive={initialLive} />
       </div>
+      <p className="border-t border-line px-4 py-3 text-sm text-ink-2 sm:px-5">
+        {m.index} {verdict}
+      </p>
       <dl className="grid grid-cols-2 gap-px border-t border-line bg-line lg:grid-cols-4">
         <Breadth label="Stocks above 50-day EMA" value={m.pctAbove50} />
         <Breadth label="Stocks above 200-day EMA" value={m.pctAbove200} />
@@ -85,19 +100,18 @@ export function MarketStripSkeleton() {
   );
   return (
     <Card>
-      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <div className="flex items-end justify-between gap-4 sm:justify-start sm:gap-6">
-          <div>
-            <div className="text-xs text-ink-3">NIFTY 500</div>
-            <Bone className="mt-1.5 h-7 w-40" />
-            <Bone className="mt-1.5 h-3 w-48" />
+      <div className="grid grid-cols-2 gap-px bg-line">
+        {["NIFTY 50", "NIFTY 500"].map((n) => (
+          <div key={n} className="min-w-0 bg-surface p-4 sm:p-5">
+            <div className="text-xs font-medium text-ink-2">{n}</div>
+            <Bone className="mt-1.5 h-7 w-full max-w-40" />
+            <Bone className="mt-1.5 h-3 w-full max-w-48" />
+            <Bone className="mt-2 h-3 w-full max-w-44" />
           </div>
-          <div className="flex flex-col items-end gap-1.5 sm:items-start">
-            <Bone className="h-4 w-16" />
-            <Bone className="h-3 w-36" />
-          </div>
-        </div>
-        <Bone className="h-4 w-full sm:w-80" />
+        ))}
+      </div>
+      <div className="border-t border-line px-4 py-3 sm:px-5">
+        <Bone className="h-4 w-full sm:w-96" />
       </div>
       <dl className="grid grid-cols-2 gap-px border-t border-line bg-line lg:grid-cols-4">
         {label("Stocks above 50-day EMA")}

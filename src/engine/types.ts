@@ -174,7 +174,8 @@ export interface SectorRow {
   leaders: string[];
 }
 
-export interface MarketSnapshot {
+/** An index's last close and trend (stage, 50- / 200-day EMA), from the stored daily closes. */
+export interface IndexTrend {
   index: string;
   close: number;
   chgPct: number;
@@ -182,6 +183,12 @@ export interface MarketSnapshot {
   /** The index closed above its 50- / 200-day EMA. */
   aboveEma50: boolean;
   aboveEma200: boolean;
+}
+
+/** The benchmark (NIFTY 500: RS, stages and breadth use it) plus market breadth. */
+export interface MarketSnapshot extends IndexTrend {
+  /** NIFTY 50, shown beside the benchmark because it is the index most people follow; not used in any rule. */
+  nifty50?: IndexTrend | null;
   /** Breadth among liquid stocks. */
   pctAbove50: number;
   pctAbove200: number;

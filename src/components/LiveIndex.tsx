@@ -17,14 +17,17 @@ export function LiveIndex({ name, close, chgPct, asOf, initialLive }: { name: st
   }
   return (
     <>
-      <div className="mt-0.5 flex items-baseline gap-2">
-        <span className="num text-2xl text-ink">{price(live ? live.last : close)}</span>
+      <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
+        <span className="num text-xl text-ink sm:text-2xl">{price(live ? live.last : close)}</span>
         <Change value={live ? live.pChange : chgPct} digits={2} className="text-sm" />
       </div>
       {f && live && (
-        <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-3">
-          <span className={`h-1.5 w-1.5 rounded-full bg-up ${f.marketOpen ? "animate-pulse" : ""}`} aria-hidden="true" />
-          {liveLabel(f)} · day {price(live.low)}–{price(live.high)}
+        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs text-ink-3">
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+            <span className={`h-1.5 w-1.5 rounded-full bg-up ${f.marketOpen ? "animate-pulse" : ""}`} aria-hidden="true" />
+            {liveLabel(f)}
+          </span>
+          <span className="whitespace-nowrap">day {price(live.low)}–{price(live.high)}</span>
         </div>
       )}
     </>

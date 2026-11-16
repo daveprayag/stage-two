@@ -636,6 +636,20 @@ export async function fetchQuote(symbol: string): Promise<LiveQuote | null> {
   return raw ? parseQuote(symbol, JSON.parse(new TextDecoder().decode(raw))) : null;
 }
 
+/** After politeGet's quick retries fail (NSE answers 403 now and then), wait this long and try once more. */
+export const LIVE_LATE_RETRY_MS = 20_000;
+
+/** politeGet, then one more try after LIVE_LATE_RETRY_MS if it still fails: a blocked minute need not cost a whole minute. */
+export async function getWithLateRetry(url: string, log: string[], wait = LIVE_LATE_RETRY_MS): Promise<ArrayBuffer | null> {
+  try {
+    return await politeGet(url, "application/json");
+  } catch (e) {
+    log.push(`retrying in ${wait / 1000}s: ${e instanceof Error ? e.message : String(e)}`);
+    await new Promise((r) => setTimeout(r, wait));
+    return politeGet(url, "application/json", 1);
+  }
+}
+
 /** On a trading holiday the clock says "open": once NSE has confirmed it, check only every 30 minutes. */
 const HOLIDAY_GAP_MS = 30 * 60_000;
 
@@ -658,8 +672,8 @@ export async function runLive(st: Storage, opts: JobOptions = {}): Promise<RunRe
     await st.putJson(P.liveState, { lastRun: startedAt });
     // Two requests cover every stock and index.
     const [tradedRaw, indicesRaw, closes] = await Promise.all([
-      politeGet(STOCKS_TRADED_URL, "application/json"),
-      politeGet(ALL_INDICES_URL, "application/json"),
+      getWithLateRetry(STOCKS_TRADED_URL, log),
+      getWithLateRetry(ALL_INDICES_URL, log),
       st.getJson<Record<string, [string, number]>>(P.closes),
     ]);
     const dec = new TextDecoder();
@@ -672,7 +686,7 @@ export async function runLive(st: Storage, opts: JobOptions = {}): Promise<RunRe
     const time = traded.time || idx.time;
     const date = parseNseDate(time);
     // "Open" only if NSE's data is from today: on a trading holiday the clock says open but prices are the last close.
-    await st.putJson(P.live, { at: startedAt, marketOpen: marketOpen() && date === istNow().date, time, date, indices: idx.indices, q } satisfies LiveFile);
+    await st.putJson(P.live, { at: new Date().toISOString(), marketOpen: marketOpen() && date === istNow().date, time, date, indices: idx.indices, q } satisfies LiveFile);
     // skipped: true keeps these every-minute runs out of the run history; the Runs page shows meta/live.json.
     return finish(st, { ...base, ok: true, skipped: true, detail: `${Object.keys(q).length} stocks, ${Object.keys(idx.indices).length} indices at ${time}`, log });
   } catch (e) {
