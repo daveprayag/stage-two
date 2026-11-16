@@ -1,3 +1,4 @@
+import { YourHolding } from "@/components/YourHolding";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -84,6 +85,7 @@ async function StockBody({ symbol }: { symbol: string }) {
           industry={`${d.industry ?? "Industry not classified"}${d.band !== null ? ` · ${d.band}% price band` : ""}`}
           price={<LivePrice symbol={d.symbol} close={last.close} chg={chg} date={last.time} initial={quote} />}
         />
+        <YourHolding symbol={d.symbol} />
         {row ? (
           <>
             <StockGlance row={row} aiPick={data.aiPick ?? null} />

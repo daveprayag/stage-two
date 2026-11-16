@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { holdingsView, jwtExpiry, parsePaytmHoldings, type HoldingsFile } from "./holdings";
+import { addMonths, buySession, holdingsView, jwtExpiry, parsePaytmHoldings, updateLots, type HoldingsFile } from "./holdings";
 import type { ScreenRow } from "./types";
 
 // Shape of Paytm Money's /holdings/v1/get-user-holdings-data answer (fields as its API returns them: strings).
@@ -59,5 +59,43 @@ describe("holdings", () => {
     expect(jwtExpiry(`h.${payload}.s`)).toBe(new Date(1_800_000_000_000).toISOString());
     expect(jwtExpiry("not-a-jwt")).toBeNull();
     expect(jwtExpiry("a.%%%.b")).toBeNull();
+  });
+});
+
+describe("lots", () => {
+  const h = (symbol: string, isin: string, qty: number, avg: number) => ({ isin, symbol, name: symbol, qty, avg, ltp: avg, prevClose: avg, sector: null, mcap: null, etf: false });
+  const file = (fetchedAt: string, holdings: ReturnType<typeof h>[]): HoldingsFile => ({ version: 1, fetchedAt, holdings });
+  const rows = [{ isin: "I1", symbol: "AAA", low10: 90 } as unknown as ScreenRow, { isin: "I2", symbol: "BBB", low10: 45 } as unknown as ScreenRow];
+
+  it("marks what was held before tracking as undated, then dates new buys with the stop from the lists before them", () => {
+    // Monday 16 Nov 2026, 11:00 IST; lists from Friday 13 Nov.
+    const first = updateLots(null, file("2026-11-16T05:30:00Z", [h("AAA", "I1", 100, 100)]), { rows, asOf: "2026-11-13" });
+    expect(first.byIsin.I1?.lots).toEqual([{ qty: 100, price: 100, date: null, after: null, stop: null, stopExact: false }]);
+    // Tuesday 11:00 IST: 50 more AAA at 112 (avg 104), and a new stock BBB; lists from Monday.
+    const next = updateLots(first, file("2026-11-17T05:30:00Z", [h("AAA", "I1", 150, 104), h("BBB", "I2", 20, 50)]), { rows, asOf: "2026-11-16" });
+    const added = next.byIsin.I1?.lots[1];
+    expect(added).toMatchObject({ qty: 50, date: "2026-11-17", stop: 90, stopExact: true, after: "2026-11-16T05:30:00Z" });
+    expect(added?.price).toBeCloseTo(112);
+    expect(next.byIsin.I2?.lots).toEqual([expect.objectContaining({ qty: 20, price: 50, date: "2026-11-17", stop: 45, stopExact: true })]);
+  });
+
+  it("sells the oldest shares first, keeps lots through a bonus, and ignores an empty read", () => {
+    const a = updateLots(null, file("2026-11-16T05:30:00Z", [h("AAA", "I1", 100, 100)]), { rows, asOf: "2026-11-13" });
+    const b = updateLots(a, file("2026-11-17T05:30:00Z", [h("AAA", "I1", 150, 104)]), { rows, asOf: "2026-11-16" });
+    const sold = updateLots(b, file("2026-11-18T05:30:00Z", [h("AAA", "I1", 120, 104)]), { rows, asOf: "2026-11-17" });
+    expect(sold.byIsin.I1?.lots.map((l) => [l.date, l.qty])).toEqual([[null, 70], ["2026-11-17", 50]]);
+    const bonus = updateLots(sold, file("2026-11-19T05:30:00Z", [h("AAA", "I1", 240, 52)]), { rows, asOf: "2026-11-18" });
+    expect(bonus.byIsin.I1?.lots.map((l) => [l.date, l.qty, l.stop])).toEqual([[null, 140, null], ["2026-11-17", 100, 45]]);
+    expect(updateLots(bonus, file("2026-11-20T05:30:00Z", []), { rows, asOf: "2026-11-19" })).toBe(bonus);
+    // A small top-up is a buy, not a split.
+    const top = updateLots(a, file("2026-11-17T05:30:00Z", [h("AAA", "I1", 105, 100.05)]), { rows, asOf: "2026-11-16" });
+    expect(top.byIsin.I1?.lots).toHaveLength(2);
+  });
+
+  it("dates a buy to today once the market has opened, else to the last close; holds 6 months", () => {
+    expect(buySession("2026-11-17T05:30:00Z", "2026-11-16")).toBe("2026-11-17"); // Tue 11:00 IST
+    expect(buySession("2026-11-17T02:00:00Z", "2026-11-16")).toBe("2026-11-16"); // Tue 07:30 IST, before the open
+    expect(buySession("2026-11-21T06:00:00Z", "2026-11-20")).toBe("2026-11-20"); // Saturday
+    expect(addMonths("2026-11-17", 6)).toBe("2027-05-17");
   });
 });

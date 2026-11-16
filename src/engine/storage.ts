@@ -42,6 +42,8 @@ export const P = {
   paytmLogin: "private/paytm-login.json",
   /** Last demat holdings Paytm Money returned (src/engine/holdings.ts). */
   holdings: "private/holdings.json",
+  /** Buys found by comparing holdings reads, with the plan's stop (src/engine/holdings.ts updateLots). */
+  lots: "private/lots.json",
 } as const;
 
 export class MemoryStorage implements Storage {

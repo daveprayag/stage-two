@@ -10,6 +10,7 @@ import { Bone } from "./Skeleton";
 import { InfoTip } from "./InfoTip";
 import type { LiveFile } from "@/engine/jobs";
 import { liveLabel, useLivePrices } from "./live";
+import { HeldTag } from "./HeldTag";
 
 /** A stock's latest NSE price during or after today's session. */
 type Px = { last: number; pChange: number };
@@ -53,6 +54,7 @@ function MobileItem({ r, n, q }: { r: ScreenRow; n: NewsBundle | undefined; q: P
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="truncate text-[15px] font-medium text-ink">{r.symbol}</span>
+              <HeldTag symbol={r.symbol} />
               <NewsWarning n={n} />
               <ResultsBadge r={r} />
               <ExtendedBadge r={r} />
@@ -199,6 +201,7 @@ function DesktopTable({ rows, news, live, heads, loading = false }: { rows: Scre
                 <Link href={href(r)} className="block after:absolute after:inset-0">
                   <span className="flex items-center gap-1.5">
                     <span className="truncate font-medium text-ink">{r.symbol}</span>
+                    <HeldTag symbol={r.symbol} />
                     <NewsWarning n={n} />
                     <ResultsBadge r={r} />
                     <ExtendedBadge r={r} />

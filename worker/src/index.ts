@@ -29,7 +29,7 @@ import { isTopSetup, topSetupChecks } from "../../src/engine/topsetup";
 import { closesLookup, trackPerformance, type TrackEntry } from "../../src/engine/track";
 import type { Filing, RunRecord, ScreenFile, ScreenRow } from "../../src/engine/types";
 import { addItem, historyFor, removeItem, watchRow, watchSummary, type WatchFile, type WatchHistory, type WatchItem } from "../../src/engine/watchlist";
-import { holdingsView, parsePaytmHoldings, type HoldingsFile } from "../../src/engine/holdings";
+import { holdingsView, parsePaytmHoldings, updateLots, type HoldingsFile, type LotsFile } from "../../src/engine/holdings";
 import { exchangeToken, fetchHoldings, loginUrl, PaytmAuthError } from "./paytm";
 
 interface R2ObjectBody {
@@ -118,6 +118,8 @@ async function evening(env: Env, source: string): Promise<string[]> {
   out.push(`eod: ${eod.skipped ? "skipped, " : ""}${eod.detail}`);
   const news = await runNews(st, enricher(env), { source, picker: picker(env) });
   out.push(`news: ${news.skipped ? "skipped, " : ""}${news.detail}`);
+  const held = await backgroundSync(env);
+  if (held) out.push(held);
   return out;
 }
 
@@ -126,6 +128,8 @@ async function daytime(env: Env, scheduledTime: number, source: string): Promise
   const out: string[] = [];
   const live = await runLive(st, { source });
   out.push(`live: ${live.detail}`);
+  const held = await backgroundSync(env);
+  if (held) out.push(held);
   if (new Date(scheduledTime).getUTCMinutes() % 30 === 0) {
     const f = await runFilings(st, enricher(env), { source });
     out.push(`filings: ${f.skipped ? "skipped, " : ""}${f.detail}`);
@@ -371,10 +375,34 @@ async function paytmCallback(url: URL, env: Env, st: R2Storage): Promise<Respons
   }
 }
 
+/** Read holdings from Paytm Money, save them, and update the buy lots (new buys get a date, stop and hold-until). */
 async function syncHoldings(st: R2Storage, read: string): Promise<HoldingsFile> {
   const file: HoldingsFile = { version: 1, fetchedAt: new Date().toISOString(), holdings: parsePaytmHoldings(await fetchHoldings(read)) };
+  const [prev, rows, head] = await Promise.all([st.getJson<LotsFile>(P.lots), st.getJson<ScreenRow[]>(P.rows), st.getJson<StoreHeadFile>(P.head)]);
   await st.putJson(P.holdings, file);
+  await st.putJson(P.lots, updateLots(prev, file, { rows: rows ?? [], asOf: head?.asOf ?? null }));
   return file;
+}
+
+/** Background read while a session is live, so buys are dated close to when they happen. */
+const BACKGROUND_SYNC_MS = 5 * 60_000;
+async function backgroundSync(env: Env): Promise<string | null> {
+  const st = new R2Storage(env.DATA);
+  const token = await st.getJson<PaytmToken>(P.paytmToken);
+  if (!token) return null;
+  if (token.expiresAt && Date.parse(token.expiresAt) <= Date.now()) {
+    await env.DATA.delete(P.paytmToken);
+    return "holdings: session ended";
+  }
+  const last = await st.getJson<HoldingsFile>(P.holdings);
+  if (last && Date.now() - Date.parse(last.fetchedAt) < BACKGROUND_SYNC_MS) return null;
+  try {
+    const f = await syncHoldings(st, token.read);
+    return `holdings: ${f.holdings.length} read`;
+  } catch (e) {
+    if (e instanceof PaytmAuthError) await env.DATA.delete(P.paytmToken);
+    return `holdings: ${errText(e)}`;
+  }
 }
 
 /** Holdings (passcode needed): re-read from Paytm Money when the session is live, else the last copy; live NSE prices. */
@@ -384,6 +412,7 @@ async function holdingsGet(req: Request, env: Env, st: R2Storage): Promise<Respo
     st.getJson<PaytmToken>(P.paytmToken), st.getJson<HoldingsFile>(P.holdings), st.getJson<ScreenRow[]>(P.rows), st.getJson<ScreenFile>(P.screen),
     st.getJson<LiveFile>(P.live), st.getJson<StoreHeadFile>(P.head), st.getJson<Record<string, [string, number]>>(P.closes),
   ]);
+  const symbolOnly = new URL(req.url).searchParams.get("symbol")?.toUpperCase() ?? null;
   let token = tokenFile;
   if (token?.expiresAt && Date.parse(token.expiresAt) <= Date.now()) {
     await env.DATA.delete(P.paytmToken);
@@ -409,6 +438,8 @@ async function holdingsGet(req: Request, env: Env, st: R2Storage): Promise<Respo
         live: fresh ? live : null,
         closes,
         syncedToday: istNow(Date.parse(file.fetchedAt)).date === istNow().date,
+        lots: await st.getJson<LotsFile>(P.lots),
+        today: istNow().date,
       })
     : null;
   const idx = fresh ? live?.indices ?? {} : {};
@@ -423,8 +454,8 @@ async function holdingsGet(req: Request, env: Env, st: R2Storage): Promise<Respo
     liveAt: fresh ? live?.at ?? null : null,
     marketLive: fresh && !!live?.marketOpen,
     indices: { "NIFTY 50": idx["NIFTY 50"]?.pChange ?? null, "NIFTY 500": idx["NIFTY 500"]?.pChange ?? null },
-    rows: view?.rows ?? [],
-    summary: view?.summary ?? null,
+    rows: symbolOnly ? (view?.rows ?? []).filter((r) => r.symbol === symbolOnly) : view?.rows ?? [],
+    summary: symbolOnly ? null : view?.summary ?? null,
   }, 0);
 }
 
@@ -455,8 +486,16 @@ async function api(req: Request, env: Env, ctx: Ctx): Promise<Response> {
       if (req.method === "DELETE" && sub) return watchlistRemove(req, env, sub);
       return json({ error: "not found" }, 0, 404);
     }
-    case "holdings":
-      return req.method === "GET" ? holdingsGet(req, env, st) : json({ error: "not found" }, 0, 404);
+    case "holdings": {
+      if (req.method !== "GET") return json({ error: "not found" }, 0, 404);
+      if (parts[2] === "symbols") {
+        // Just which stocks are held, from the last read (no Paytm Money call): for the screener's "Held" tag.
+        if (!authed(req, env)) return denied(env);
+        const f = await st.getJson<HoldingsFile>(P.holdings);
+        return json({ symbols: (f?.holdings ?? []).map((h) => h.symbol) }, 0);
+      }
+      return holdingsGet(req, env, st);
+    }
     case "paytm": {
       const sub = parts[2] ?? "";
       if (req.method === "POST" && sub === "login") return paytmLoginStart(req, env, st);

@@ -8,6 +8,7 @@ import { int, istTime, price, titleCase } from "@/lib/format";
 import { Change, shortDay } from "./Badges";
 import { disconnectPaytm, loadHoldings, startPaytmLogin, type HoldingsData } from "./holdings";
 import { Card } from "./Page";
+import { PlanLines } from "./PlanLines";
 import { Bone } from "./Skeleton";
 import { PasscodeForm } from "./WatchButton";
 import { savedPasscode, savePasscode, WatchError } from "./watch";
@@ -155,6 +156,11 @@ function Table({ rows }: { rows: HoldingRow[] }) {
                 <ScreenNote r={r} />
               </span>
             </Fact>
+            {!r.etf && r.lots.length > 0 && (
+              <div className="col-span-2 mt-1 border-t border-dashed border-line pt-2 md:col-span-8 md:mt-0.5">
+                <PlanLines lots={r.lots} etf={r.etf} />
+              </div>
+            )}
           </li>
         ))}
       </ul>

@@ -4,7 +4,7 @@
  * them only with the passcode. Mutual funds are not in this API.
  */
 import type { LiveFile } from "./jobs";
-import type { NewsBundle, ScreenRow } from "./types";
+import type { ISODate, NewsBundle, ScreenRow } from "./types";
 
 export interface Holding {
   isin: string;
@@ -27,6 +27,116 @@ export interface HoldingsFile {
   /** When Paytm Money last answered (ISO). */
   fetchedAt: string;
   holdings: Holding[];
+}
+
+/**
+ * One buy, for the tested plan: stop at the 10-session low before the buy (set once), hold 6 months. Paytm Money's API
+ * has no trade history, so buys are found by comparing each holdings read with the last one: a new stock or a higher
+ * quantity is a buy, priced from the change in Paytm Money's average cost. Shares held before tracking began have no
+ * date. Sells take the oldest shares first (as Indian tax rules count them).
+ */
+export interface Lot {
+  qty: number;
+  /** Buy price; for shares held before tracking began, Paytm Money's average cost then. */
+  price: number;
+  /** Session of the buy (IST); null = held before tracking began. */
+  date: ISODate | null;
+  /** The read before this buy was seen (ISO): the buy happened after it. */
+  after: string | null;
+  /** The plan's stop: the 10-session low up to the last close before the buy, from that day's lists; null if not screened. */
+  stop: number | null;
+  /** The lists were from the session just before the buy, so the stop is exactly the tested one. */
+  stopExact: boolean;
+}
+
+export interface LotsFile {
+  version: 1;
+  /** The read these lots match (ISO). */
+  updatedAt: string;
+  byIsin: Record<string, { symbol: string; qty: number; avg: number; lots: Lot[] }>;
+}
+
+/** Calendar months later (the site's "6 months" hold), ISO date. */
+export function addMonths(d: ISODate, m: number): ISODate {
+  const x = new Date(`${d}T00:00:00Z`);
+  x.setUTCMonth(x.getUTCMonth() + m);
+  return x.toISOString().slice(0, 10);
+}
+
+const IST_MS = 330 * 60_000;
+const istDate = (iso: string): ISODate => new Date(Date.parse(iso) + IST_MS).toISOString().slice(0, 10);
+
+/** The session a buy seen at `now` belongs to: today once the market has opened on a weekday, else the last close. */
+export function buySession(now: string, lastClose: ISODate | null): ISODate {
+  const t = new Date(Date.parse(now) + IST_MS);
+  const wd = t.getUTCDay();
+  const opened = wd >= 1 && wd <= 5 && t.getUTCHours() * 60 + t.getUTCMinutes() >= 9 * 60 + 15;
+  return opened || !lastClose ? t.toISOString().slice(0, 10) : lastClose;
+}
+
+/** Take `n` shares off, oldest first (shares held before tracking count as oldest). */
+function sell(lots: Lot[], n: number): Lot[] {
+  const ordered = [...lots].sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
+  const out: Lot[] = [];
+  let left = n;
+  for (const l of ordered) {
+    if (left >= l.qty) {
+      left -= l.qty;
+      continue;
+    }
+    out.push(left > 0 ? { ...l, qty: l.qty - left } : l);
+    left = 0;
+  }
+  return out;
+}
+
+/**
+ * Lots after a new holdings read. `asOf` is the session the screener's lists (and their 10-day lows) come from.
+ * An empty read while lots exist is treated as a glitch and changes nothing.
+ */
+export function updateLots(prev: LotsFile | null, file: HoldingsFile, ctx: { rows: ScreenRow[]; asOf: ISODate | null }): LotsFile {
+  if (prev && !file.holdings.length && Object.keys(prev.byIsin).length) return prev;
+  const byIsinRow = new Map(ctx.rows.map((r) => [r.isin, r]));
+  const date = buySession(file.fetchedAt, ctx.asOf);
+  const byIsin: LotsFile["byIsin"] = {};
+  for (const h of file.holdings) {
+    const p = prev?.byIsin[h.isin];
+    const lot = (qty: number, price: number): Lot => {
+      const row = byIsinRow.get(h.isin);
+      const stop = row?.low10 ?? null;
+      const exact = !!ctx.asOf && ctx.asOf < date && !!prev && istDate(prev.updatedAt) >= ctx.asOf;
+      return { qty, price, date, after: prev?.updatedAt ?? null, stop, stopExact: stop !== null && exact };
+    };
+    let lots: Lot[];
+    if (!prev) lots = [{ qty: h.qty, price: h.avg, date: null, after: null, stop: null, stopExact: false }];
+    else if (!p) lots = [lot(h.qty, h.avg)];
+    else if (h.qty === p.qty) lots = p.lots;
+    else {
+      const before = p.qty * p.avg;
+      const after = h.qty * h.avg;
+      const f = h.qty / p.qty;
+      if (before > 0 && Math.abs(after - before) / before < 0.01 && (f >= 1.4 || f <= 0.72)) {
+        // Same money, a much different share count: a bonus or split, not a trade. Rescale the lots.
+        lots = p.lots.map((l) => ({ ...l, qty: l.qty * f, price: l.price / f, stop: l.stop === null ? null : l.stop / f }));
+      } else if (h.qty > p.qty) {
+        const added = h.qty - p.qty;
+        const price = (after - before) / added;
+        lots = [...p.lots, lot(added, price > 0 ? price : h.avg)];
+      } else lots = sell(p.lots, p.qty - h.qty);
+    }
+    byIsin[h.isin] = { symbol: h.symbol, qty: h.qty, avg: h.avg, lots };
+  }
+  return { version: 1, updatedAt: file.fetchedAt, byIsin };
+}
+
+/** A lot as the page shows it: with the hold-until date and where the price is against the stop. */
+export interface LotView extends Lot {
+  holdUntil: ISODate | null;
+  /** % from the price down to the stop (negative: below it). */
+  toStop: number | null;
+  belowStop: boolean;
+  /** Six months are up. */
+  due: boolean;
 }
 
 export interface HoldingRow extends Holding {
@@ -52,6 +162,8 @@ export interface HoldingRow extends Holding {
   redFlag: boolean;
   /** Fell 5%+ on 3× volume after its latest results. */
   resultsDrop: boolean;
+  /** Buys, oldest first (empty until lots are tracked). */
+  lots: LotView[];
 }
 
 export interface HoldingsSummary {
@@ -112,6 +224,15 @@ export interface HoldingsContext {
   closes: Record<string, [string, number]> | null;
   /** The holdings were fetched today (IST), so Paytm Money's day change is today's. */
   syncedToday: boolean;
+  lots?: LotsFile | null;
+  /** Today (IST), for "six months are up". */
+  today?: ISODate;
+}
+
+function lotView(l: Lot, price: number | null, today: ISODate): LotView {
+  const holdUntil = l.date ? addMonths(l.date, 6) : null;
+  const toStop = l.stop !== null && price !== null && price > 0 ? (1 - l.stop / price) * 100 : null;
+  return { ...l, holdUntil, toStop, belowStop: l.stop !== null && price !== null && price < l.stop, due: !!holdUntil && today >= holdUntil };
 }
 
 /** Holdings priced and joined with the screener, biggest first, plus totals. */
@@ -160,6 +281,7 @@ export function holdingsView(file: HoldingsFile, ctx: HoldingsContext): { rows: 
       phase: row?.phase ?? null,
       redFlag: !!ai && (ai.sentiment === "negative" || ai.redFlags.length > 0),
       resultsDrop: row?.resultsReaction?.kind === "breakdown",
+      lots: (ctx.lots?.byIsin[h.isin]?.lots ?? []).map((l) => lotView(l, price, ctx.today ?? istDate(new Date().toISOString()))).sort((a, b) => (a.date ?? "").localeCompare(b.date ?? "")),
     };
   });
   const value = rows.reduce((a, r) => a + (r.value ?? 0), 0);
