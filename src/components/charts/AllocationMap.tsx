@@ -114,6 +114,32 @@ function metric(r: HoldingRow, by: ColourBy): string {
   return BIZ_FILL[r.business?.trend ?? "none"]![1];
 }
 
+/**
+ * What fits in a tile: the full name on big tiles; else the symbol and the return, at the largest size (6.5–10px) that
+ * fits, on two lines, one line, or running up a tall narrow tile. Text widths are estimated from the character count.
+ */
+function tileLabel(r: HoldingRow, by: ColourBy, w: number, h: number): { kind: "name" } | { kind: "two" | "one" | "vert"; size: number; metric: string } | null {
+  const name = displayName(r);
+  if (w > 110 && h > 58 && name.length * 7 <= 2 * (w - 16)) return { kind: "name" };
+  const m = by === "today" ? signedPct(r.dayPct, 1) : signedPct(r.pnlPct, 0);
+  // Capitals run wider than figures.
+  const sym = r.symbol.length * 0.66;
+  const met = m.length * 0.6;
+  const cap = (x: number) => Math.min(10, Math.floor(x * 2) / 2);
+  // Padding is 6px a side from 9px text up, 3px below it.
+  const sized = (f: (pad: number) => number) => {
+    const big = cap(f(6));
+    return big >= 9 ? big : Math.min(8.5, cap(f(3)));
+  };
+  const two = sized((p) => Math.min((w - 2 * p) / Math.max(sym, met), (h - 2 * p) / 2.2));
+  const one = sized((p) => Math.min((w - 2 * p - 4) / (sym + met), h - 2 * p));
+  const vert = cap(Math.min((h - 16) / (sym + met), w - 8));
+  // Across the tile reads better: run up it only when across would be under 8px and up is larger.
+  const across = two >= one ? { kind: "two" as const, size: two } : { kind: "one" as const, size: one };
+  const best = across.size >= 8 || across.size >= vert ? across : { kind: "vert" as const, size: vert };
+  return best.size >= 6.5 ? { ...best, metric: m } : null;
+}
+
 const GAP = 2;
 const HEAD = 18;
 
@@ -121,7 +147,7 @@ export function AllocationMap({ rows, onPick }: { rows: HoldingRow[]; onPick: (i
   const [by, setBy] = useState<ColourBy>("gain");
   const [ref, w] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<{ r: HoldingRow; x: number; y: number } | null>(null);
-  const H = w < 560 ? 340 : 400;
+  const H = w < 560 ? 480 : 400;
 
   const layout = useMemo(() => {
     const groups = new Map<string, HoldingRow[]>();
@@ -194,8 +220,7 @@ export function AllocationMap({ rows, onPick }: { rows: HoldingRow[]; onPick: (i
               {g.tiles.map(({ r: t, d: r }) => {
                 const tw = t.w - GAP;
                 const th = t.h - GAP;
-                const big = tw > 78 && th > 40;
-                const mid = !big && tw > 46 && th > 24;
+                const lab = tileLabel(r, by, tw, th);
                 return (
                   <button
                     key={r.isin}
@@ -211,7 +236,7 @@ export function AllocationMap({ rows, onPick }: { rows: HoldingRow[]; onPick: (i
                     className="absolute overflow-hidden rounded-md text-left transition-[filter] outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ink"
                     style={{ left: t.x + GAP / 2, top: t.y + GAP / 2, width: Math.max(0, tw), height: Math.max(0, th), background: fill(r, by) }}
                   >
-                    {big && (
+                    {lab?.kind === "name" && (
                       <span className="flex h-full flex-col justify-between p-2">
                         <span className="line-clamp-2 text-[12px] leading-tight font-medium text-ink">{displayName(r)}</span>
                         <span className="flex items-baseline justify-between gap-1 text-[11px] text-ink-2">
@@ -220,10 +245,21 @@ export function AllocationMap({ rows, onPick }: { rows: HoldingRow[]; onPick: (i
                         </span>
                       </span>
                     )}
-                    {mid && (
-                      <span className="flex h-full flex-col justify-between px-1.5 py-1">
-                        <span className="truncate text-[10px] leading-tight text-ink">{displayName(r)}</span>
-                        {th >= 38 && <span className="num truncate text-[10px] text-ink-2">{metric(r, by)}</span>}
+                    {lab?.kind === "vert" && (
+                      <span className="flex h-full w-full items-end justify-center overflow-hidden py-1.5 leading-none" style={{ fontSize: lab.size }}>
+                        <span className="flex rotate-180 gap-1.5 whitespace-nowrap [writing-mode:vertical-rl]">
+                          <span className="font-medium text-ink">{r.symbol}</span>
+                          <span className="num text-ink-2">{lab.metric}</span>
+                        </span>
+                      </span>
+                    )}
+                    {(lab?.kind === "two" || lab?.kind === "one") && (
+                      <span
+                        className={`flex h-full ${lab.kind === "two" ? "flex-col justify-between" : "items-center justify-between gap-1"} overflow-hidden leading-none`}
+                        style={{ fontSize: lab.size, padding: lab.size >= 9 ? "6px" : "3px" }}
+                      >
+                        <span className="font-medium whitespace-nowrap text-ink">{r.symbol}</span>
+                        <span className="num shrink-0 text-ink-2">{lab.metric}</span>
                       </span>
                     )}
                   </button>
