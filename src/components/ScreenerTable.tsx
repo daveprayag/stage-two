@@ -8,6 +8,7 @@ import { baseShort, Change, ExtendedBadge, FirstLine, NewsWarning, ResultsBadge,
 import { Select } from "./Select";
 import { Bone } from "./Skeleton";
 import { InfoTip } from "./InfoTip";
+import { Help } from "./Help";
 import type { LiveFile } from "@/engine/jobs";
 import { liveLabel, useLivePrices } from "./live";
 import { HeldTag } from "./HeldTag";
@@ -421,13 +422,17 @@ export function ScreenerTable({
         <p className="text-xs leading-relaxed text-ink-3">{PHASES.find((p) => p.key === phase)?.hint}</p>
       </div>
       <div className="flex flex-col gap-1.5">
-        <h2 className="flex items-baseline gap-2 text-base font-medium text-ink">
+        <h2 className="flex items-center gap-2 text-base font-medium text-ink">
           Momentum leaders
           <span className="text-sm font-normal text-ink-3">
             {loading ? <Bone className="inline-block h-3 w-8" /> : <span className="num">{count}</span>} stocks
           </span>
+          <Help title="Momentum leaders">
+            {LIST_BLURB.split(/(?<=\.) (?=Replayed|Nothing we tested|A shortlist)/).map((t) => (
+              <p key={t.slice(0, 12)}>{t}</p>
+            ))}
+          </Help>
         </h2>
-        <p className="text-sm leading-relaxed text-ink-2">{LIST_BLURB}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:flex md:items-center">

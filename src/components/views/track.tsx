@@ -164,18 +164,23 @@ function TrackSkeleton() {
 export function TrackPage({ loading = false }: { loading?: boolean }) {
   return (
     <Page>
-      <PageTitle title="Track record">
-        <p>
-          Every evening each list&apos;s picks are saved with that day&apos;s close. This page shows how they have done since, next to the NIFTY 500 over the
-          same days: an honest, forward-only record. Nothing is back-filled.
-        </p>
-        <p className="mt-2">
-          Give it months before reading anything into it: a few weeks of results mostly reflect what the market did. The research behind Momentum leaders
-          measured 6-month outcomes.
-        </p>
-        <p className="mt-2">
-          Days are kept as recorded: picks up to 9 Nov 2026 were made with simple moving averages, later ones with EMAs.
-        </p>
+      <PageTitle
+        title="Track record"
+        help={
+          <>
+            <p>
+              Every evening each list&apos;s picks are saved with that day&apos;s close. This page shows how they have done since, next to the NIFTY 500 over the same
+              days: an honest, forward-only record. Nothing is back-filled.
+            </p>
+            <p>
+              Give it months before reading anything into it: a few weeks of results mostly reflect what the market did. The research behind Momentum leaders
+              measured 6-month outcomes.
+            </p>
+            <p>Days are kept as recorded: picks up to 9 Nov 2026 were made with simple moving averages, later ones with EMAs.</p>
+          </>
+        }
+      >
+        <p>Each list&apos;s picks since the day they were made, against NIFTY 500.</p>
       </PageTitle>
       {loading ? <TrackSkeleton /> : <Suspense fallback={<TrackSkeleton />}><TrackData /></Suspense>}
     </Page>

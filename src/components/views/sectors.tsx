@@ -156,9 +156,17 @@ async function SectorsData() {
 export function SectorsPage({ loading = false }: { loading?: boolean }) {
   return (
     <Page>
-      <PageTitle title="Sector strength">
-        Leaders tend to come in groups. Sectors are ranked by the median RS rating of their liquid stocks, with the share already in a stage 2 uptrend. &quot;Strong&quot;
-        marks the top 40% of industries by 3-month return, the ones that count for Momentum leaders. Groups follow NSE&apos;s industry classification.
+      <PageTitle
+        title="Sector strength"
+        help={
+          <>
+            <p>Leaders tend to come in groups. Sectors are ranked by the median RS rating of their liquid stocks, with the share already in a stage 2 uptrend.</p>
+            <p>&quot;Strong&quot; marks the top 40% of industries by 3-month return, the ones that count for Momentum leaders.</p>
+            <p>Groups follow NSE&apos;s industry classification.</p>
+          </>
+        }
+      >
+        Sectors ranked by the median RS of their stocks.
       </PageTitle>
       {loading ? <SectorsCard sectors={null} /> : <Suspense fallback={<SectorsCard sectors={null} />}><SectorsData /></Suspense>}
     </Page>

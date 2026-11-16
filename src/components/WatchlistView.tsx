@@ -193,10 +193,6 @@ export function WatchlistView() {
               </div>
             ))}
       </div>
-      <p className="-mt-2 text-xs leading-relaxed text-ink-3">
-        Each stock is measured from the price when you added it. &quot;Rose 10%+&quot; and &quot;Fell 8%+&quot; count the best and worst point since then, from
-        daily highs and lows. A handful of stocks over a few days says little; the comparison means something after 20+ stocks and several weeks.
-      </p>
 
       <div className="overflow-hidden rounded-2xl border border-line bg-surface">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5 text-xs text-ink-3 md:px-5">

@@ -107,7 +107,7 @@ function Hero({ s, d, history, histError }: { s: HoldingsSummary; d: HoldingsDat
 }
 
 /** The page's shape while holdings load: connection bar, value and chart, the four chart cards, then the list. */
-function HoldingsSkeleton() {
+export function HoldingsSkeleton() {
   const card = "rounded-2xl border border-line bg-surface";
   return (
     <div className="flex flex-col gap-4" aria-hidden="true">
@@ -224,13 +224,22 @@ function Status({ d, busy, onConnect, onDisconnect }: { d: HoldingsData; busy: b
           </>
         ) : d.fetchedAt ? (
           <>
-            <p className="text-ink">Holdings as of {when(d.fetchedAt)}</p>
-            <p className="mt-0.5 text-xs text-ink-3">Prices stay live. Log in again after you buy or sell, to update the quantities.</p>
+            <p className="flex items-center gap-2 text-ink">
+              Holdings as of {when(d.fetchedAt)}
+              <Help title="Holdings">
+                <p>Prices stay live. Quantities are from the last time Paytm Money was read, so log in again after you buy or sell to update them.</p>
+                <p>The login is read-only: the engine keeps only Paytm Money&apos;s read-only token, which can&apos;t place orders.</p>
+              </Help>
+            </p>
           </>
         ) : (
           <>
-            <p className="text-ink">Connect your demat holdings</p>
-            <p className="mt-0.5 text-xs text-ink-3">Read-only: the engine keeps only Paytm Money&apos;s read-only token, which can&apos;t place orders.</p>
+            <p className="flex items-center gap-2 text-ink">
+              Connect your demat holdings
+              <Help title="Connect your demat holdings">
+                <p>Read-only: the engine keeps only Paytm Money&apos;s read-only token, which can&apos;t place orders.</p>
+              </Help>
+            </p>
           </>
         )}
         {d.syncError && <p className="mt-1 text-xs text-down">{d.syncError}</p>}
