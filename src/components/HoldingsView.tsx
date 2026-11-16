@@ -10,6 +10,7 @@ import { disconnectPaytm, loadHoldings, loadHoldingsHistory, startPaytmLogin, ty
 import { Card } from "./Page";
 import { HoldingsList, Money } from "./HoldingsList";
 import { ChartCard } from "./charts/base";
+import { Help, Tested } from "./Help";
 import { AllocationMap } from "./charts/AllocationMap";
 import { GainBars, SectorBars, TrendMatrix } from "./charts/Breakdown";
 import { PerformanceChart } from "./charts/PerformanceChart";
@@ -79,7 +80,19 @@ function Hero({ s, d, history, histError }: { s: HoldingsSummary; d: HoldingsDat
           </dl>
         </div>
         <div className="min-w-0 p-5 sm:p-6">
-          <h2 className="mb-3 text-sm font-medium text-ink">Today&apos;s holdings against NIFTY 500</h2>
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-medium text-ink">
+            Today&apos;s holdings against NIFTY 500
+            <Help title="Today's holdings against NIFTY 500">
+              <p>
+                The blue line is the stocks and ETFs you hold today, at today&apos;s quantities, priced back over the chosen range. The grey line is NIFTY 500. Both start at 0%
+                on the first day of the range.
+              </p>
+              <p>
+                It is not your actual past return: your buys and sells are not in it. A stock that listed during the range joins the line from its first trading day.
+              </p>
+              <p>Hover or tap the chart for any day&apos;s figures; with the chart focused, the arrow keys move along it.</p>
+            </Help>
+          </h2>
           {history ? (
             <PerformanceChart history={history} qty={qty} live={live} />
           ) : histError ? (
@@ -87,12 +100,91 @@ function Hero({ s, d, history, histError }: { s: HoldingsSummary; d: HoldingsDat
           ) : (
             <Bone className="h-[17rem] w-full" />
           )}
-          <p className="mt-3 text-[11px] leading-relaxed text-ink-3">
-            Today&apos;s holdings at today&apos;s quantities, priced back over the range. It is not your actual past return: your buys and sells are not in it.
-          </p>
         </div>
       </div>
     </section>
+  );
+}
+
+/** The page's shape while holdings load: connection bar, value and chart, the four chart cards, then the list. */
+function HoldingsSkeleton() {
+  const card = "rounded-2xl border border-line bg-surface";
+  return (
+    <div className="flex flex-col gap-4" aria-hidden="true">
+      <div className={`${card} flex items-center justify-between gap-4 p-4 sm:p-5`}>
+        <div className="flex flex-col gap-2">
+          <Bone className="h-4 w-52" />
+          <Bone className="h-3 w-40" />
+        </div>
+        <Bone className="h-9 w-24 rounded-lg" />
+      </div>
+      <div className={`${card} grid grid-cols-1 overflow-hidden lg:grid-cols-[19rem_minmax(0,1fr)]`}>
+        <div className="flex flex-col gap-6 border-b border-line p-5 sm:p-6 lg:border-r lg:border-b-0">
+          <div className="flex flex-col gap-2.5">
+            <Bone className="h-3 w-24" />
+            <Bone className="h-12 w-52" />
+            <Bone className="h-4 w-40" />
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex flex-col gap-1.5">
+                <Bone className="h-3 w-16" />
+                <Bone className="h-4 w-24" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-col gap-3 p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <Bone className="h-4 w-56" />
+            <Bone className="h-7 w-36 rounded-lg" />
+          </div>
+          <Bone className="h-[16.5rem] w-full rounded-xl" />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {[
+          ["lg:col-span-2", "h-[30rem] sm:h-[25rem]"],
+          ["", "h-[25rem]"],
+          ["lg:col-span-2", "h-[30rem] lg:h-[34rem]"],
+          ["", "h-[22rem] lg:h-[34rem]"],
+        ].map(([span, h], i) => (
+          <div key={i} className={`${card} ${span} flex flex-col gap-3 p-4 sm:p-5`}>
+            <div className="flex items-center justify-between gap-3">
+              <Bone className="h-4 w-36" />
+              {i === 0 && <Bone className="h-7 w-48 rounded-lg" />}
+            </div>
+            <Bone className={`${h} w-full rounded-xl`} />
+          </div>
+        ))}
+      </div>
+      <Bone className="mt-4 h-5 w-32" />
+      <div className="flex gap-2 overflow-hidden">
+        {[16, 24, 28, 32, 28].map((w, i) => (
+          <Bone key={i} className="h-8 shrink-0 rounded-full" style={{ width: `${w * 4}px` }} />
+        ))}
+      </div>
+      <div className={`${card} divide-y divide-line`}>
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="flex items-center justify-between gap-4 px-4 py-4 md:px-5">
+            <div className="flex min-w-0 flex-col gap-2">
+              <Bone className="h-4 w-44 max-w-full" />
+              <Bone className="h-3 w-32" />
+            </div>
+            <div className="hidden flex-1 justify-end gap-8 md:flex">
+              <Bone className="h-8 w-20" />
+              <Bone className="h-8 w-24" />
+              <Bone className="h-8 w-20" />
+              <Bone className="h-8 w-28" />
+            </div>
+            <div className="flex flex-col items-end gap-2 md:hidden">
+              <Bone className="h-4 w-20" />
+              <Bone className="h-3 w-16" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -251,7 +343,7 @@ export function HoldingsView() {
     }
   };
 
-  if (pass === null) return <Bone className="h-24 w-full" />;
+  if (pass === null) return <HoldingsSkeleton />;
   if (!pass) {
     return (
       <Card className="p-4 sm:w-[28rem] sm:p-5">
@@ -278,8 +370,7 @@ export function HoldingsView() {
       ) : !data ? (
         <>
           <span className="sr-only" role="status">Loading your holdings…</span>
-          <Bone className="h-20 w-full" />
-          <Bone className="h-28 w-full" />
+          <HoldingsSkeleton />
         </>
       ) : (
         <>
@@ -288,25 +379,54 @@ export function HoldingsView() {
             <>
               <Hero s={data.summary} d={data} history={history} histError={histError} />
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <ChartCard className="lg:col-span-2" title="Where your money is" sub="Each tile is a holding, sized by its value and grouped by sector. Tap one to open it in the list.">
+                <ChartCard
+                  className="lg:col-span-2"
+                  title="Where your money is"
+                  help={
+                    <>
+                      <p>Each tile is a holding, sized by its current value and grouped by sector. Tiles too small for a label still show everything on hover.</p>
+                      <p>
+                        Colour it by your gain since you bought, today&apos;s move, the price trend or the business trend. Tap a tile to open that holding in the list below.
+                      </p>
+                    </>
+                  }
+                >
                   <AllocationMap rows={data.rows} onPick={pick} />
                 </ChartCard>
-                <ChartCard title="Concentration" sub="How much sits in each sector, against a 25% limit for any one sector.">
+                <ChartCard
+                  title="Concentration"
+                  help={
+                    <>
+                      <p>How much of the money sits in each sector. More than 25% in one sector is flagged as concentrated (ETFs are not flagged). Past the 7 biggest, sectors are grouped as one bar.</p>
+                      <p>Positions under 2% each barely move the total either way; folding them into fewer, larger holdings makes each one count.</p>
+                    </>
+                  }
+                >
                   <SectorBars rows={data.rows} />
                 </ChartCard>
                 <ChartCard
                   className="lg:col-span-2"
                   title="Price trend and business"
-                  sub="Each stock by its price trend (rows) and its latest quarter against a year earlier (columns). Dot size is its share of the money."
-                  foot="Price rows are tested: weak or deep stocks trailed the average stock over the next 6 months in 2012–24 and 2025–26. Business columns are not tested, so read them as context. ETFs are left out."
+                  help={
+                    <>
+                      <p>Each stock sits by its price trend (rows) and its latest quarter against the same quarter a year earlier (columns). Dot size is its share of the money. ETFs are left out.</p>
+                      <p>
+                        <Tested yes />
+                        Weak or deep stocks (falling, with RS under 30 or 30%+ below the 52-week high) trailed the average stock over the next 6 months in 2012–24 and in 2025–26.
+                      </p>
+                      <p>
+                        <Tested yes={false} />
+                        Whether a growing business makes a weak stock worth holding has not been checked on past data, so read the columns as context.
+                      </p>
+                    </>
+                  }
                 >
                   <TrendMatrix rows={data.rows} onPick={pick} />
                 </ChartCard>
-                <ChartCard title="Gain and loss" sub="Each holding since you bought it. Tap one to open it in the list.">
+                <ChartCard title="Gain and loss" help={<p>Each holding&apos;s gain or loss since you bought it, in ₹ or %. The 5 biggest each way show first. Tap one to open it in the list.</p>}>
                   <GainBars rows={data.rows} onPick={pick} />
                 </ChartCard>
               </div>
-              <h2 className="mt-4 px-1 text-base font-medium text-ink">All holdings</h2>
               <HoldingsList
                 history={history}
                 focus={focus}

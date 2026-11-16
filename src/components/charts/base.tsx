@@ -7,6 +7,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { int } from "@/lib/format";
+import { Help } from "../Help";
 
 export function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] {
   const ref = useRef<T>(null);
@@ -82,33 +83,30 @@ export const dateLabel = (d: string, year = false) =>
 /** A token mixed into the raised surface: the fill for tiles and cells (`pct` of the colour). */
 export const tint = (token: string, pct: number) => `color-mix(in oklab, var(${token}) ${pct}%, var(--surface-2))`;
 
-/** Chart card: title, an optional control on the right, the chart, and a footnote. */
+/** Chart card: title with a "?" for the explanation, an optional control on the right, and the chart. */
 export function ChartCard({
   title,
-  sub,
+  help,
   control,
   children,
-  foot,
   className = "",
 }: {
   title: string;
-  sub?: React.ReactNode;
+  help?: React.ReactNode;
   control?: React.ReactNode;
   children: React.ReactNode;
-  foot?: React.ReactNode;
   className?: string;
 }) {
   return (
     <section className={`flex min-w-0 flex-col rounded-2xl border border-line bg-surface ${className}`}>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-4 pt-4 sm:px-5 sm:pt-5">
-        <div className="min-w-0">
-          <h2 className="text-sm font-medium text-ink">{title}</h2>
-          {sub && <p className="mt-0.5 text-xs leading-relaxed text-ink-3">{sub}</p>}
-        </div>
+        <h2 className="flex min-w-0 items-center gap-2 text-sm font-medium text-ink">
+          {title}
+          {help && <Help title={title}>{help}</Help>}
+        </h2>
         {control}
       </div>
       <div className="min-w-0 flex-1 px-4 pt-3 pb-4 sm:px-5">{children}</div>
-      {foot && <p className="border-t border-line px-4 py-2.5 text-[11px] leading-relaxed text-ink-3 sm:px-5">{foot}</p>}
     </section>
   );
 }

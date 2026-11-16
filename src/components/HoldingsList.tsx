@@ -15,6 +15,7 @@ import { int, price } from "@/lib/format";
 import { Change, RsMeter, shortDay } from "./Badges";
 import { PlanLines } from "./PlanLines";
 import { Select } from "./Select";
+import { Help, Tested } from "./Help";
 import { displayName } from "./names";
 import { changeOver, PriceCostChart, QuarterBars, Sparkline } from "./charts/StockCharts";
 import type { HoldingsHistory } from "@/engine/portfolio";
@@ -366,7 +367,25 @@ function Trend({ r }: { r: HoldingRow }) {
     );
   }
   return (
-    <Panel title="Price trend" aside={r.weak || r.deep ? <TestedTag tested /> : undefined}>
+    <Panel
+      title="Price trend"
+      aside={
+        <Help title="Price trend">
+          <p>
+            The stage comes from the 150-day average: basing (1), uptrend (2), topping (3), falling (4). Relative strength (RS) ranks the stock&apos;s
+            6-month move against every liquid NSE stock, 1–99.
+          </p>
+          <p>
+            <Tested yes />
+            <strong className="font-medium text-ink">Weak</strong> = falling with RS under 30. {TESTED_WEAK}
+          </p>
+          <p>
+            <Tested yes />
+            <strong className="font-medium text-ink">Deep</strong> = falling and 30%+ below the 52-week high. {TESTED_DEEP}
+          </p>
+        </Help>
+      }
+    >
       <Facts
         items={[
           [
@@ -385,8 +404,9 @@ function Trend({ r }: { r: HoldingRow }) {
         ]}
       />
       {(r.weak || r.deep) && (
-        <p className="mt-3 text-xs leading-relaxed text-ink-2">
-          <span className="text-down">{r.weak && r.deep ? "Weak and deep below its high." : r.weak ? "Weak: falling, RS under 30." : "Deep: falling, 30%+ below its high."}</span> {r.deep ? TESTED_DEEP : TESTED_WEAK}
+        <p className="mt-3 flex items-center gap-2 text-xs text-down">
+          {r.weak && r.deep ? "Weak, and deep below its high" : r.weak ? "Weak: falling, RS under 30" : "Deep: falling, 30%+ below its high"}
+          <TestedTag tested />
         </p>
       )}
       {(r.resultsDrop || r.redFlag) && (
@@ -410,7 +430,25 @@ function Business({ r }: { r: HoldingRow }) {
   const reading = bizOf(r);
   const rev = b.revenueKind === "interest" ? "Interest" : b.revenueKind === "income" ? "Income" : "Revenue";
   return (
-    <Panel title="Business" aside={<TestedTag tested={false} />}>
+    <Panel
+      title="Business"
+      aside={
+        <>
+          <TestedTag tested={false} />
+          <Help title="Business">
+            <p>
+              {b.basis} results from NSE filings; the latest was filed {shortDay(b.latestFiled)} {b.latestFiled.slice(0, 4)}. Each quarter is compared with the same quarter a year
+              earlier.
+            </p>
+            <p>Growing = revenue and net profit both up 10% or more, with a profit. Shrinking = revenue down, profit down 10% or more, or a loss. Mixed = anything between.</p>
+            <p>
+              <Tested yes={false} />
+              {UNTESTED_BIZ}
+            </p>
+          </Help>
+        </>
+      }
+    >
       <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
         <Dot reading={reading}>{b.trend && b.streak > 1 ? <span className="text-xs text-ink-3">· {b.streak} quarters in a row</span> : null}</Dot>
         {(b.ttmRevenueYoY !== null || b.ttmProfitYoY !== null) && (
@@ -462,9 +500,6 @@ function Business({ r }: { r: HoldingRow }) {
         </table>
       </div>
       </details>
-      <p className="mt-2 text-[11px] leading-relaxed text-ink-3">
-        {b.basis} results from NSE filings, latest filed {shortDay(b.latestFiled)} {b.latestFiled.slice(0, 4)}. {BIZ_RULE} Not tested: {UNTESTED_BIZ}
-      </p>
     </Panel>
   );
 }
@@ -538,7 +573,31 @@ export function HoldingsList({ rows, toolbar, history, focus }: { rows: HoldingR
   const undated = rows.filter((r) => !r.etf && r.lots.length > 0 && r.lots.every((l) => !l.date)).length;
 
   return (
-    <section aria-label="Your holdings" className="flex flex-col gap-3">
+    <section aria-labelledby="all-h" className="flex flex-col gap-3">
+      <h2 id="all-h" className="mt-4 flex items-center gap-2 px-1 text-base font-medium text-ink">
+        All holdings
+        <Help title="All holdings">
+          <p>
+            Tap a holding for its buy plan, its price against what you paid, its trend and its last quarters. What you paid doesn&apos;t change where a stock goes next, so
+            the question for each one is whether you would buy it today. Nothing here is a buy or sell call: you decide and place every order.
+          </p>
+          <p>The chips filter the list:</p>
+          <ul className="flex flex-col gap-2">
+            {CHECKS.filter((c) => c.key !== "all").map((c) => (
+              <li key={c.key}>
+                <strong className="font-medium text-ink">{c.label}.</strong> {c.tested !== undefined && <Tested yes={c.tested} />}
+                {c.note}
+              </li>
+            ))}
+          </ul>
+          {undated > 0 && (
+            <p>
+              {undated} {undated === 1 ? "holding was" : "holdings were"} bought before tracking began, so {undated === 1 ? "it has" : "they have"} no stop or sell date yet.
+              Buys from now on get them automatically.
+            </p>
+          )}
+        </Help>
+      </h2>
       <div className="flex flex-col gap-2.5">
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Show">
           {CHECKS.filter((c) => c.key === "all" || counts[c.key].n > 0).map((c) => {
@@ -564,10 +623,6 @@ export function HoldingsList({ rows, toolbar, history, focus }: { rows: HoldingR
             );
           })}
         </div>
-        <p className="flex flex-wrap items-baseline gap-x-2 px-1 text-xs leading-relaxed text-ink-3">
-          {active.tested !== undefined && <TestedTag tested={active.tested} />}
-          <span className="min-w-0 flex-1">{active.note}</span>
-        </p>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -605,12 +660,6 @@ export function HoldingsList({ rows, toolbar, history, focus }: { rows: HoldingR
           <p className="px-5 py-6 text-sm text-ink-3">No holding matches this check.</p>
         )}
       </div>
-      {undated > 0 && (
-        <p className="px-1 text-xs leading-relaxed text-ink-3">
-          {undated} {undated === 1 ? "holding was" : "holdings were"} bought before tracking began, so {undated === 1 ? "it has" : "they have"} no stop or sell date yet. Buys
-          from now on get them automatically.
-        </p>
-      )}
     </section>
   );
 }
